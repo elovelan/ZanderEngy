@@ -290,8 +290,8 @@ A **Project** is a scoped unit of work with a lifecycle. It represents a single 
 A project contains:
 
 - **Milestones** — Large chunks of work within the project.
-- **Tasks** — Concrete work items, organized under milestones.
-- **Task Groups** — Tasks sharing a `groupId` ship together as one PR, share a worktree/branch.
+- **Tasks** — Concrete work items, organized under milestones. Each task has a type: `ai` (executed by an agent session) or `human` (a manual action tracked as a checkbox). The planning agent determines the type at creation time based on the nature of the work.
+- **Task Groups** — AI tasks sharing a `groupId` ship together as one PR, share a worktree/branch. Human tasks can belong to a group for dependency tracking but don't participate in the agent execution pipeline.
 - **Plan content** — The implementation plan created during the planning phase. Stored as structured data in SQLite, not as separate files.
 - **Agent sessions** — Persistent, resumable sessions tied to task groups (see below).
 - **Project-scoped memory** — Decisions, context, and learnings specific to this effort. Also in SQLite. Valuable memories get promoted to file-based workspace memory on completion.
@@ -377,6 +377,18 @@ A milestone is complete when all its task groups are in Merged or Cleaned Up sta
 
 Milestone completion drives the dashboard progress indicators.
 
+### Project Views
+
+A project's tasks can be viewed through multiple lenses, each useful at different stages:
+
+**Dependency graph (primary view during execution).** A flowchart-style visualization showing tasks as nodes, dependencies as edges, and task groups as visual clusters. This is the execution monitoring view — it shows the critical path, what's running in parallel, what's blocked, and where the bottleneck is. Nodes are color-coded by status and distinguished by type (AI tasks vs human tasks render differently). Clicking a node opens task details in a side panel: for AI tasks, this includes the agent session's execution state, logs, and produced diffs. For human tasks, it's a description and a completion checkbox. This view pairs directly with notifications — "agent blocked on T150" links you to the graph with T150 highlighted.
+
+**Eisenhower matrix (primary view for human tasks and personal prioritization).** The classic urgent/important quadrant grid. This view is most useful for two things: prioritizing human tasks within a project ("get API keys" is urgent-important, "update the README" is not-urgent-not-important) and managing unscoped workspace tasks (your personal todo list). During planning, it's also useful as a gut-check on the AI's prioritization — are we building the urgent-important stuff first?
+
+**Swimlane board (milestone progress overview).** Lanes are milestones, cards are task groups. Each card shows the group's status (Planned → Active → Review → Merged → Cleaned Up) and its tasks. This is a compact progress view — at a glance you see which milestones are moving, which are stalled, and how much work remains in each. Less detailed than the dependency graph but easier to scan for overall project health.
+
+All three views show the same underlying data from SQLite. The dependency graph is the default when you open a project. The others are tabs or toggles within the project view.
+
 ---
 
 ## Storage Architecture
@@ -443,7 +455,7 @@ SQLite holds **execution state** — things that are transient by nature. Tasks,
 
 **Task Groups** — Group name, milestone reference, status (Planned → Active → Review → Merged → Cleaned Up), repos list.
 
-**Tasks** — Title, description, status, milestone reference, group reference, dependencies, importance/urgency. Project reference is nullable — null means unscoped workspace task.
+**Tasks** — Title, description, status, type (`ai` or `human`), milestone reference, group reference, dependencies, importance/urgency. Project reference is nullable — null means unscoped workspace task. The planning agent sets the type at creation: pure execution work is `ai`, anything requiring human judgment or action is `human`.
 
 **Agent Sessions** — Session ID, task group reference, session state/context, status (active/inactive/discarded). The persistent context that enables feedback routing from the diff viewer.
 
@@ -733,7 +745,7 @@ Progress is derived from milestones. A milestone is complete when all its task g
 
 At a glance: what's in flight, what's stalled, what's done. No "Archived: 147 projects" clutter — completed projects are gone. Their value lives in the system docs and memories. WIP limits become visible — if three projects are active and none are progressing, that's a signal to focus.
 
-Clicking into any project from the dashboard opens the project view with the terminal already contextualized — ready to work.
+Clicking into any project from the dashboard opens the dependency graph view with the terminal already contextualized — ready to work. Unscoped tasks are accessible from the dashboard via the Eisenhower matrix — your personal prioritization board for ambient work that doesn't belong to a project.
 
 ---
 
