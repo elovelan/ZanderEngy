@@ -99,6 +99,46 @@ The main content area changes based on where you are. The terminal persists. Con
 
 The diff viewer occupies the main content area when reviewing changes. The terminal stays open beside it for feedback that needs more nuance than a line comment — "rethink this whole approach" or "can you explain why you did it this way?"
 
+### The Content Editor
+
+Specs, system docs, shared docs, and memories all need to be viewable and editable. The content editor is a rich markdown editor (block-based, like BlockNote) that renders content in place and supports **inline comments**.
+
+Comments are the review mechanism for non-code content. When a spec moves to Ready and needs review, you (or an agent) read it in the content editor and leave comments on specific sections. These comments are **routable to the active terminal session** — just like diff viewer comments route to agent sessions. If you're iterating on a spec with a Claude Code skill, your comment on paragraph 3 arrives in the same terminal session that drafted it. The agent sees your feedback in context and can revise.
+
+This is the same interface for all document types:
+
+- **Specs:** Draft, review, iterate with comments routed to the spec-writing skill in the terminal.
+- **System docs:** View the current truth, edit directly, or review proposed updates (which also appear in the diff viewer for structural changes).
+- **Shared docs:** Edit conventions, style guides, org knowledge.
+- **Memories:** Browse and edit promoted memories.
+
+The content editor occupies the main content area when you click on any document in the spec browser, system doc browser, or memory browser.
+
+### Notifications
+
+Engy is designed for async AI workflows — you kick off task groups and come back later. Notifications are how the app tells you something needs attention.
+
+Notification triggers:
+
+- **Agent needs input.** A task group's agent session hit a decision point or blocker and needs human guidance. This is the most urgent notification — the agent is stalled until you respond.
+- **Task group ready for review.** An agent session completed all tasks in a group. Diffs are in the diff viewer awaiting your review.
+- **Milestone completed.** All task groups in a milestone have been merged. Progress update.
+- **Project ready for completion.** All milestones done. Memory distillation and system doc update review are pending.
+- **System doc update proposed.** A completion workflow has generated diffs for system docs. Needs review in the diff viewer.
+- **Validation warnings.** `engy validate` found issues — broken links, schema violations, lifecycle inconsistencies.
+
+Notifications appear in-app (badge/indicator, notification panel). The notification tells you what happened and links you directly to the relevant view — clicking "Task group ready for review" opens the diff viewer for that group with the terminal contextualized to the agent session.
+
+### Global Search
+
+Search is powered by ChromaDB (vector search across all content) and SQLite (structured queries over execution state). It surfaces in two ways:
+
+**UI search.** A global search bar available on every page. Type a query and get results across all content types — system docs, specs, memories, active tasks, plan content. Results are grouped by type and ranked by relevance. Clicking a result opens it in the appropriate view (content editor for docs, project view for tasks, diff viewer for pending reviews).
+
+**Terminal search.** The AI in the terminal can search via Claude Code skills and MCP tools. "What do we know about rate limiting?" triggers a search across memories, system docs, and active project content, with results synthesized in the terminal. This is more conversational — the agent interprets results, connects dots, and answers follow-up questions.
+
+Both use the same underlying ChromaDB index + SQLite queries. The UI search is for browsing and navigation. The terminal search is for AI-assisted exploration and context gathering.
+
 ---
 
 ## Core Concepts
@@ -218,7 +258,7 @@ Draft → Ready → Approved → Active (project exists) → Completed
 ```
 
 - **Draft:** Under active research and writing via the terminal. Mutable.
-- **Ready:** Author considers it complete, ready for review.
+- **Ready:** Author considers it complete, ready for review. Reviewers (human or AI) read the spec in the content editor and leave inline comments, which route to the terminal session for revision.
 - **Approved:** Reviewed and approved. Ready to become a project.
 - **Active:** A project has been created from this spec. The spec freezes — it becomes a historical record of intent. Changes to scope during execution are captured in plan content within the project, not by editing the spec.
 - **Completed:** The project completed and was deleted. The spec remains as the permanent record of what was intended. This is one of the few artifacts that survives a project — the others being promoted memories and system doc updates.
@@ -422,6 +462,33 @@ ChromaDB indexes all text content across both layers — file-based system docs,
 - **Cross-content discovery:** Find connections between a spec and existing memories, or between a task description and system doc content.
 
 Note: since projects are deleted on completion, ChromaDB does *not* retain historical task data. The lasting knowledge is captured in promoted memories and system docs, which are always indexed. The execution detail is gone — by design.
+
+### MCP Server (AI Access Layer)
+
+The AI terminal (Claude Code) accesses Engy's data through an **MCP server**. This is the boundary between the AI and the application — it defines what the AI can read and how it interacts with execution state.
+
+**Database operations (read/write via MCP):** All SQLite interactions go through MCP tools. Creating projects, updating task status, writing fleeting memories, querying tasks, searching memories — the AI does all of this via structured MCP tool calls. This gives us a clean API boundary, validation, and audit trail for every AI action against execution state.
+
+**Document operations (read-only via MCP, write via filesystem):** System docs, specs, shared docs, and memories are readable through MCP tools (the AI can call `getDocument` to read a spec's content, for example). But when the AI needs to *edit* these files, it writes directly to the filesystem — no MCP intermediary. This is more efficient (no serialization overhead for file writes) and leverages Claude Code's native file manipulation capabilities.
+
+The split mirrors the storage architecture:
+
+| Content | Read | Write |
+|---------|------|-------|
+| SQLite (projects, tasks, memories) | MCP tools | MCP tools |
+| Files (system docs, specs, shared docs) | MCP tools | Direct filesystem |
+| ChromaDB (search) | MCP tools | Automatic (reindex) |
+
+**Why this split:** Database writes need validation, transactions, and coordination (e.g., creating a task group with 5 tasks atomically). MCP tools provide this. File writes are simpler — write the file, done. Having the AI go through MCP to write a markdown file adds latency and complexity for no benefit. Claude Code already knows how to write files well.
+
+MCP tools include:
+
+- **Project management:** `createProject`, `getProject`, `updateProjectStatus`, `deleteProject`
+- **Task management:** `createTask`, `updateTask`, `getTasks`, `getTasksByGroup`
+- **Memory:** `createFleetingMemory`, `promoteMemory`, `searchMemories`
+- **Planning:** `createMilestone`, `createTaskGroup`, `getPlan`
+- **Search:** `search` (queries ChromaDB), `getDocument` (reads file content)
+- **Workspace:** `getWorkspaceConfig`, `getRepos`
 
 ---
 
