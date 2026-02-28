@@ -68,11 +68,13 @@ The terminal is always available. You're never forced into a form or wizard. The
 
 The diff viewer is Engy's review and commit interface. **All code changes flow through it.** It replaces the workflow of switching to a terminal for `git diff`, switching to GitHub for PR review, switching back for revisions.
 
-The diff viewer shows:
+The diff viewer is scoped per task group — each group has its own worktree/branch, and you review one group at a time. If a project has multiple groups with diffs, you select which group to view (hidden if only one group).
 
-- File-level diffs with syntax highlighting
-- Line-level commenting
-- Commit controls (stage, commit, push)
+The diff viewer has three view modes:
+
+- **Latest Changes** (default) — what the agent just produced, pending review. File-level diffs with syntax highlighting, line-level commenting, approve/request changes actions.
+- **Commit History** — list of commits on this group's branch. Click to see individual commit diffs. Useful for understanding how the agent arrived at the current state after multiple review rounds.
+- **Branch Diff** — all accumulated changes on this group's branch vs origin main/master (`git diff main...HEAD`). The "what will this PR look like" view. Natural place for a final review before PR creation.
 
 **The critical feature: feedback routing.** Every diff is produced by an agent session working on a specific task group. When you comment on a line in the diff viewer, that feedback goes directly back to the agent session that made the change — with full context of which file, which line, and what you said. The agent can then revise its work in the same worktree, and you see the updated diff.
 
@@ -112,6 +114,14 @@ You approve diffs → agent auto-commits (contextual message)
 The diff viewer is used for **all** commits, not just agent-produced code. If you make manual changes in a worktree, they show up in the diff viewer too. It's the single commit interface.
 
 **Diff viewer for system doc updates:** When a project completes and system doc updates are proposed, they appear in the diff viewer as diffs against the current system doc files. You review them the same way you review code — comment, request changes, approve. Same interface, same muscle memory.
+
+### Document Feedback
+
+Not all agent output is code diffs. Agents also produce documents — spec drafts, context files from research tasks, plan content. These are reviewed in the content editor, not the diff viewer, and need their own feedback mechanism.
+
+The content editor supports **inline comments** on any document. When reviewing an agent-produced document, you leave comments on specific sections (select text → add comment). When you're done, a **"Send Feedback"** action in the top-right action bar collects all pending comments into a structured markdown payload — with section references and line context — and routes it to the agent session that produced the document. The agent receives the feedback, revises, and the updated document appears. Comments clear after sending.
+
+This is the document equivalent of the diff viewer's line-level commenting. The key difference: diff viewer comments route immediately (one at a time, as you review lines), while document comments are batched and sent explicitly. This matches the different review patterns — code review is incremental, document review is holistic ("read the whole thing, then give feedback").
 
 ### How They Work Together
 
@@ -188,17 +198,49 @@ Both use the same underlying ChromaDB index + SQLite queries. The UI search is f
 
 A **Workspace** is a permanent entity representing an ongoing concern — a codebase, a team, a product. It defines the topology (which repos), holds shared knowledge, and contains ephemeral projects.
 
+**Workspace creation.** Created from the Home page. You give it a name and point it at one or more repo directories. Repos can be full repositories or subdirectories within a monorepo (e.g. `monorepo/packages/auth`, `monorepo/packages/api`) — you only scope the parts you care about. The workspace's `.engy/` directory is created in the root of the primary repo (or a designated location for multi-repo setups). A Default project is auto-created along with the workspace.
+
 The workspace itself acts as the template for project creation — no separate template entity needed. When you create a project, it inherits the workspace's repos, conventions, shared docs, and memory automatically.
 
 A workspace owns:
 
-- **Repos** — The git repositories in scope (multiple allowed). These are defaults, not a hard boundary — projects can reference repos outside the workspace when needed.
+- **Repos** — The git repositories or subdirectories in scope (multiple allowed). These are defaults, not a hard boundary — projects can reference repos outside the workspace when needed. Managed in workspace settings.
 - **System docs** — The canonical, always-current description of what the system IS right now. Updated through a review workflow when projects complete.
 - **Shared docs** — Coding conventions, style guides, runbooks. Organizational knowledge true across all projects.
 - **Specs** — Pre-project thinking spaces with supporting context. The input that drives projects.
 - **Memory** — Workspace-level persistent knowledge (patterns, learnings, conventions).
 - **Default project** — A permanent project for ambient work: quick bugs, one-off tasks, workspace-level work. Auto-created with the workspace, can't be deleted or completed. See below.
 - **Projects** — Ephemeral execution scopes (see below).
+
+### Settings (hierarchical, context-aware)
+
+Settings follow the navigation hierarchy: **global settings** (Home page) and **workspace settings** (workspace page). No project-level settings — projects inherit from their workspace.
+
+**Global settings** (accessible from the Home page header):
+
+- Engy data directory (where `.engy/` lives by default)
+- Default AI model preferences
+- Notification preferences (global defaults)
+- Appearance (theme, layout defaults)
+
+**Workspace settings** (accessible from the workspace page header):
+
+- Repo directories — add/remove repos and subdirectories. Supports monorepo subdirectory scoping.
+- Agent configuration — model preferences, tool access, MCP server configuration for async agents
+- Notification overrides — workspace-specific notification preferences
+- Terminal defaults — default context, startup behavior
+
+Settings are context-aware: the settings icon in the header opens the appropriate settings page based on where you are (Home → global, workspace → workspace settings).
+
+### IDE Integration
+
+Engy is not an IDE — it's the orchestration and review layer. Engineers use their own editor (VS Code, etc.) for manual code editing. Since task groups operate in git worktrees, the worktree paths are standard filesystem locations that any editor can open.
+
+**"Open in VS Code" button.** Appears anywhere a file path or worktree is referenced: diff viewer file tree, task detail (worktree path), project overview (repo paths). A small icon button that opens the path in VS Code (via the `code` CLI). This bridges the gap between Engy's review/orchestration role and hands-on editing — you spot something in a diff, click to open it in your editor, make a manual fix, and the change shows up in Engy's diff viewer.
+
+### Single User (extensible to multi-user)
+
+Engy is single-user for now. One user, one machine, local SQLite, local filesystem. The architecture should be designed for easy extension to multi-user: Engy hosted centrally, shared workspaces, collaborative doc editing, role-based access (who can approve diffs, who can plan). But multi-user is not in scope for the initial implementation.
 
 ### Default Project (the workspace scratchpad)
 
@@ -350,7 +392,7 @@ Spec status is tracked in frontmatter within `spec.md` itself, keeping it self-c
 When a spec is approved and the user triggers project creation (via the terminal or a UI action):
 
 1. **A project record is created in SQLite** using the spec's slug as its identifier. The spec `auth-revamp` becomes project `auth-revamp`. The project references the spec by its directory path — no explicit slug field needed, since the naming convention IS the link.
-2. **Planning begins.** A Claude Code planning skill decomposes the spec into milestones, task groups, and tasks. This is iterative — the skill proposes a decomposition in the terminal, you review and adjust, the skill refines. All of this lives in SQLite. The project view in the main content area shows the plan taking shape as you iterate.
+2. **Planning begins.** A Claude Code planning skill decomposes the spec into milestones with rough scope descriptions. This is iterative — the skill proposes a decomposition in the terminal, you review and adjust, the skill refines. All of this lives in SQLite. The project view in the main content area shows the plan taking shape as you iterate. At this stage, only milestones are defined — groups and tasks come later (see Progressive Planning below).
 3. **The spec's status updates** to Active (written to `spec.md` frontmatter).
 
 **One spec, one project** is the default. If a spec is too large for one project, the right move is to split the spec first (into `auth-revamp-phase-1/` and `auth-revamp-phase-2/`), then create a project from each. This keeps the 1:1 mapping clean and specs appropriately scoped.
@@ -361,10 +403,10 @@ A **Project** is a scoped unit of work with a lifecycle. It represents a single 
 
 A project contains:
 
-- **Milestones** — Large chunks of work within the project.
-- **Tasks** — Concrete work items, organized under milestones. Each task has a type: `ai` (executed by an agent session) or `human` (a manual action tracked as a checkbox). The planning agent determines the type at creation time based on the nature of the work.
+- **Milestones** — Large chunks of work within the project. Defined during project-level planning with rough scope; detailed decomposition happens when the milestone enters its own planning loop.
+- **Tasks** — Concrete work items, organized under milestones. Each task has a type: `ai` (executed by an agent session) or `human` (a manual action tracked as a checkbox). The planning agent determines the type at creation time based on the nature of the work. If a task turns out to be more complex than expected, it can optionally go through its own plan loop — which replaces the original task with the finer-grained tasks produced by the planning (see Progressive Planning).
 - **Task Groups** — AI tasks sharing a `groupId` ship together as one PR, share a worktree/branch. Human tasks can belong to a group for dependency tracking but don't participate in the agent execution pipeline.
-- **Plan content** — The implementation plan created during the planning phase. Stored as structured data in SQLite, not as separate files.
+- **Plan content** — The implementation plan created during planning phases. Stored as structured data in SQLite, not as separate files.
 - **Agent sessions** — Persistent, resumable sessions tied to task groups (see below).
 - **Project-scoped memory** — Decisions, context, and learnings specific to this effort. Also in SQLite. Valuable memories get promoted to file-based workspace memory on completion.
 
@@ -374,8 +416,8 @@ A project contains:
 Planning → Active → Completing → Deleted
 ```
 
-- **Planning:** Milestones, groups, and tasks are being defined via the terminal. Nothing is executing yet.
-- **Active:** Task groups are being picked up and executed. Worktrees are created lazily. Diffs flow to the diff viewer.
+- **Planning:** Milestones are being defined via the terminal. This is the project-level plan — rough scope, not detailed tasks. Nothing is executing yet.
+- **Active:** Milestones are being planned and executed progressively (see Progressive Planning). Worktrees are created lazily. Diffs flow to the diff viewer.
 - **Completing:** All tasks are done or explicitly dropped. Completion process is running: memory distillation, system doc update proposal (in diff viewer), worktree cleanup.
 - **Deleted:** Gone. The project's valuable outputs — promoted memories (now files in `.engy/memory/`), system doc updates (now in `.engy/system/`), and merged PRs (now in git) — survive. The project itself, its tasks, its execution history, are discarded. The spec that started it remains in `.engy/specs/` as the permanent record of intent.
 
@@ -412,6 +454,26 @@ Task group cleaned up → session data discarded
 **Why sessions matter:** Without persistent sessions, feedback is disconnected. You'd comment on a diff, and a *new* agent instance would try to interpret your feedback without the context of why it made the original decision. With persistent sessions, the agent that receives your "this should use the cached value" comment is the same agent that chose not to use the cached value — it knows *why* it made that choice and can either explain its reasoning or make an informed revision.
 
 Sessions are stored in SQLite as part of the project. They're deleted when the project is deleted — they're execution state, not knowledge.
+
+### Cost Visibility
+
+Agent sessions consume API tokens. Claude Code CLI (the terminal) tracks its own token usage natively. For async agent sessions (Mastra), Engy tracks token usage per session, per task group, and per project. This surfaces in the execution log (per-task token count), the project overview (project-level aggregate), and workspace settings (historical usage). The goal is awareness, not gatekeeping — engineers should know what things cost without needing to dig through API dashboards.
+
+### Error Handling
+
+Beyond agent-level failures (handled by the agent session's retry logic and the group controls), Engy handles infrastructure-level errors:
+
+- **Network failures** — Agent sessions retry with backoff. If persistent, the session pauses and notifies the user. No silent failures.
+- **API rate limits** — Sessions queue and wait. Multiple concurrent sessions respect shared rate limits via Mastra's orchestration.
+- **Git conflicts between parallel groups** — Detected at commit time. The conflicting group stays in Review. Conflicts are resolved in the worktree (via terminal or VS Code), then re-committed.
+- **Repo access issues** — Detected at worktree creation. Group fails to start with a clear error. User fixes access, restarts the group.
+- **Database issues** — WAL mode for concurrent access. Backup strategy for recovery (see Storage Architecture).
+
+The principle: every error either auto-recovers (with visibility in the execution log) or surfaces as a notification with clear next steps. No silent failures, no ambiguous states.
+
+### Task Templates (via Claude Skills)
+
+Repetitive workflows (e.g. "new microservice," "add API endpoint," "create React component") are handled through Claude Code skills, not a separate template system. A skill encapsulates the knowledge of how to create a spec, plan a project, or scaffold code for a particular pattern. When you say "create a new microservice spec," the spec-writing skill knows the structure, the questions to ask, and the context to pull. This keeps templates dynamic (skills improve over time, pull from system docs and memory) rather than static.
 
 ### Task Groups (the shippable unit)
 
@@ -454,15 +516,36 @@ Planned → Active → Review → PR Open → Merged → Cleaned Up
 
 **Cross-repo groups:** A group that touches multiple repos creates one worktree per repo and produces diffs in each. The diff viewer shows all diffs for the group together. The group isn't "done" until all repos are committed and pushed. Commits are coordinated — they should land together.
 
-**Creation:** Task groups are created during the planning phase via the terminal. The planning skill proposes the grouping based on which tasks are logically coupled (shared branch, coherent PR). The user can adjust groupings in the terminal or via the project view UI. Groups can be reorganized before a group becomes Active — once work starts, the group is locked.
+**Creation:** Task groups are created during milestone planning via the terminal. The planning skill proposes the grouping based on which tasks are logically coupled (shared branch, coherent PR). The user can adjust groupings in the terminal or via the project view UI. Groups can be reorganized before a group becomes Active — once work starts, the group is locked. If a task within a group is re-planned (task-level planning), the new tasks replace the original within the same group.
 
 ### Milestones
 
 A **Milestone** is an organizational grouping of task groups within a project. It represents a meaningful checkpoint — "backend auth is done," "frontend is wired up."
 
-A milestone is complete when all its task groups are in Merged or Cleaned Up state. Milestones can run in parallel when they're independent (no cross-milestone task dependencies).
+**Milestone lifecycle:**
 
-Milestone completion drives the dashboard progress indicators.
+```text
+Planned → Planning → Active → Complete
+```
+
+- **Planned:** Milestone exists with a rough scope description from project-level planning. No groups or tasks yet.
+- **Planning:** The milestone is being decomposed into groups and tasks via its own planning loop (same skill, same terminal interaction as project-level planning). The planning agent has context from earlier milestones' outcomes.
+- **Active:** Groups and tasks are defined. Task groups are executing.
+- **Complete:** All task groups in the milestone are in Merged or Cleaned Up state.
+
+Milestones can run in parallel when they're independent (no cross-milestone task dependencies). Milestone completion drives the dashboard progress indicators.
+
+### Progressive Planning
+
+Planning is not a single upfront phase — it's progressive. Each level of the hierarchy has its own plan loop, and detail is added just-in-time:
+
+1. **Project planning** — Spec → milestones with rough scope. Defines the major chunks of work and their dependencies. No tasks yet.
+2. **Milestone planning** — When a milestone is ready to start, it enters its own plan loop. The planning skill decomposes it into groups and tasks. This is when detailed work items are defined — with full context from any earlier milestones that have already completed.
+3. **Task planning** (optional) — If a task turns out to be more complex than expected during execution, the agent or user can trigger a plan loop on it. The plan loop replaces the original task with the finer-grained tasks it produces — no sub-task hierarchy, the original task just dissolves into its decomposition. New tasks stay within the same group.
+
+All three levels use the same planning skill, same terminal interaction, same iterate-and-refine flow. The only difference is the input scope and what gets produced.
+
+**Why progressive:** You don't have enough context to plan Milestone 3's tasks until Milestones 1 and 2 are done. Code has changed, learnings have accumulated, the spec might have evolved. Detailed upfront planning for 50+ tasks is waste — half will change. Plan just-in-time, with maximum context.
 
 ### Project Views
 
@@ -486,7 +569,7 @@ The fundamental split: **things that accumulate lasting value are files (git-tra
 
 ```text
 FILES (.engy/, git-tracked — permanent knowledge)
-  ├── workspace.yaml          # repos, config
+  ├── workspace.yaml          # repos (incl. subdirs), settings, config
   ├── system/                 # what the system IS right now
   ├── specs/                  # what was proposed (frozen after project creation)
   ├── docs/                   # conventions, guides, org knowledge
@@ -538,7 +621,7 @@ SQLite holds **execution state** — things that are transient by nature. Tasks,
 
 **Projects** — Name/slug, status, timestamps, spec reference, `isDefault` flag. Regular projects are created when a spec is approved and deleted when completion finishes. The Default project (`isDefault: true`) is auto-created with the workspace and is permanent — it can't be deleted or completed.
 
-**Milestones** — Title, project reference, status, ordering.
+**Milestones** — Title, project reference, status (Planned / Planning / Active / Complete), ordering, scope description.
 
 **Task Groups** — Group name, milestone reference, status (Planned / Active / Paused / Stopped / Review / PR Open / Merged / Cleaned Up), repos list.
 
@@ -585,7 +668,7 @@ MCP tools include:
 - **Project management:** `createProject`, `getProject`, `updateProjectStatus`, `deleteProject`
 - **Task management:** `createTask`, `updateTask`, `getTasks`, `getTasksByGroup`, `getTasksBySpec`
 - **Memory:** `createFleetingMemory`, `promoteMemory`, `searchMemories`
-- **Planning:** `createMilestone`, `createTaskGroup`, `getPlan`
+- **Planning:** `createMilestone`, `planMilestone`, `createTaskGroup`, `replanTask`, `getPlan`
 - **Search:** `search` (queries ChromaDB), `getDocument` (reads file content)
 - **Workspace:** `getWorkspaceConfig`, `getRepos`
 
@@ -742,8 +825,13 @@ SPEC READY → REVIEWED → APPROVED
   ↓
 PROJECT (created in SQLite from spec)
   ↓
-  │  Terminal: planning skill decomposes into milestones → groups → tasks
+  │  Terminal: planning skill decomposes into milestones (rough scope)
   │  User reviews/adjusts in terminal + project view
+  ↓
+MILESTONE PLANNING (progressive, per milestone when ready)
+  ↓
+  │  Terminal: planning skill decomposes milestone into groups → tasks
+  │  Optionally: task-level plan loop replaces complex tasks with finer-grained ones
   ↓
 EXECUTE (runner picks up task groups)
   ↓

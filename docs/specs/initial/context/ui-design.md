@@ -41,24 +41,54 @@ The right panel hosts Claude Code CLI in xterm. Key behaviors:
 - **Resizable** — drag the left edge to make the terminal wider/narrower.
 - **Collapsible** — hide the terminal to give the main content full width. Toggle button in the header or a keyboard shortcut.
 
-### Context-Aware Create Button
+### Top-Right Action Bar
 
-A "+" button **pinned to the top-right of the main content area** — always in the same position regardless of the page. It adapts its action to the current view:
+All primary actions live in the **top-right of the main content area** — always the same position regardless of the page. Actions are minimal icon buttons with descriptions on hover. The actions shown adapt to the current context:
+
+**Create actions ("+"):**
 
 - On Docs tab → "New Document" (system doc or shared doc)
 - On Specs tab → "New Spec"
 - On Tasks tab → "New Task" (scoped to current project or spec)
 - On Project overview → "New Task," "New Task Group," "New Milestone"
-- On Diffs tab → no create (diffs are produced by agents)
-- On PRs tab → no create (PRs are produced by agents)
 
-Consistent placement means muscle memory — you always know where to look. The button opens a minimal creation dialog or kicks off a terminal skill, depending on the entity type. Simple entities (tasks) can use a quick inline form. Complex entities (specs) should route to the terminal for the spec-writing skill.
+**Document feedback ("Send Feedback" icon):**
+
+- Appears on the content editor when there are pending inline comments on an agent-produced document (spec drafts, context files). Clicking collects all comments into a structured markdown payload (with section references and line context) and routes it to the agent session that produced the document. Comments clear after sending. The agent receives feedback like:
+
+```markdown
+## Feedback on auth-revamp/spec.md
+
+### On "Token Refresh Strategy" (line 42-58)
+This needs more detail on error handling for expired refresh tokens.
+
+### On "Rate Limiting" (line 73)
+We should use sliding window, not fixed window.
+
+### General
+Missing a section on logout/token revocation.
+```
+
+**Diff actions:**
+
+- On Diffs tab (Latest Changes) → "Approve," "Request Changes"
+- On Diffs tab (Branch Diff, group in Review) → "Create PR"
+
+**Planning actions:**
+
+- On Project overview (milestone ready to plan) → "Plan Milestone"
+
+Consistent placement means muscle memory — you always know where to look. The bar shows only the actions relevant to the current view. Simple entities (tasks) can use a quick inline form. Complex entities (specs, milestones) route to the terminal for the appropriate skill.
 
 ---
 
 ## Page: Home
 
-The entry point. Shows all workspaces and a cross-workspace summary.
+The entry point. Shows all workspaces and a cross-workspace summary. The header has global settings (⚙️), notifications (🔔), and search (🔍).
+
+**"+ New Workspace" button** at the bottom of the workspace list. Clicking opens a creation flow: name the workspace, select one or more repo directories (or subdirectories for monorepo scoping), and Engy initializes the `.engy/` directory and creates the Default project.
+
+**Global settings** (⚙️ in the Home header) — Engy data directory, default AI model, notification defaults, appearance.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
@@ -102,6 +132,8 @@ Workspaces ordered by last interaction. Clicking a workspace navigates to the Wo
 ## Page: Workspace
 
 Entered by clicking a workspace from Home. Top-level tabs organize workspace content.
+
+**Workspace settings** (⚙️ in the workspace header) — repo directories (add/remove, monorepo subdirectory scoping), agent configuration (model, tools, MCP servers), notification overrides, terminal defaults. The settings icon is context-aware: on the Home page it opens global settings, on a workspace page it opens that workspace's settings.
 
 ### Tabs
 
@@ -168,7 +200,7 @@ Left panel: spec tree reflecting the filesystem structure. Vision specs, numbere
 
 Right panel has sub-tabs:
 
-- **Content** — the spec and context files in the content editor (BlockNote-style rich markdown). Clicking a file in the left tree opens it here. Inline comment support for reviews.
+- **Content** — the spec and context files in the content editor (BlockNote-style rich markdown). Clicking a file in the left tree opens it here. Inline comment support for reviews. When comments are pending on an agent-produced document, the "Send Feedback" action appears in the top-right action bar — clicking it collects all comments as structured markdown and routes them to the agent session that drafted the document.
 - **Tasks** — the spec's research tasks. Dependency graph and flat list views. Task status, type (AI/Human), agent session status. Task creation via the create button or terminal.
 
 Spec lifecycle actions appear as buttons or status indicators: "Mark Ready," "Approve," "Create Project →" (which navigates to the new project).
@@ -332,8 +364,8 @@ Project health at a glance.
 │  │  ✅ M1: Backend auth endpoints        3/3 groups merged │    │
 │  │  ✅ M2: Token refresh flow            2/2 groups merged │    │
 │  │  ⏳ M3: Frontend auth hooks           1/3 groups done   │    │
-│  │  ☐  M4: Integration tests            0/2 groups        │    │
-│  │  ☐  M5: Deployment + migration        0/1 groups        │    │
+│  │  📋 M4: Integration tests            [Plan Milestone]   │    │
+│  │  ☐  M5: Deployment + migration        Planned            │    │
 │  └─────────────────────────────────────────────────────────┘    │
 │                                                                 │
 │  Active Agents                                                  │
@@ -355,6 +387,8 @@ Project health at a glance.
 ```
 
 Shows: project status, spec link, overall progress, milestone breakdown, active agent panel (which groups are running, what task, status, controls), recent activity feed scoped to this project.
+
+**Milestone states are visible:** Completed milestones show group counts. Active milestones show progress. Milestones ready for planning show a "Plan Milestone" action (triggers the planning loop in the terminal). Planned milestones (not yet ready) show as dimmed. This makes progressive planning visible — you see which milestones need planning next.
 
 The agent status panel is key — it answers "what's happening right now?" at a glance. Blocked agents surface prominently because they need your input. Group controls (pause/stop/resume) are inline on each running group.
 
@@ -501,25 +535,33 @@ Control semantics:
 
 ### Tab: Diffs
 
-The diff viewer, scoped to this project. Shows pending review changes across all task groups.
+The diff viewer, scoped per task group (each group has its own worktree/branch). Since each task group is an independent worktree, you review one group at a time.
+
+**Group selector:** If the project has multiple groups with diffs, a dropdown at the top lets you pick which group's worktree to view. Shows group name + status (e.g. "Token refresh — Review", "Add endpoints — Active"). If only one group has diffs, the dropdown is hidden — you go straight to the diffs.
+
+**View modes:** A segmented control below the group selector (or at the top if no dropdown) toggles between three views:
+
+- **Latest Changes** (default) — what the agent just produced, pending review. This is the primary review interface.
+- **Commit History** — list of commits on this group's branch. Click a commit to see its individual diff. Useful for understanding how the agent got to the current state, especially after multiple review rounds.
+- **Branch Diff** — all accumulated changes on this group's branch vs origin main/master (`git diff main...HEAD`). The "what will this PR look like" view. Natural place to do a final review before creating a PR — surfaces a "Create PR" button when the group is in Review state.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│  [Pending Review]  [Committed]                                  │
+│  Group: [auth-hook ▾]    [Latest Changes] [Commits] [Branch ∆] │
 ├──────────────────────┬──────────────────────────────────────────┤
 │  File Tree           │  Diff View                               │
 │                      │                                          │
-│  Group: auth-hook    │  src/hooks/useAuth.ts                    │
-│  ▼ engy-app          │  ┌──────────────────────────────────────┐│
-│    src/hooks/        │  │ - import { useState } from 'react'   ││
-│      useAuth.ts   ←  │  │ + import { useState, useEffect }    ││
-│    src/components/   │  │ + import { refreshToken } from ...   ││
-│      AuthProvider.tsx│  │                                      ││
-│    src/utils/        │  │   export function useAuth() {        ││
-│      token.ts        │  │ +   useEffect(() => {               ││
+│  ▼ engy-app          │  src/hooks/useAuth.ts                    │
+│    src/hooks/        │  ┌──────────────────────────────────────┐│
+│      useAuth.ts   ←  │  │ - import { useState } from 'react'   ││
+│    src/components/   │  │ + import { useState, useEffect }    ││
+│      AuthProvider.tsx│  │ + import { refreshToken } from ...   ││
+│    src/utils/        │  │                                      ││
+│      token.ts        │  │   export function useAuth() {        ││
+│                      │  │ +   useEffect(() => {               ││
 │                      │  │ +     // Set up token refresh...     ││
-│  Group: context-prov │  │ +   }, [])                           ││
-│  (blocked)           │  │                                      ││
+│                      │  │ +   }, [])                           ││
+│                      │  │                                      ││
 │                      │  │  💬 Comment on line 12:              ││
 │                      │  │  "Use the cached value here"         ││
 │                      │  └──────────────────────────────────────┘│
@@ -529,13 +571,50 @@ The diff viewer, scoped to this project. Shows pending review changes across all
 └──────────────────────┴──────────────────────────────────────────┘
 ```
 
-Left panel: file tree grouped by task group. Each group shows its status. Files within the group show changed files.
+**Commit History view:**
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Group: [auth-hook ▾]    [Latest Changes] [Commits] [Branch ∆] │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  abc1234  Add token refresh hook and provider     2 hours ago   │
+│  def5678  Wire up refresh interval config         4 hours ago   │
+│  ghi9012  Initial auth hook scaffold              6 hours ago   │
+│                                                                 │
+│  Click a commit to view its diff                                │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Branch Diff view:**
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│  Group: [auth-hook ▾]    [Latest Changes] [Commits] [Branch ∆] │
+│  Showing all changes on auth-revamp/token-refresh vs main       │
+├──────────────────────┬──────────────────────────────────────────┤
+│  File Tree           │  Diff View (cumulative)                  │
+│                      │                                          │
+│  3 files changed     │  (same diff layout as Latest Changes,    │
+│  +142 −23            │   but showing the full branch delta)     │
+│                      │                                          │
+│  ▼ engy-app          │                                          │
+│    src/hooks/        │                                          │
+│      useAuth.ts      │                                          │
+│    src/components/   │                                          │
+│      AuthProvider.tsx│                                          │
+│    src/utils/        │                                          │
+│      token.ts        │  [Create PR]  (when group is in Review)  │
+│                      │                                          │
+└──────────────────────┴──────────────────────────────────────────┘
+```
+
+Left panel: file tree for the selected group's worktree. Shows changed files with additions/deletions count. Each file has an "Open in VS Code" icon button to jump directly to the file in the editor.
 
 Right panel: unified diff view with syntax highlighting, line-level commenting. Comments route to the agent session that produced the code.
 
-Action buttons: "Approve" triggers auto-commit → push → PR creation. "Request Changes" routes feedback to the agent.
-
-Tabs within the diff view: "Pending Review" (awaiting your action) and "Committed" (history of already committed/merged changes).
+Action buttons: In Latest Changes view, "Approve" triggers auto-commit → push → PR creation. "Request Changes" routes feedback to the agent. In Branch Diff view, "Create PR" appears when the group is ready.
 
 ### Tab: PRs
 
@@ -585,32 +664,32 @@ Tabs: "Open" (active PRs) and "Merged" (history).
 
 ### Tab: Plan
 
-The implementation plan — the output of the planning phase.
+The implementation plan — a living document that grows progressively as milestones are planned.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
 │                                                                 │
 │  Spec: auth-revamp/spec.md                        [View Spec →] │
 │                                                                 │
-│  M1: Backend auth endpoints                                     │
+│  M1: Backend auth endpoints                          ✅ Complete │
 │    Group: add-endpoints (T150, T151)                            │
 │    Group: validate-schema (T152, T153)                          │
 │    Group: error-handling (T154)                                  │
 │                                                                 │
-│  M2: Token refresh flow                                         │
+│  M2: Token refresh flow                              ✅ Complete │
 │    Group: token-refresh (T160, T161, T162)                      │
 │                                                                 │
-│  M3: Frontend auth hooks                                        │
+│  M3: Frontend auth hooks                             ⏳ Active   │
 │    Group: auth-hook-component (T165, T166)                      │
 │    Group: context-provider (T170, T171)                         │
 │    Group: logout-flow (T175)                                    │
 │                                                                 │
-│  M4: Integration tests                                          │
-│    Group: e2e-auth-flow (T180, T181)                            │
-│    Group: load-testing (T185)                                   │
+│  M4: Integration tests                          📋 Ready to plan │
+│    "E2E tests for all auth flows + load testing"                │
+│                                              [Plan Milestone →] │
 │                                                                 │
-│  M5: Deployment + migration                                     │
-│    Group: deploy-pipeline (T190, T191, T192)                    │
+│  M5: Deployment + migration                        ☐  Planned   │
+│    "CI/CD pipeline changes + DB migration scripts"              │
 │                                                                 │
 │  Key Decisions                                                  │
 │  ┌─────────────────────────────────────────────────────────┐    │
@@ -622,7 +701,9 @@ The implementation plan — the output of the planning phase.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-Read-only during execution (editable via terminal during planning phase). Shows the milestone → group → task hierarchy, key decisions, link back to the spec.
+The plan reflects progressive planning. Completed and active milestones show their full group → task hierarchy. Milestones that haven't been planned yet show their rough scope description and a "Plan Milestone" action that triggers the planning loop in the terminal. Planned milestones (not yet ready to plan) are dimmed with just their scope text.
+
+Key decisions accumulate across all planning phases — project-level decisions from initial planning, plus milestone-level decisions as each milestone is planned.
 
 ---
 
@@ -720,6 +801,7 @@ Reusable components across the app:
 - **Activity Feed** — Reverse-chronological event list. Used in workspace overview, project overview.
 - **Notification Panel** — Slide-out/dropdown notification list with deep links.
 - **Search Results** — Grouped results (docs, specs, tasks, memories) with type badges and navigation.
+- **"Open in VS Code" Button** — Small icon button that opens a file path or worktree directory in VS Code (via `code` CLI). Appears on diff viewer file tree items, task detail (worktree path), project overview (repo paths). Bridges Engy's review layer with hands-on editing.
 
 ---
 
