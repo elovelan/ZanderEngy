@@ -36,9 +36,10 @@ Every page in Engy shares the same shell:
 
 The right panel hosts Claude Code CLI in xterm. Key behaviors:
 
-- **Persists across navigation** within a related context. Opening the terminal at project home and navigating to tasks keeps the same terminal session.
-- **Context injection updates** as you navigate. The CLI session stays alive, but it knows when you've moved from "project overview" to "task T150 detail." Context flows from the main content area to the terminal automatically.
-- **Resizable** — drag the left edge to make the terminal wider/narrower.
+- **Tab-based.** Multiple terminals can be open simultaneously, each as a tab (like VS Code). Each tab has a metadata label showing its scope (e.g. "spec: auth-revamp", "project: engy").
+- **Scope is fixed per tab.** Once opened, a terminal keeps its scope regardless of page navigation. Need a different context? Open a new tab.
+- **Splits.** Tabs can be split vertically or horizontally for side-by-side terminal work.
+- **Resizable** — drag the left edge to make the terminal panel wider/narrower.
 - **Collapsible** — hide the terminal to give the main content full width. Toggle button in the header or a keyboard shortcut.
 
 ### Top-Right Action Bar
@@ -52,27 +53,13 @@ All primary actions live in the **top-right of the main content area** — alway
 - On Tasks tab → "New Task" (scoped to current project or spec)
 - On Project overview → "New Task," "New Task Group," "New Milestone"
 
-**Document feedback ("Send Feedback" icon):**
+**Review actions (same pattern everywhere):**
 
-- Appears on the content editor when there are pending inline comments on an agent-produced document (spec drafts, context files). Clicking collects all comments into a structured markdown payload (with section references and line context) and routes it to the agent session that produced the document. Comments clear after sending. The agent receives feedback like:
-
-```markdown
-## Feedback on auth-revamp/spec.md
-
-### On "Token Refresh Strategy" (line 42-58)
-This needs more detail on error handling for expired refresh tokens.
-
-### On "Rate Limiting" (line 73)
-We should use sliding window, not fixed window.
-
-### General
-Missing a section on logout/token revocation.
-```
-
-**Diff actions:**
-
-- On Diffs tab (Latest Changes) → "Approve," "Request Changes"
+- On Diffs tab (Latest Changes) → "Approve," "Send Feedback"
 - On Diffs tab (Branch Diff, group in Review) → "Create PR"
+- On Content editor (agent-produced document with pending comments) → "Approve," "Send Feedback"
+
+Both diffs and documents use the same batched review model: you do one full review pass, leave comments inline, then either **Approve** (accept the work) or **Send Feedback** (batch all comments into a structured markdown payload and route to the originating agent session or terminal). Comments clear after sending. The feedback payload includes section/line references so the agent knows exactly what you're commenting on.
 
 **Planning actions:**
 
@@ -133,7 +120,7 @@ Workspaces ordered by last interaction. Clicking a workspace navigates to the Wo
 
 Entered by clicking a workspace from Home. Top-level tabs organize workspace content.
 
-**Workspace settings** (⚙️ in the workspace header) — repo directories (add/remove, monorepo subdirectory scoping), pre-commit command (e.g. `yarn blt` — enforced gate before all commits), agent configuration (model, tools, MCP servers), notification overrides, terminal defaults. The settings icon is context-aware: on the Home page it opens global settings, on a workspace page it opens that workspace's settings.
+**Workspace settings** (⚙️ in the workspace header) — repo directories (add/remove, monorepo subdirectory scoping, each with an optional pre-commit command like `yarn blt` or `cargo test`), agent configuration (model, tools, MCP servers), notification overrides, terminal defaults. The settings icon is context-aware: on the Home page it opens global settings, on a workspace page it opens that workspace's settings.
 
 ### Tabs
 
@@ -200,7 +187,7 @@ Left panel: spec tree reflecting the filesystem structure. Vision specs, numbere
 
 Right panel has sub-tabs:
 
-- **Content** — the spec and context files in the content editor (BlockNote-style rich markdown). Clicking a file in the left tree opens it here. Inline comment support for reviews. When comments are pending on an agent-produced document, the "Send Feedback" action appears in the top-right action bar — clicking it collects all comments as structured markdown and routes them to the agent session that drafted the document.
+- **Content** — the spec and context files in the content editor (BlockNote-style rich markdown). Clicking a file in the left tree opens it here. Inline comment support for reviews. Same batched review model as diffs: leave comments, then Approve or Send Feedback from the top-right action bar.
 - **Tasks** — the spec's research tasks. Dependency graph and flat list views. Task status, type (AI/Human), agent session status. Task creation via the create button or terminal.
 
 Spec lifecycle actions appear as buttons or status indicators: "Mark Ready," "Approve," "Create Project →" (which navigates to the new project).
@@ -528,10 +515,14 @@ The Log auto-scrolls to the latest entry while the task is running. Errors and r
 
 Control semantics:
 
+- **▶ Start** — creates worktree, starts agent session, begins execution. Available when group is Planned and dependencies are resolved. By default manual; optionally auto-triggers when dependencies resolve (workspace setting).
 - **⏸ Pause** — agent session suspends, worktree preserved, current task stays "in progress." Available when group is Active.
 - **⏹ Stop** — agent session killed, worktree preserved with current changes. Tasks revert to Planned. Available when group is Active or Paused.
 - **▶ Resume** — resumes a paused session with full context. Available when group is Paused.
 - **🔄 Restart** — for stopped groups. Creates a new agent session. Optionally accepts a note ("use X approach instead") that becomes context for the new session. Available when group is Stopped.
+- **✓ Complete** — manually closes a group, skipping the PR flow. Remaining tasks are dropped. Available when group is Active, Paused, or Stopped.
+
+**Manual lifecycle controls** are available at every level. Users can manually complete milestones (drops remaining groups) and advance projects to Completing (drops remaining work, still runs memory distillation and system doc review). These controls appear in the project overview and plan tab.
 
 ### Tab: Diffs
 
@@ -566,7 +557,7 @@ The diff viewer, scoped per task group (each group has its own worktree/branch).
 │                      │  │  "Use the cached value here"         ││
 │                      │  └──────────────────────────────────────┘│
 │                      │                                          │
-│                      │  [Approve ✓]  [Request Changes ✏️]       │
+│                      │  [Approve ✓]  [Send Feedback ✏️]       │
 │                      │                                          │
 └──────────────────────┴──────────────────────────────────────────┘
 ```
@@ -614,7 +605,7 @@ Left panel: file tree for the selected group's worktree. Shows changed files wit
 
 Right panel: unified diff view with syntax highlighting, line-level commenting. Comments route to the agent session that produced the code.
 
-Action buttons: In Latest Changes view, "Approve" triggers auto-commit → push → PR creation. "Request Changes" routes feedback to the agent. In Branch Diff view, "Create PR" appears when the group is ready.
+Action buttons: In Latest Changes view, "Approve" triggers auto-commit → push → PR creation. "Send Feedback" routes feedback to the agent. In Branch Diff view, "Create PR" appears when the group is ready.
 
 ### Tab: PRs
 
@@ -658,7 +649,9 @@ Open PRs for this project's task groups. The monitoring view.
 
 Each PR card shows: PR number/title, task group link, branch, CI status (with agent fix status if applicable), review status, comment count, overall status. Actions: "Merge" (when ready), "View Diffs" (opens in Diffs tab with PR context).
 
-PRs that need human attention surface prominently (CI failures the agent couldn't fix, unresolved reviewer comments).
+**User-dispatched reviewer comment handling.** CI failures are auto-fixed by the agent (mechanical fixes). Reviewer comments require your triage — comments are pulled into the Diffs tab alongside the code they reference. You read them, select which ones to address (checkboxes), and click **"Fix Selected"** to dispatch the agent with just those comments as context. The agent fixes, new diffs appear for your review (same approve/send feedback loop). Comments you don't select can be responded to manually or dismissed. This avoids wasting tokens on changes you might disagree with.
+
+PRs that need human attention surface prominently: unresolvable CI failures, reviewer comments awaiting triage.
 
 Tabs: "Open" (active PRs) and "Merged" (history).
 
@@ -733,7 +726,7 @@ Home → Workspace (Specs tab)
       → [Approve] → PRs tab (monitoring)
       → all merged → Project completes
         → memory promotion + system doc review
-        → project deleted
+        → project archived
   → back to Workspace (Overview)
 ```
 
@@ -761,24 +754,28 @@ Any page → Terminal: "fix the auth bug in useAuth.ts"
 
 ## Terminal Context Rules
 
-The terminal maintains its session but updates its context injection based on navigation:
+The terminal is context-scoped: each location sets a **working directory**, a **default agent**, and a **write scope**. Access to content outside the scope is read-only via MCP tools. The agent auto-starts when the terminal opens on a page — no setup needed.
 
-| Location | Terminal Context |
-|----------|-----------------|
-| Home | Workspace list, no specific project |
-| Workspace Overview | Workspace config, all projects summary |
-| Workspace Specs tab | Workspace specs, system docs for reference |
-| Spec Detail | This spec's content + context files + tasks |
-| Workspace Docs tab | System docs + shared docs |
-| Workspace Memory tab | Memory collection, search capabilities |
-| Workspace Tasks tab | Default project tasks |
-| Project Overview | Project plan, milestones, agent status |
-| Project Tasks tab | Task details, dependencies, agent sessions |
-| Project Diffs tab | Current diffs, file context, agent session for feedback |
-| Project PRs tab | PR status, CI logs, reviewer comments |
-| Project Plan tab | Implementation plan, spec reference |
+| Location | Working Dir | Default Agent | Write Scope | Context Injected |
+|----------|-------------|---------------|-------------|-----------------|
+| Home | — | No terminal | — | — |
+| Workspace Overview | Workspace root | `engy:workspace-assistant` | General | Workspace config, all projects summary |
+| Workspace Specs tab | `specs/` | `engy:spec-assistant` | Spec files | Workspace specs, system docs (MCP) |
+| Spec Detail | `specs/{slug}/` | `engy:spec-assistant` | This spec dir | Spec content + context files + tasks |
+| Workspace Docs tab | `system/` + `docs/` | `engy:sysdoc-assistant` | System/shared docs | System docs + shared docs |
+| Workspace Memory tab | `memory/` | `engy:workspace-assistant` | Memory files | Memory collection, search |
+| Workspace Tasks tab | Workspace root | `engy:workspace-assistant` | General | Default project tasks |
+| Project Overview | Primary repo | `engy:project-assistant` | Via worktrees | Project plan, milestones, agent status |
+| Project Tasks tab | Primary repo | `engy:project-assistant` | Via worktrees | Task details, dependencies, sessions |
+| Project Diffs tab | Group worktree | No special agent (CLI) | Worktree | Current diffs, file context, agent session |
+| Project PRs tab | Group worktree | No special agent (CLI) | Worktree | PR status, CI logs, reviewer comments |
+| Project Plan tab | Primary repo | `engy:project-assistant` | Via worktrees | Implementation plan, spec reference |
 
-Context updates are additive — navigating deeper adds context, it doesn't replace. Moving from Project Overview to Project Tasks adds the task detail context on top of the project context.
+**Agent auto-start:** Opening the terminal on any page starts the appropriate agent automatically (e.g. `claude --agent engy:spec-assistant`). You're immediately in the right context.
+
+**Open terminals keep their scope.** Once a terminal is open, navigating to a different page does NOT change that terminal's scope. Need a different context? Open a new terminal. Each open terminal displays a metadata label indicating what it's scoped to (e.g. "spec: auth-revamp", "project: engy", "workspace: general"). This keeps things simple — no confusing scope switching mid-conversation.
+
+**Read-only outside scope:** The scoped agent can search, read, and reference any content in the workspace via MCP tools — system docs, memories, other specs, etc. But direct filesystem writes are limited to the scoped directory. This prevents accidental cross-contamination.
 
 ---
 
@@ -794,9 +791,9 @@ Reusable components across the app:
 - **File Tree** — Collapsible tree for specs, docs, context files. Used in Specs tab, Docs tab, Diffs tab, Spec Detail.
 - **Task List** — Flat list with status, type, filters. Used in spec tasks, Default project list view.
 - **Progress Bar** — Milestone-based progress visualization. Used in project cards, overview pages.
-- **Task Detail Panel** — Slide-out panel for task inspection. Human tasks: description + checkbox. AI tasks: Content and Log sub-tabs. Includes group controls (pause/stop/resume/restart). Used everywhere tasks are clickable.
+- **Task Detail Panel** — Slide-out panel for task inspection. Human tasks: description + checkbox. AI tasks: Content and Log sub-tabs. Includes group controls (start/pause/stop/resume/restart/complete). Used everywhere tasks are clickable.
 - **Execution Log** — Real-time agent activity stream with timestamps, tool calls, errors, retries. Part of the task detail panel's Log tab.
-- **Group Controls** — Pause/stop/resume/restart buttons for task groups. Used in task detail, project overview agent panel, dependency graph, swimlane cards, PR tab, notifications.
+- **Group Controls** — Start/pause/stop/resume/restart/complete buttons for task groups. Used in task detail, project overview agent panel, dependency graph, swimlane cards, PR tab, notifications.
 - **Agent Status Panel** — Active agent summary with current task, status, elapsed time, inline group controls. Used in project overview.
 - **Activity Feed** — Reverse-chronological event list. Used in workspace overview, project overview.
 - **Notification Panel** — Slide-out/dropdown notification list with deep links.
@@ -872,7 +869,7 @@ Tree becomes a full-width list. Tapping a file navigates to the editor as a new 
 
 **Diff viewer on mobile:**
 
-Single-column unified diff. File tree collapses into a dropdown selector at the top ("src/hooks/useAuth.ts ▼"). Line commenting works via tap — tap a line to open the comment input. Approve/Request Changes buttons stick to the bottom of the screen.
+Single-column unified diff. File tree collapses into a dropdown selector at the top ("src/hooks/useAuth.ts ▼"). Line commenting works via tap — tap a line to open the comment input. Approve/Send Feedback buttons stick to the bottom of the screen.
 
 ```text
 ┌─────────────────────────┐
@@ -888,7 +885,7 @@ Single-column unified diff. File tree collapses into a dropdown selector at the 
 │  💬 "Use cached value"   │
 │                          │
 ├─────────────────────────┤
-│  [Approve ✓] [Changes ✏️]│  ← Sticky bottom bar
+│  [Approve ✓] [Feedback ✏️]│  ← Sticky bottom bar
 └─────────────────────────┘
 ```
 
