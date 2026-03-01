@@ -2,7 +2,7 @@
   "name": "engy",
   "private": true,
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "dotenv -e .dev.env -- turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint:eslint && knip && jscpd",
     "test": "turbo run test",
@@ -10,6 +10,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9.39.3",
     "jscpd": "^4.0.5",
     "knip": "^5.85.0",

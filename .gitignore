@@ -8,8 +8,10 @@ dist/
 .turbo/
 
 # Environment
+.env
 .env.local
 .env.*.local
+.dev.env
 
 # Data
 .dev-engy/
