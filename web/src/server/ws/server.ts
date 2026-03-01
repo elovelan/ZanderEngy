@@ -4,6 +4,7 @@ import type { ClientToServerMessage, ValidatePathsRequestMessage } from '@engy/c
 import type { AppState, FileChangeEvent } from '../trpc/context';
 import { getDb } from '../db/client';
 import { workspaces } from '../db/schema';
+import { handleSpecFileChange } from '../spec/watcher';
 
 const MAX_EVENTS_PER_WORKSPACE = 100;
 const VALIDATION_TIMEOUT_MS = 5_000;
@@ -104,6 +105,10 @@ function handleFileChange(
 
   if (events.length > MAX_EVENTS_PER_WORKSPACE) {
     events.splice(0, events.length - MAX_EVENTS_PER_WORKSPACE);
+  }
+
+  if (path.includes('/specs/') || path.includes('\\specs\\')) {
+    handleSpecFileChange(workspaceSlug, state);
   }
 }
 

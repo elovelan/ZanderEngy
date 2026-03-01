@@ -15,6 +15,7 @@ import {
   writeContextFile,
   deleteContextFile,
 } from '../../spec/service';
+import { getSpecLastChanged } from '../../spec/watcher';
 
 function getWorkspace(workspaceSlug: string) {
   const db = getDb();
@@ -160,5 +161,11 @@ export const specRouter = router({
         }
         throw new TRPCError({ code: 'BAD_REQUEST', message: msg });
       }
+    }),
+
+  lastChanged: publicProcedure
+    .input(z.object({ workspaceSlug: z.string() }))
+    .query(({ input, ctx }) => {
+      return { timestamp: getSpecLastChanged(input.workspaceSlug, ctx.state) };
     }),
 });

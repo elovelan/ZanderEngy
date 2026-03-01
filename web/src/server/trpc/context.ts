@@ -17,6 +17,7 @@ export interface AppState {
       reject: (reason: Error) => void;
     }
   >;
+  specLastChanged: Map<string, number>;
 }
 
 const GLOBAL_KEY = '__engy_app_state__' as const;
@@ -28,6 +29,7 @@ export function getAppState(): AppState {
       daemon: null,
       fileChanges: new Map(),
       pendingValidations: new Map(),
+      specLastChanged: new Map(),
     };
   }
   return g[GLOBAL_KEY] as AppState;
