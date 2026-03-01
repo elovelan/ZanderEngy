@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getMcpServer, resetMcpServer, isPathAllowed } from './index.js';
-import { setupTestDb, type TestContext } from '../trpc/test-helpers.js';
-import { getDb } from '../db/client.js';
+import { getMcpServer, resetMcpServer, isPathAllowed } from './index';
+import { setupTestDb, type TestContext } from '../trpc/test-helpers';
+import { getDb } from '../db/client';
 import {
   workspaces,
   projects,
@@ -11,7 +11,7 @@ import {
   milestones,
   taskGroups,
   fleetingMemories,
-} from '../db/schema.js';
+} from '../db/schema';
 
 describe('MCP Server', () => {
   let ctx: TestContext;
@@ -58,13 +58,25 @@ describe('MCP Server', () => {
   });
 
   describe('workspace tools', () => {
-    it('createWorkspace should return an error about daemon requirement', async () => {
+    it('createWorkspace should create a workspace without repos', async () => {
       const mcp = getMcpServer();
       const tools = (mcp as any)._registeredTools;
       const tool = tools['createWorkspace'];
       expect(tool).toBeDefined();
 
-      const result = await tool.handler({ name: 'test' }, {} as any);
+      const result = await tool.handler({ name: 'test', repos: [] }, {} as any);
+      expect(result.isError).toBeUndefined();
+      const data = JSON.parse(result.content[0].text);
+      expect(data.name).toBe('test');
+      expect(data.slug).toBe('test');
+    });
+
+    it('createWorkspace should return error when repos provided but no daemon', async () => {
+      const mcp = getMcpServer();
+      const tools = (mcp as any)._registeredTools;
+      const tool = tools['createWorkspace'];
+
+      const result = await tool.handler({ name: 'test-ws', repos: ['/some/path'] }, {} as any);
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toContain('daemon');
     });

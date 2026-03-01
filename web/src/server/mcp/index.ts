@@ -5,7 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import { eq, asc } from 'drizzle-orm';
-import { getDb, getEngyDir } from '../db/client.js';
+import { getDb, getEngyDir } from '../db/client';
 import {
   workspaces,
   projects,
@@ -13,8 +13,9 @@ import {
   milestones,
   taskGroups,
   fleetingMemories,
-} from '../db/schema.js';
-import { generateSlug } from '../trpc/utils.js';
+} from '../db/schema';
+import { generateSlug } from '../trpc/utils';
+import { getAppState } from '../trpc/context';
 
 // ── MCP Response Helpers ──────────────────────────────────────────
 
@@ -30,6 +31,46 @@ function mcpError(message: string): McpToolResult {
 
 function mcpText(text: string): McpToolResult {
   return { content: [{ type: 'text' as const, text }] };
+}
+
+// ── Dependency Validation ─────────────────────────────────────────
+
+function detectCycle(taskId: number, deps: number[], allTasks: Map<number, number[]>): boolean {
+  const visited = new Set<number>();
+  const stack = [...deps];
+
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (current === taskId) return true;
+    if (visited.has(current)) continue;
+    visited.add(current);
+
+    const currentDeps = allTasks.get(current) ?? [];
+    stack.push(...currentDeps);
+  }
+
+  return false;
+}
+
+function validateDependencies(taskId: number | null, dependencies: number[]): void {
+  if (dependencies.length === 0) return;
+
+  const db = getDb();
+  const allTasks = new Map<number, number[]>();
+  const existingTasks = db.select().from(tasks).all();
+  for (const t of existingTasks) {
+    allTasks.set(t.id, (t.dependencies as number[]) ?? []);
+  }
+
+  for (const depId of dependencies) {
+    if (!allTasks.has(depId)) {
+      throw new Error(`Dependency task ${depId} does not exist`);
+    }
+  }
+
+  if (taskId !== null && detectCycle(taskId, dependencies, allTasks)) {
+    throw new Error('Circular dependency detected');
+  }
 }
 
 // ── Singleton McpServer ────────────────────────────────────────────
@@ -120,22 +161,30 @@ async function handlePostMessage(
 
 // ── Path Safety ────────────────────────────────────────────────────
 
+function resolvePath(p: string): string {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    // For non-existent paths, resolve the nearest existing ancestor
+    const dir = path.dirname(p);
+    try {
+      return path.join(fs.realpathSync(dir), path.basename(p));
+    } catch {
+      return path.resolve(p);
+    }
+  }
+}
+
 function getAllowedRoots(): string[] {
-  const roots = [getEngyDir()];
+  const roots = [resolvePath(getEngyDir())];
 
   try {
     const db = getDb();
     const allWorkspaces = db.select().from(workspaces).all();
     for (const ws of allWorkspaces) {
-      const wsDir = path.join(getEngyDir(), ws.slug);
-      const yamlPath = path.join(wsDir, 'workspace.yaml');
-      if (fs.existsSync(yamlPath)) {
-        const content = fs.readFileSync(yamlPath, 'utf-8');
-        const repoLines = content.split('\n').filter((l) => l.trim().startsWith('- path:'));
-        for (const line of repoLines) {
-          const repoPath = line.replace(/.*- path:\s*/, '').trim();
-          if (repoPath) roots.push(repoPath);
-        }
+      const repos = (ws.repos as string[]) ?? [];
+      for (const repoPath of repos) {
+        if (repoPath) roots.push(resolvePath(repoPath));
       }
     }
   } catch {
@@ -146,9 +195,12 @@ function getAllowedRoots(): string[] {
 }
 
 export function isPathAllowed(targetPath: string): boolean {
-  const resolved = path.resolve(targetPath);
+  const resolved = resolvePath(targetPath);
   const roots = getAllowedRoots();
-  return roots.some((root) => resolved.startsWith(path.resolve(root)));
+  return roots.some((root) => {
+    const rel = path.relative(root, resolved);
+    return !rel.startsWith('..') && !path.isAbsolute(rel);
+  });
 }
 
 // ── Tool Registration ──────────────────────────────────────────────
@@ -156,12 +208,36 @@ export function isPathAllowed(targetPath: string): boolean {
 function registerWorkspaceTools(mcp: McpServer): void {
   mcp.tool(
     'createWorkspace',
-    'Create a new workspace. Requires the client daemon for repo validation — will fail without it.',
-    { name: z.string().describe('Workspace name') },
-    async (_args) => {
-      return mcpError(
-        'createWorkspace requires the client daemon for repo path validation. Use the web UI or tRPC API with an active daemon connection.',
-      );
+    'Create a new workspace with optional repo paths. Requires the client daemon for repo validation.',
+    { name: z.string().describe('Workspace name'), repos: z.array(z.string()).default([]).describe('Repository paths') },
+    async ({ name, repos }) => {
+      const state = getAppState();
+      if (repos.length > 0 && (!state.daemon || state.daemon.readyState !== 1)) {
+        return mcpError(
+          'createWorkspace with repos requires the client daemon for repo path validation. Start the daemon first.',
+        );
+      }
+
+      try {
+        const db = getDb();
+        const slug = generateSlug(name);
+        const workspace = db
+          .insert(workspaces)
+          .values({ name, slug, repos })
+          .returning()
+          .get();
+
+        const { initWorkspaceDir } = await import('../engy-dir/init');
+        initWorkspaceDir(name, slug, repos);
+
+        db.insert(projects)
+          .values({ workspaceId: workspace.id, name: 'Default', slug: 'default', isDefault: true })
+          .run();
+
+        return mcpResult(workspace);
+      } catch (err) {
+        return mcpError(`Failed to create workspace: ${(err as Error).message}`);
+      }
     },
   );
 
@@ -272,6 +348,12 @@ function registerTaskTools(mcp: McpServer): void {
       specId: z.string().optional().describe('Specification ID'),
     },
     async (args) => {
+      try {
+        validateDependencies(null, args.dependencies);
+      } catch (err) {
+        return mcpError((err as Error).message);
+      }
+
       const db = getDb();
       const task = db.insert(tasks).values(args).returning().get();
       return mcpResult(task);
@@ -294,6 +376,14 @@ function registerTaskTools(mcp: McpServer): void {
       taskGroupId: z.number().nullable().optional().describe('New task group ID'),
     },
     async ({ id, ...updates }) => {
+      if (updates.dependencies) {
+        try {
+          validateDependencies(id, updates.dependencies);
+        } catch (err) {
+          return mcpError((err as Error).message);
+        }
+      }
+
       const db = getDb();
       const result = db
         .update(tasks)

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { router, publicProcedure } from '../trpc.js';
-import { getDb } from '../../db/client.js';
-import { taskGroups } from '../../db/schema.js';
+import { router, publicProcedure } from '../trpc';
+import { getDb } from '../../db/client';
+import { taskGroups } from '../../db/schema';
 
 export const taskGroupRouter = router({
   create: publicProcedure

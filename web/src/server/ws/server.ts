@@ -2,7 +2,9 @@ import type { Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ClientToServerMessage, ValidatePathsRequestMessage } from '@engy/common';
-import type { AppState, FileChangeEvent } from '../trpc/context.js';
+import type { AppState, FileChangeEvent } from '../trpc/context';
+import { getDb } from '../db/client';
+import { workspaces } from '../db/schema';
 
 const MAX_EVENTS_PER_WORKSPACE = 100;
 const VALIDATION_TIMEOUT_MS = 5_000;
@@ -25,6 +27,10 @@ export function attachWebSocket(server: Server, state: AppState): void {
     ws.on('close', () => {
       if (state.daemon === ws) {
         state.daemon = null;
+        for (const [id, pending] of state.pendingValidations) {
+          state.pendingValidations.delete(id);
+          pending.reject(new Error('Daemon disconnected'));
+        }
       }
     });
   });
@@ -49,6 +55,24 @@ function handleRegister(ws: WebSocket, state: AppState): void {
     state.daemon.close();
   }
   state.daemon = ws;
+
+  try {
+    const db = getDb();
+    const allWorkspaces = db.select().from(workspaces).all();
+    const syncPayload = allWorkspaces.map((w) => ({
+      slug: w.slug,
+      repos: (w.repos as string[]) ?? [],
+    }));
+
+    ws.send(
+      JSON.stringify({
+        type: 'WORKSPACES_SYNC',
+        payload: { workspaces: syncPayload },
+      }),
+    );
+  } catch {
+    // DB may not be ready during tests
+  }
 }
 
 function handleValidatePathsResponse(

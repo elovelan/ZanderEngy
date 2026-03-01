@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { appRouter } from '../root.js';
-import { setupTestDb, type TestContext } from '../test-helpers.js';
+import { appRouter } from '../root';
+import { setupTestDb, type TestContext } from '../test-helpers';
 
 describe('project router', () => {
   let ctx: TestContext;

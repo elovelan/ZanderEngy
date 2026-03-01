@@ -29,12 +29,6 @@ vi.mock('chokidar', () => {
   };
 });
 
-async function getMockWatcher() {
-  const chokidar = await import('chokidar');
-  return (chokidar as unknown as { _mockWatcher: ReturnType<typeof createMockWatcher> })
-    ._mockWatcher;
-}
-
 type MockWatcher = {
   on: ReturnType<typeof vi.fn>;
   close: ReturnType<typeof vi.fn>;
@@ -42,8 +36,9 @@ type MockWatcher = {
   _reset: () => void;
 };
 
-function createMockWatcher(): MockWatcher {
-  throw new Error('Not used directly');
+async function getMockWatcher() {
+  const chokidar = await import('chokidar');
+  return (chokidar as unknown as { _mockWatcher: MockWatcher })._mockWatcher;
 }
 
 describe('FileWatcher', () => {

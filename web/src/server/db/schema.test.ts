@@ -5,7 +5,7 @@ import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { eq } from 'drizzle-orm';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as schema from './schema.js';
+import * as schema from './schema';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

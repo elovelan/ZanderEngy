@@ -1,9 +1,9 @@
-import { router } from './trpc.js';
-import { workspaceRouter } from './routers/workspace.js';
-import { projectRouter } from './routers/project.js';
-import { milestoneRouter } from './routers/milestone.js';
-import { taskGroupRouter } from './routers/task-group.js';
-import { taskRouter } from './routers/task.js';
+import { router } from './trpc';
+import { workspaceRouter } from './routers/workspace';
+import { projectRouter } from './routers/project';
+import { milestoneRouter } from './routers/milestone';
+import { taskGroupRouter } from './routers/task-group';
+import { taskRouter } from './routers/task';
 
 export const appRouter = router({
   workspace: workspaceRouter,

@@ -1,22 +1,22 @@
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { randomUUID } from 'node:crypto';
-import { router, publicProcedure } from '../trpc.js';
-import { getDb } from '../../db/client.js';
-import { workspaces, projects } from '../../db/schema.js';
-import { uniqueWorkspaceSlug } from '../utils.js';
-import { initWorkspaceDir, removeWorkspaceDir } from '../../engy-dir/init.js';
-import type { AppState } from '../context.js';
+import { router, publicProcedure } from '../trpc';
+import { getDb } from '../../db/client';
+import { workspaces, projects } from '../../db/schema';
+import { uniqueWorkspaceSlug } from '../utils';
+import { initWorkspaceDir, removeWorkspaceDir } from '../../engy-dir/init';
+import { dispatchValidation } from '../../ws/server';
+import type { AppState } from '../context';
 
-function broadcastWorkspacesSync(state: AppState, repoOverrides?: { slug: string; repos: string[] }): void {
+function broadcastWorkspacesSync(state: AppState): void {
   if (!state.daemon || state.daemon.readyState !== 1) return;
 
   const db = getDb();
   const allWorkspaces = db.select().from(workspaces).all();
   const syncPayload = allWorkspaces.map((w) => ({
     slug: w.slug,
-    repos: repoOverrides?.slug === w.slug ? repoOverrides.repos : [],
+    repos: (w.repos as string[]) ?? [],
   }));
 
   state.daemon.send(
@@ -40,45 +40,28 @@ export const workspaceRouter = router({
       const slug = await uniqueWorkspaceSlug(input.name);
 
       if (input.repos.length > 0) {
-        if (!ctx.state.daemon || ctx.state.daemon.readyState !== 1) {
+        try {
+          const results = await dispatchValidation(input.repos, ctx.state);
+          const invalid = results.filter((r) => !r.exists);
+          if (invalid.length > 0) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `Invalid repo paths: ${invalid.map((r) => r.path).join(', ')}`,
+              cause: { invalidPaths: invalid.map((r) => r.path) },
+            });
+          }
+        } catch (err) {
+          if (err instanceof TRPCError) throw err;
           throw new TRPCError({
             code: 'PRECONDITION_FAILED',
-            message: 'Client daemon is not running. Start it with: pnpm dev',
-          });
-        }
-
-        const requestId = randomUUID();
-        const validationPromise = new Promise<Array<{ path: string; exists: boolean }>>(
-          (resolve, reject) => {
-            ctx.state.pendingValidations.set(requestId, { resolve, reject });
-            setTimeout(() => {
-              ctx.state.pendingValidations.delete(requestId);
-              reject(new Error('Path validation timed out after 5 seconds'));
-            }, 5000);
-          },
-        );
-
-        ctx.state.daemon.send(
-          JSON.stringify({
-            type: 'VALIDATE_PATHS_REQUEST',
-            payload: { requestId, paths: input.repos },
-          }),
-        );
-
-        const results = await validationPromise;
-        const invalid = results.filter((r) => !r.exists);
-        if (invalid.length > 0) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: `Invalid repo paths: ${invalid.map((r) => r.path).join(', ')}`,
-            cause: { invalidPaths: invalid.map((r) => r.path) },
+            message: `Path validation failed: ${(err as Error).message}`,
           });
         }
       }
 
       const workspace = db
         .insert(workspaces)
-        .values({ name: input.name, slug })
+        .values({ name: input.name, slug, repos: input.repos })
         .returning()
         .get();
 
@@ -110,7 +93,7 @@ export const workspaceRouter = router({
         });
       }
 
-      broadcastWorkspacesSync(ctx.state, { slug, repos: input.repos });
+      broadcastWorkspacesSync(ctx.state);
 
       return workspace;
     }),

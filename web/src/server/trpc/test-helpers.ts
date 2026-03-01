@@ -5,9 +5,9 @@ import path from 'node:path';
 import fs from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import * as schema from '../db/schema.js';
-import * as clientModule from '../db/client.js';
-import { createAppState, type AppState } from './context.js';
+import * as schema from '../db/schema';
+import * as clientModule from '../db/client';
+import { resetAppState, getAppState, type AppState } from './context';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -24,13 +24,14 @@ export function setupTestDb(): TestContext {
 
   process.env.ENGY_DIR = tmpDir;
   (clientModule as { resetDb: () => void }).resetDb();
+  resetAppState();
 
   const sqlite = new Database(dbPath);
   sqlite.pragma('journal_mode = WAL');
   const db = drizzle(sqlite, { schema });
   migrate(db, { migrationsFolder: path.join(__dirname, '../db/migrations') });
 
-  const state = createAppState();
+  const state = getAppState();
 
   return {
     db,
@@ -41,6 +42,7 @@ export function setupTestDb(): TestContext {
       fs.rmSync(tmpDir, { recursive: true, force: true });
       delete process.env.ENGY_DIR;
       (clientModule as { resetDb: () => void }).resetDb();
+      resetAppState();
     },
   };
 }

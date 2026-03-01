@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import { WebSocket } from 'ws';
-import { createAppState, type AppState } from '../trpc/context.js';
-import { attachWebSocket, dispatchValidation } from './server.js';
+import type { AppState } from '../trpc/context';
+import { attachWebSocket, dispatchValidation } from './server';
 
 let openClients: WebSocket[] = [];
 
@@ -48,7 +48,11 @@ describe('WebSocket Server', () => {
 
   beforeEach(async () => {
     openClients = [];
-    state = createAppState();
+    state = {
+      daemon: null,
+      fileChanges: new Map(),
+      pendingValidations: new Map(),
+    };
     const result = await startServer(state);
     server = result.server;
     port = result.port;

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { router, publicProcedure } from '../trpc.js';
-import { getDb } from '../../db/client.js';
-import { tasks } from '../../db/schema.js';
+import { router, publicProcedure } from '../trpc';
+import { getDb } from '../../db/client';
+import { tasks } from '../../db/schema';
 
 function detectCycle(taskId: number, deps: number[], allTasks: Map<number, number[]>): boolean {
   const visited = new Set<number>();

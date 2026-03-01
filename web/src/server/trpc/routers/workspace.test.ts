@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { appRouter } from '../root.js';
-import { setupTestDb, type TestContext } from '../test-helpers.js';
+import { appRouter } from '../root';
+import { setupTestDb, type TestContext } from '../test-helpers';
 
 describe('workspace router', () => {
   let ctx: TestContext;
@@ -31,7 +31,7 @@ describe('workspace router', () => {
     it('should fail when repos provided but no daemon connected', async () => {
       await expect(
         caller.workspace.create({ name: 'WS', repos: ['/some/path'] }),
-      ).rejects.toThrow('Client daemon is not running');
+      ).rejects.toThrow('No daemon connected');
     });
   });
 

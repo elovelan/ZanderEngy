@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
-import * as schema from './schema.js';
+import * as schema from './schema';
 
 function resolveEngyDir(): string {
   const raw = process.env.ENGY_DIR || '~/.engy/';

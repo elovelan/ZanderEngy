@@ -9,13 +9,21 @@
     "blt": "turbo run build lint test"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^9.39.3",
+    "jscpd": "^4.0.5",
+    "prettier": "^3.4.0",
     "turbo": "^2.4.0",
     "typescript": "^5.7.0",
-    "prettier": "^3.4.0",
-    "jscpd": "^4.0.5"
+    "typescript-eslint": "^8.56.1"
   },
   "packageManager": "pnpm@10.30.3",
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "esbuild", "sharp", "unrs-resolver"]
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
   }
 }

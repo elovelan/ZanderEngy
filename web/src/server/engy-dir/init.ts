@@ -1,16 +1,31 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getEngyDir } from '../db/client.js';
+import { getEngyDir } from '../db/client';
+
+function yamlQuote(value: string): string {
+  if (/[:\-#{}&*!|>'"@`,[\]{}]/.test(value) || value.trim() !== value) {
+    return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+  }
+  return value;
+}
+
+function validateSlug(slug: string): void {
+  if (!slug || /[\/\\]/.test(slug) || slug.includes('..') || slug === '.' || slug === '..') {
+    throw new Error(`Invalid workspace slug: ${slug}`);
+  }
+}
 
 export function initWorkspaceDir(name: string, slug: string, repos: string[]): void {
+  validateSlug(slug);
+
   const dir = path.join(getEngyDir(), slug);
   fs.mkdirSync(dir, { recursive: true });
 
   const yamlContent = [
-    `name: ${name}`,
-    `slug: ${slug}`,
+    `name: ${yamlQuote(name)}`,
+    `slug: ${yamlQuote(slug)}`,
     'repos:',
-    ...repos.map((r) => `  - path: ${r}`),
+    ...repos.map((r) => `  - path: ${yamlQuote(r)}`),
   ].join('\n');
   fs.writeFileSync(path.join(dir, 'workspace.yaml'), yamlContent + '\n');
 
@@ -27,8 +42,18 @@ export function initWorkspaceDir(name: string, slug: string, repos: string[]): v
 }
 
 export function removeWorkspaceDir(slug: string): void {
-  const dir = path.join(getEngyDir(), slug);
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
+  validateSlug(slug);
+
+  const engyDir = path.resolve(getEngyDir());
+  const dir = path.join(engyDir, slug);
+  const resolved = path.resolve(dir);
+
+  const rel = path.relative(engyDir, resolved);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error(`Path traversal detected for slug: ${slug}`);
+  }
+
+  if (fs.existsSync(resolved)) {
+    fs.rmSync(resolved, { recursive: true, force: true });
   }
 }

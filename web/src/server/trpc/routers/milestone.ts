@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { eq, asc } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { router, publicProcedure } from '../trpc.js';
-import { getDb } from '../../db/client.js';
-import { milestones } from '../../db/schema.js';
+import { router, publicProcedure } from '../trpc';
+import { getDb } from '../../db/client';
+import { milestones } from '../../db/schema';
 
 export const milestoneRouter = router({
   create: publicProcedure

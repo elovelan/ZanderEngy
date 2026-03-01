@@ -19,10 +19,19 @@ export interface AppState {
   >;
 }
 
-export function createAppState(): AppState {
-  return {
-    daemon: null,
-    fileChanges: new Map(),
-    pendingValidations: new Map(),
-  };
+let instance: AppState | null = null;
+
+export function getAppState(): AppState {
+  if (!instance) {
+    instance = {
+      daemon: null,
+      fileChanges: new Map(),
+      pendingValidations: new Map(),
+    };
+  }
+  return instance;
+}
+
+export function resetAppState(): void {
+  instance = null;
 }

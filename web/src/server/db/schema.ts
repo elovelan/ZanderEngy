@@ -7,6 +7,7 @@ export const workspaces = sqliteTable('workspaces', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
+  repos: text('repos', { mode: 'json' }).$type<string[]>().default([]),
   createdAt: text('created_at')
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

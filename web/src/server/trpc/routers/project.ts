@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
-import { router, publicProcedure } from '../trpc.js';
-import { getDb } from '../../db/client.js';
-import { projects } from '../../db/schema.js';
-import { generateSlug } from '../utils.js';
+import { router, publicProcedure } from '../trpc';
+import { getDb } from '../../db/client';
+import { projects } from '../../db/schema';
+import { uniqueProjectSlug } from '../utils';
 
 export const projectRouter = router({
   create: publicProcedure
@@ -17,7 +17,7 @@ export const projectRouter = router({
     )
     .mutation(({ input }) => {
       const db = getDb();
-      const slug = generateSlug(input.name);
+      const slug = uniqueProjectSlug(input.workspaceId, input.name);
 
       return db
         .insert(projects)
