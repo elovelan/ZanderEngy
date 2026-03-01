@@ -168,6 +168,13 @@ export const taskRouter = router({
       return result;
     }),
 
+  listBySpecId: publicProcedure
+    .input(z.object({ specId: z.string() }))
+    .query(({ input }) => {
+      const db = getDb();
+      return db.select().from(tasks).where(eq(tasks.specId, input.specId)).all();
+    }),
+
   delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => {
     const db = getDb();
     db.delete(tasks).where(eq(tasks.id, input.id)).run();

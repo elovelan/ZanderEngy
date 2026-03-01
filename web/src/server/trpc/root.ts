@@ -4,6 +4,8 @@ import { projectRouter } from './routers/project';
 import { milestoneRouter } from './routers/milestone';
 import { taskGroupRouter } from './routers/task-group';
 import { taskRouter } from './routers/task';
+import { specRouter } from './routers/spec';
+import { commentRouter } from './routers/comment';
 
 export const appRouter = router({
   workspace: workspaceRouter,
@@ -11,6 +13,8 @@ export const appRouter = router({
   milestone: milestoneRouter,
   taskGroup: taskGroupRouter,
   task: taskRouter,
+  spec: specRouter,
+  comment: commentRouter,
 });
 
 /** @public Used by tRPC client setup */
