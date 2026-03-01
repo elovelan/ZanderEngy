@@ -133,7 +133,7 @@ The container provides the safety guarantee: agents can't exfiltrate data becaus
 
 ## Milestone Placement
 
-Ships as part of **M6 (Execution Engine)** alongside worktree management. The container wraps the existing worktree model — worktrees provide branch isolation, containers provide permission isolation.
+Ships as **M10 (Dev Containers)**. Depends on M6 (worktree management) and M9 (async agents). Worktrees provide branch isolation (M6), agent sessions provide the execution model (M9), containers add permission isolation on top.
 
 ## Workspace Settings Schema (additions)
 

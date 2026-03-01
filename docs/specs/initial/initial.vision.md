@@ -145,7 +145,7 @@ A workspace owns: **Repos** (git repositories or subdirectories in scope), **Sys
 
 **Global settings** (Home page): `.engy/` directory location (default: `~/.engy/`, configurable to any path — e.g. a `docs/` dir in an existing repo), default AI model, notification defaults, appearance.
 
-**Workspace settings** (workspace page): repo directories (including monorepo subdirectory scoping, each with an optional pre-commit command), agent configuration (model, tools, MCP servers), notification overrides, terminal defaults.
+**Workspace settings** (workspace page): repo directories (including monorepo subdirectory scoping, each with an optional pre-commit command), agent configuration (model, tools, MCP servers), notification overrides, terminal defaults, dev container configuration (enabled flag, allowed network domains, extra packages, environment variables, idle timeout).
 
 No project-level settings — projects inherit from their workspace. The settings icon is context-aware: opens the appropriate level based on where you are.
 
@@ -196,6 +196,16 @@ An **Agent Session** is a persistent, resumable agent instance (Claude Agent SDK
 Each session has: full context (spec, plan, tasks, memories, system docs), worktree access, a stable session ID (for feedback routing), and continuity (crash-resumable, feedback arrives in the same session).
 
 **Why sessions matter:** The agent that receives your feedback is the same agent that made the original decision — it knows *why* and can make an informed revision. Without persistent sessions, feedback is disconnected.
+
+### Dev Containers (optional sandboxed execution)
+
+Async agents need filesystem and shell permissions that users must normally approve manually — breaking unattended workflows. **Dev containers** are an optional, per-workspace Docker environment that solves this: agents run with full permissions inside a container whose network is locked down via an iptables allowlist, preventing data exfiltration.
+
+Containers are **on-demand** — the client daemon starts one when a task group activates and stops it after a configurable idle timeout. Each workspace gets one container with all configured repos bind-mounted. Agents work in git worktrees inside the container, so the host's main branch stays untouched.
+
+The network firewall allows Anthropic API, GitHub, and npm by default; workspaces add custom domains (private registries, external APIs) in settings. Without containers enabled, the system works exactly as before — standard Claude Code permission model.
+
+See `context/dev-containers.md` for the full design.
 
 ### Task Groups (the shippable unit)
 

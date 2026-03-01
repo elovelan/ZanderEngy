@@ -16,6 +16,7 @@ Reference material that informs the full milestone sequence:
 - [Filesystem Structure](../../specs/initial/context/filesystem.md) — canonical `.engy/` directory layout and the knowledge layer design philosophy
 - [UI Design](../../specs/initial/context/ui-design.md) — global layout, page-by-page designs, and component specs across all milestones
 - [SDD Workflow](../../specs/initial/context/sdd-workflow.md) — the full spec-driven development loop: spec → project → execute → complete
+- [Dev Containers](../../specs/initial/context/dev-containers.md) — optional sandboxed Docker execution for async agents
 
 ---
 
@@ -444,7 +445,53 @@ Kick off task groups as autonomous agent sessions. Agents execute tasks, produce
 
 ---
 
-## M10: PR/CI Monitoring
+## M10: Dev Containers
+
+**What ships:** Optional sandboxed Docker execution for async agents — full permissions inside a network-firewalled container.
+
+**Depends on:** M6 (worktree management), M9 (async agent sessions)
+
+### Architecture
+
+- **Container lifecycle management** in the client daemon — on-demand start/stop per workspace
+- **Docker integration** — build from Engy base image + workspace overrides (extra packages, env vars)
+- **Bind mounts** — repos mounted into container, worktrees read-write, main branch read-only
+- **Network firewall** — iptables with ipset allowlists inside container (`NET_ADMIN` / `NET_RAW` capabilities)
+  - Base allowlist: Anthropic API, GitHub, npm registry
+  - Workspace-defined additions for custom registries and external APIs
+
+### UI
+
+- **Workspace settings additions:**
+  - Container toggle (enabled/disabled)
+  - Allowed network domains editor (base allowlist shown read-only + user additions)
+  - Extra packages list
+  - Environment variables editor
+  - Idle timeout configuration
+- **Container status indicator** on project overview — shows whether workspace container is running, starting, or stopped
+- **Agent execution badge** — visual indicator when an agent session is running inside a container vs. directly on host
+
+### Client
+
+- Container lifecycle management (build, start, stop based on agent session activity)
+- Idle timeout handling (configurable, stop container after no active sessions)
+- Bind mount configuration (translate workspace repo paths to container mounts)
+- WebSocket bridge — container connects directly to Engy server
+- Fallback to direct execution when containers are disabled
+
+### Server
+
+- Container status tracking and broadcasting (WebSocket updates to UI)
+- Workspace settings schema additions for container configuration
+- Agent session routing — direct sessions to container or host based on workspace setting
+
+### What you can do after M10
+
+Enable dev containers per workspace. Agents run autonomously with full permissions inside a firewalled Docker container — no manual permission approvals. Repos are bind-mounted so worktree changes persist on the host. The system still works without containers for users who don't need sandboxed execution.
+
+---
+
+## M11: PR/CI Monitoring
 
 **What ships:** Automated monitoring of open PRs — CI status, reviewer comment triage, and auto-fix dispatch.
 
@@ -477,7 +524,7 @@ Kick off task groups as autonomous agent sessions. Agents execute tasks, produce
 - CI status change detection and notification triggers
 - Reviewer comment storage and triage state
 
-### What you can do after M10
+### What you can do after M11
 
 Open PRs are monitored automatically. CI failures trigger agent fixes. Reviewer comments are pulled back into Engy for triage — pick which to fix, agent handles the rest. The full PR lifecycle is managed inside Engy.
 
@@ -490,8 +537,9 @@ M1 ──→ M2 ──→ M3 ──→ M4 ──→ M5 ──→ M6 ──┐
                                             ├──→ M8
                                     M7 ─────┘
 
-M9 depends on: M6 (worktrees), M7 (memory), M5 (feedback routing)
-M10 depends on: M6 (PR creation), M9 (agent dispatch)
+M9  depends on: M6 (worktrees), M7 (memory), M5 (feedback routing)
+M10 depends on: M6 (worktrees), M9 (async agents)
+M11 depends on: M6 (PR creation), M10 (dev containers for agent execution)
 ```
 
 Note: M7 (Knowledge Layer) can potentially be worked on in parallel with M5-M6 since it's primarily about the knowledge/memory subsystem. M8 (Workspace Polish) depends on all prior features existing to polish.
