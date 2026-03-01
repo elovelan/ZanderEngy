@@ -5,8 +5,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { z } from 'zod';
 import { eq, asc } from 'drizzle-orm';
-import { getDb } from '../db/client.js';
-import { getEngyDir } from '../db/client.js';
+import { getDb, getEngyDir } from '../db/client.js';
 import {
   workspaces,
   projects,
@@ -15,7 +14,23 @@ import {
   taskGroups,
   fleetingMemories,
 } from '../db/schema.js';
-import { generateSlug, uniqueWorkspaceSlug } from '../trpc/utils.js';
+import { generateSlug } from '../trpc/utils.js';
+
+// ── MCP Response Helpers ──────────────────────────────────────────
+
+type McpToolResult = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
+
+function mcpResult(data: unknown): McpToolResult {
+  return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+}
+
+function mcpError(message: string): McpToolResult {
+  return { content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }], isError: true };
+}
+
+function mcpText(text: string): McpToolResult {
+  return { content: [{ type: 'text' as const, text }] };
+}
 
 // ── Singleton McpServer ────────────────────────────────────────────
 
@@ -41,7 +56,6 @@ export function getMcpServer(): McpServer {
   return mcp;
 }
 
-/** Reset singleton for testing */
 export function resetMcpServer(): void {
   mcpInstance = null;
 }
@@ -144,19 +158,10 @@ function registerWorkspaceTools(mcp: McpServer): void {
     'createWorkspace',
     'Create a new workspace. Requires the client daemon for repo validation — will fail without it.',
     { name: z.string().describe('Workspace name') },
-    async ({ name }) => {
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({
-              error: 'createWorkspace requires the client daemon for repo path validation. Use the web UI or tRPC API with an active daemon connection.',
-              hint: 'Start the daemon with: pnpm --filter client dev',
-            }),
-          },
-        ],
-        isError: true,
-      };
+    async (_args) => {
+      return mcpError(
+        'createWorkspace requires the client daemon for repo path validation. Use the web UI or tRPC API with an active daemon connection.',
+      );
     },
   );
 
@@ -168,31 +173,19 @@ function registerWorkspaceTools(mcp: McpServer): void {
       const db = getDb();
       const workspace = db.select().from(workspaces).where(eq(workspaces.slug, slug)).get();
       if (!workspace) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: `Workspace "${slug}" not found` }) }],
-          isError: true,
-        };
+        return mcpError(`Workspace "${slug}" not found`);
       }
 
-      const wsDir = path.join(getEngyDir(), slug);
-      let config: string | null = null;
-      const yamlPath = path.join(wsDir, 'workspace.yaml');
-      if (fs.existsSync(yamlPath)) {
-        config = fs.readFileSync(yamlPath, 'utf-8');
-      }
+      const yamlPath = path.join(getEngyDir(), slug, 'workspace.yaml');
+      const config = fs.existsSync(yamlPath) ? fs.readFileSync(yamlPath, 'utf-8') : null;
 
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ workspace, config }) }],
-      };
+      return mcpResult({ workspace, config });
     },
   );
 
   mcp.tool('listWorkspaces', 'List all workspaces', {}, async () => {
     const db = getDb();
-    const result = db.select().from(workspaces).all();
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-    };
+    return mcpResult(db.select().from(workspaces).all());
   });
 }
 
@@ -213,9 +206,7 @@ function registerProjectTools(mcp: McpServer): void {
         .values({ workspaceId, name, slug, specPath })
         .returning()
         .get();
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(project) }],
-      };
+      return mcpResult(project);
     },
   );
 
@@ -226,15 +217,8 @@ function registerProjectTools(mcp: McpServer): void {
     async ({ id }) => {
       const db = getDb();
       const project = db.select().from(projects).where(eq(projects.id, id)).get();
-      if (!project) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Project not found' }) }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(project) }],
-      };
+      if (!project) return mcpError('Project not found');
+      return mcpResult(project);
     },
   );
 
@@ -253,15 +237,8 @@ function registerProjectTools(mcp: McpServer): void {
         .where(eq(projects.id, id))
         .returning()
         .get();
-      if (!result) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Project not found' }) }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
+      if (!result) return mcpError('Project not found');
+      return mcpResult(result);
     },
   );
 
@@ -271,14 +248,9 @@ function registerProjectTools(mcp: McpServer): void {
     { workspaceId: z.number().describe('Workspace ID') },
     async ({ workspaceId }) => {
       const db = getDb();
-      const result = db
-        .select()
-        .from(projects)
-        .where(eq(projects.workspaceId, workspaceId))
-        .all();
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
+      return mcpResult(
+        db.select().from(projects).where(eq(projects.workspaceId, workspaceId)).all(),
+      );
     },
   );
 }
@@ -301,25 +273,8 @@ function registerTaskTools(mcp: McpServer): void {
     },
     async (args) => {
       const db = getDb();
-      const task = db
-        .insert(tasks)
-        .values({
-          projectId: args.projectId,
-          milestoneId: args.milestoneId,
-          taskGroupId: args.taskGroupId,
-          title: args.title,
-          description: args.description,
-          type: args.type,
-          importance: args.importance,
-          urgency: args.urgency,
-          dependencies: args.dependencies,
-          specId: args.specId,
-        })
-        .returning()
-        .get();
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(task) }],
-      };
+      const task = db.insert(tasks).values(args).returning().get();
+      return mcpResult(task);
     },
   );
 
@@ -346,15 +301,8 @@ function registerTaskTools(mcp: McpServer): void {
         .where(eq(tasks.id, id))
         .returning()
         .get();
-      if (!result) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Task not found' }) }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
+      if (!result) return mcpError('Task not found');
+      return mcpResult(result);
     },
   );
 
@@ -368,21 +316,12 @@ function registerTaskTools(mcp: McpServer): void {
     },
     async ({ projectId, milestoneId, taskGroupId }) => {
       const db = getDb();
-      let result;
+      const query = db.select().from(tasks);
 
-      if (taskGroupId) {
-        result = db.select().from(tasks).where(eq(tasks.taskGroupId, taskGroupId)).all();
-      } else if (milestoneId) {
-        result = db.select().from(tasks).where(eq(tasks.milestoneId, milestoneId)).all();
-      } else if (projectId) {
-        result = db.select().from(tasks).where(eq(tasks.projectId, projectId)).all();
-      } else {
-        result = db.select().from(tasks).all();
-      }
-
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
+      if (taskGroupId) return mcpResult(query.where(eq(tasks.taskGroupId, taskGroupId)).all());
+      if (milestoneId) return mcpResult(query.where(eq(tasks.milestoneId, milestoneId)).all());
+      if (projectId) return mcpResult(query.where(eq(tasks.projectId, projectId)).all());
+      return mcpResult(query.all());
     },
   );
 
@@ -393,15 +332,8 @@ function registerTaskTools(mcp: McpServer): void {
     async ({ id }) => {
       const db = getDb();
       const task = db.select().from(tasks).where(eq(tasks.id, id)).get();
-      if (!task) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Task not found' }) }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(task) }],
-      };
+      if (!task) return mcpError('Task not found');
+      return mcpResult(task);
     },
   );
 }
@@ -423,9 +355,7 @@ function registerMilestoneTools(mcp: McpServer): void {
         .values({ projectId, title, scope, sortOrder: sortOrder ?? 0 })
         .returning()
         .get();
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(milestone) }],
-      };
+      return mcpResult(milestone);
     },
   );
 
@@ -435,15 +365,9 @@ function registerMilestoneTools(mcp: McpServer): void {
     { projectId: z.number().describe('Project ID') },
     async ({ projectId }) => {
       const db = getDb();
-      const result = db
-        .select()
-        .from(milestones)
-        .where(eq(milestones.projectId, projectId))
-        .orderBy(asc(milestones.sortOrder))
-        .all();
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
+      return mcpResult(
+        db.select().from(milestones).where(eq(milestones.projectId, projectId)).orderBy(asc(milestones.sortOrder)).all(),
+      );
     },
   );
 }
@@ -464,9 +388,7 @@ function registerTaskGroupTools(mcp: McpServer): void {
         .values({ milestoneId, name, repos })
         .returning()
         .get();
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(group) }],
-      };
+      return mcpResult(group);
     },
   );
 
@@ -476,14 +398,9 @@ function registerTaskGroupTools(mcp: McpServer): void {
     { milestoneId: z.number().describe('Milestone ID') },
     async ({ milestoneId }) => {
       const db = getDb();
-      const result = db
-        .select()
-        .from(taskGroups)
-        .where(eq(taskGroups.milestoneId, milestoneId))
-        .all();
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
+      return mcpResult(
+        db.select().from(taskGroups).where(eq(taskGroups.milestoneId, milestoneId)).all(),
+      );
     },
   );
 }
@@ -503,16 +420,10 @@ function registerMemoryTools(mcp: McpServer): void {
       projectId: z.number().optional().describe('Project ID'),
       tags: z.array(z.string()).default([]).describe('Tags for organization'),
     },
-    async ({ workspaceId, content, type, source, projectId, tags }) => {
+    async (args) => {
       const db = getDb();
-      const memory = db
-        .insert(fleetingMemories)
-        .values({ workspaceId, content, type, source, projectId, tags })
-        .returning()
-        .get();
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(memory) }],
-      };
+      const memory = db.insert(fleetingMemories).values(args).returning().get();
+      return mcpResult(memory);
     },
   );
 
@@ -525,27 +436,11 @@ function registerMemoryTools(mcp: McpServer): void {
     },
     async ({ workspaceId, projectId }) => {
       const db = getDb();
-      let result;
+      const query = db.select().from(fleetingMemories);
 
-      if (projectId) {
-        result = db
-          .select()
-          .from(fleetingMemories)
-          .where(eq(fleetingMemories.projectId, projectId))
-          .all();
-      } else if (workspaceId) {
-        result = db
-          .select()
-          .from(fleetingMemories)
-          .where(eq(fleetingMemories.workspaceId, workspaceId))
-          .all();
-      } else {
-        result = db.select().from(fleetingMemories).all();
-      }
-
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(result) }],
-      };
+      if (projectId) return mcpResult(query.where(eq(fleetingMemories.projectId, projectId)).all());
+      if (workspaceId) return mcpResult(query.where(eq(fleetingMemories.workspaceId, workspaceId)).all());
+      return mcpResult(query.all());
     },
   );
 }
@@ -557,39 +452,14 @@ function registerFileTools(mcp: McpServer): void {
     { path: z.string().describe('Absolute path to the file') },
     async ({ path: filePath }) => {
       if (!isPathAllowed(filePath)) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({
-                error: 'Path not allowed. Only files within the engy directory or workspace repos are accessible.',
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return mcpError('Path not allowed. Only files within the engy directory or workspace repos are accessible.');
       }
 
       const resolved = path.resolve(filePath);
-      if (!fs.existsSync(resolved)) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'File not found' }) }],
-          isError: true,
-        };
-      }
+      if (!fs.existsSync(resolved)) return mcpError('File not found');
+      if (!fs.statSync(resolved).isFile()) return mcpError('Path is not a file');
 
-      const stat = fs.statSync(resolved);
-      if (!stat.isFile()) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Path is not a file' }) }],
-          isError: true,
-        };
-      }
-
-      const content = fs.readFileSync(resolved, 'utf-8');
-      return {
-        content: [{ type: 'text' as const, text: content }],
-      };
+      return mcpText(fs.readFileSync(resolved, 'utf-8'));
     },
   );
 
@@ -599,43 +469,18 @@ function registerFileTools(mcp: McpServer): void {
     { path: z.string().describe('Absolute path to the directory') },
     async ({ path: dirPath }) => {
       if (!isPathAllowed(dirPath)) {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify({
-                error: 'Path not allowed. Only directories within the engy directory or workspace repos are accessible.',
-              }),
-            },
-          ],
-          isError: true,
-        };
+        return mcpError('Path not allowed. Only directories within the engy directory or workspace repos are accessible.');
       }
 
       const resolved = path.resolve(dirPath);
-      if (!fs.existsSync(resolved)) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Directory not found' }) }],
-          isError: true,
-        };
-      }
-
-      const stat = fs.statSync(resolved);
-      if (!stat.isDirectory()) {
-        return {
-          content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Path is not a directory' }) }],
-          isError: true,
-        };
-      }
+      if (!fs.existsSync(resolved)) return mcpError('Directory not found');
+      if (!fs.statSync(resolved).isDirectory()) return mcpError('Path is not a directory');
 
       const entries = fs.readdirSync(resolved, { withFileTypes: true }).map((entry) => ({
         name: entry.name,
         type: entry.isDirectory() ? 'directory' : 'file',
       }));
-
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(entries) }],
-      };
+      return mcpResult(entries);
     },
   );
 }

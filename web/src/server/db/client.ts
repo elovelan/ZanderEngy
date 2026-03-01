@@ -7,15 +7,10 @@ import * as schema from './schema.js';
 
 function resolveEngyDir(): string {
   const raw = process.env.ENGY_DIR || '~/.engy/';
-  let resolved: string;
-
   if (raw.startsWith('~')) {
-    resolved = path.join(os.homedir(), raw.slice(1));
-  } else {
-    resolved = path.resolve(raw);
+    return path.join(os.homedir(), raw.slice(1));
   }
-
-  return resolved;
+  return path.resolve(raw);
 }
 
 let dbInstance: ReturnType<typeof drizzle<typeof schema>> | null = null;

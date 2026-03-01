@@ -12,7 +12,6 @@ import {
   taskGroups,
   fleetingMemories,
 } from '../db/schema.js';
-import { eq } from 'drizzle-orm';
 
 describe('MCP Server', () => {
   let ctx: TestContext;

@@ -25,7 +25,6 @@ export class FileWatcher {
   async updateWorkspaces(workspaces: WatchedWorkspace[]): Promise<void> {
     const desiredSlugs = new Set(workspaces.map((w) => w.slug));
 
-    // Remove watchers for workspaces no longer present
     for (const [slug, watcher] of this.watchers) {
       if (!desiredSlugs.has(slug)) {
         await watcher.close();
@@ -33,10 +32,8 @@ export class FileWatcher {
       }
     }
 
-    // Add or update watchers for current workspaces
     for (const workspace of workspaces) {
       if (this.watchers.has(workspace.slug)) {
-        // Already watching; could update paths but for simplicity, recreate
         const existing = this.watchers.get(workspace.slug)!;
         await existing.close();
       }

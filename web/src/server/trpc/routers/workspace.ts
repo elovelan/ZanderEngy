@@ -1,12 +1,31 @@
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
+import { randomUUID } from 'node:crypto';
 import { router, publicProcedure } from '../trpc.js';
 import { getDb } from '../../db/client.js';
 import { workspaces, projects } from '../../db/schema.js';
 import { uniqueWorkspaceSlug } from '../utils.js';
 import { initWorkspaceDir, removeWorkspaceDir } from '../../engy-dir/init.js';
-import { randomUUID } from 'node:crypto';
+import type { AppState } from '../context.js';
+
+function broadcastWorkspacesSync(state: AppState, repoOverrides?: { slug: string; repos: string[] }): void {
+  if (!state.daemon || state.daemon.readyState !== 1) return;
+
+  const db = getDb();
+  const allWorkspaces = db.select().from(workspaces).all();
+  const syncPayload = allWorkspaces.map((w) => ({
+    slug: w.slug,
+    repos: repoOverrides?.slug === w.slug ? repoOverrides.repos : [],
+  }));
+
+  state.daemon.send(
+    JSON.stringify({
+      type: 'WORKSPACES_SYNC',
+      payload: { workspaces: syncPayload },
+    }),
+  );
+}
 
 export const workspaceRouter = router({
   create: publicProcedure
@@ -20,7 +39,6 @@ export const workspaceRouter = router({
       const db = getDb();
       const slug = await uniqueWorkspaceSlug(input.name);
 
-      // Validate repo paths via daemon if repos provided
       if (input.repos.length > 0) {
         if (!ctx.state.daemon || ctx.state.daemon.readyState !== 1) {
           throw new TRPCError({
@@ -58,14 +76,12 @@ export const workspaceRouter = router({
         }
       }
 
-      // Insert workspace
       const workspace = db
         .insert(workspaces)
         .values({ name: input.name, slug })
         .returning()
         .get();
 
-      // Initialize filesystem
       try {
         initWorkspaceDir(input.name, slug, input.repos);
       } catch (err) {
@@ -76,7 +92,6 @@ export const workspaceRouter = router({
         });
       }
 
-      // Create default project
       try {
         db.insert(projects)
           .values({
@@ -95,20 +110,7 @@ export const workspaceRouter = router({
         });
       }
 
-      // Broadcast WORKSPACES_SYNC to daemon
-      if (ctx.state.daemon && ctx.state.daemon.readyState === 1) {
-        const allWorkspaces = db.select().from(workspaces).all();
-        const syncPayload = allWorkspaces.map((w) => {
-          // Read repos from workspace.yaml — for now just pass what was given
-          return { slug: w.slug, repos: w.slug === slug ? input.repos : [] };
-        });
-        ctx.state.daemon.send(
-          JSON.stringify({
-            type: 'WORKSPACES_SYNC',
-            payload: { workspaces: syncPayload },
-          }),
-        );
-      }
+      broadcastWorkspacesSync(ctx.state, { slug, repos: input.repos });
 
       return workspace;
     }),
@@ -142,16 +144,7 @@ export const workspaceRouter = router({
       console.warn(`[workspace] Failed to remove directory for ${workspace.slug}:`, err);
     }
 
-    // Broadcast WORKSPACES_SYNC to daemon
-    if (ctx.state.daemon && ctx.state.daemon.readyState === 1) {
-      const allWorkspaces = db.select().from(workspaces).all();
-      ctx.state.daemon.send(
-        JSON.stringify({
-          type: 'WORKSPACES_SYNC',
-          payload: { workspaces: allWorkspaces.map((w) => ({ slug: w.slug, repos: [] })) },
-        }),
-      );
-    }
+    broadcastWorkspacesSync(ctx.state);
 
     return { success: true };
   }),

@@ -94,7 +94,7 @@ export class WsClient {
     });
 
     this.ws.on('error', () => {
-      // Error will be followed by close event, which triggers reconnect
+      // close event follows, which triggers reconnect
     });
   }
 

@@ -41,7 +41,6 @@ export const taskRouter = router({
     .mutation(({ input }) => {
       const db = getDb();
 
-      // Validate no cycles in dependencies
       if (input.dependencies.length > 0) {
         const allTasks = new Map<number, number[]>();
         const existingTasks = db.select().from(tasks).all();
@@ -49,7 +48,6 @@ export const taskRouter = router({
           allTasks.set(t.id, (t.dependencies as number[]) ?? []);
         }
 
-        // Check each dependency exists
         for (const depId of input.dependencies) {
           if (!allTasks.has(depId)) {
             throw new TRPCError({
@@ -142,7 +140,6 @@ export const taskRouter = router({
       const db = getDb();
       const { id, ...updates } = input;
 
-      // Validate no cycles if dependencies changed
       if (updates.dependencies) {
         const allTasks = new Map<number, number[]>();
         const existingTasks = db.select().from(tasks).all();

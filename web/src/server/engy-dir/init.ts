@@ -6,7 +6,6 @@ export function initWorkspaceDir(name: string, slug: string, repos: string[]): v
   const dir = path.join(getEngyDir(), slug);
   fs.mkdirSync(dir, { recursive: true });
 
-  // workspace.yaml
   const yamlContent = [
     `name: ${name}`,
     `slug: ${slug}`,
@@ -15,7 +14,6 @@ export function initWorkspaceDir(name: string, slug: string, repos: string[]): v
   ].join('\n');
   fs.writeFileSync(path.join(dir, 'workspace.yaml'), yamlContent + '\n');
 
-  // system/ structure
   fs.mkdirSync(path.join(dir, 'system', 'features'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'system', 'technical'), { recursive: true });
   fs.writeFileSync(
@@ -23,7 +21,6 @@ export function initWorkspaceDir(name: string, slug: string, repos: string[]): v
     `# ${name}\n\nWorkspace overview — edit this file to describe your project.\n`,
   );
 
-  // Empty directories
   fs.mkdirSync(path.join(dir, 'specs'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'docs'), { recursive: true });
   fs.mkdirSync(path.join(dir, 'memory'), { recursive: true });
