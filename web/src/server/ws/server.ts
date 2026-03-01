@@ -1,4 +1,3 @@
-import type { Server } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ClientToServerMessage, ValidatePathsRequestMessage } from '@engy/common';
@@ -9,8 +8,8 @@ import { workspaces } from '../db/schema';
 const MAX_EVENTS_PER_WORKSPACE = 100;
 const VALIDATION_TIMEOUT_MS = 5_000;
 
-export function attachWebSocket(server: Server, state: AppState): void {
-  const wss = new WebSocketServer({ server });
+export function createWebSocketServer(state: AppState): WebSocketServer {
+  const wss = new WebSocketServer({ noServer: true });
 
   wss.on('connection', (ws: WebSocket) => {
     ws.on('message', (raw: Buffer | string) => {
@@ -34,6 +33,8 @@ export function attachWebSocket(server: Server, state: AppState): void {
       }
     });
   });
+
+  return wss;
 }
 
 function handleMessage(ws: WebSocket, msg: ClientToServerMessage, state: AppState): void {

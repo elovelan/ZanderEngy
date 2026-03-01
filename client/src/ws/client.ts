@@ -13,7 +13,7 @@ const JITTER_FACTOR = 0.2;
 
 interface WsClientOptions {
   serverUrl: string;
-  onWorkspacesSync: (message: WorkspacesSyncMessage) => void;
+  onWorkspacesSync?: (message: WorkspacesSyncMessage) => void;
 }
 
 export function computeBackoff(attempt: number): number {
@@ -23,7 +23,8 @@ export function computeBackoff(attempt: number): number {
 }
 
 export function deriveWsUrl(httpUrl: string): string {
-  return httpUrl.replace(/^http/, 'ws');
+  const base = httpUrl.replace(/^http/, 'ws').replace(/\/+$/, '');
+  return `${base}/ws`;
 }
 
 async function validatePaths(paths: string[]): Promise<Array<{ path: string; exists: boolean }>> {
@@ -45,9 +46,9 @@ export class WsClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionallyClosed = false;
   private readonly wsUrl: string;
-  private readonly onWorkspacesSync: (message: WorkspacesSyncMessage) => void;
+  private readonly onWorkspacesSync?: (message: WorkspacesSyncMessage) => void;
 
-  constructor(private readonly options: WsClientOptions) {
+  constructor(options: WsClientOptions) {
     this.wsUrl = deriveWsUrl(options.serverUrl);
     this.onWorkspacesSync = options.onWorkspacesSync;
   }
@@ -108,7 +109,7 @@ export class WsClient {
 
     switch (message.type) {
       case 'WORKSPACES_SYNC':
-        this.onWorkspacesSync(message);
+        this.onWorkspacesSync?.(message);
         break;
       case 'VALIDATE_PATHS_REQUEST':
         this.handleValidatePathsRequest(message);

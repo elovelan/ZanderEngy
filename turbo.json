@@ -3,7 +3,8 @@
   "tasks": {
     "dev": {
       "persistent": true,
-      "cache": false
+      "cache": false,
+      "passThroughEnv": ["ENGY_DIR", "PORT", "ENGY_SERVER_URL"]
     },
     "build": {
       "dependsOn": ["^build"],

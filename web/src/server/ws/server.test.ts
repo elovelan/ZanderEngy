@@ -2,14 +2,19 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import { WebSocket } from 'ws';
 import type { AppState } from '../trpc/context';
-import { attachWebSocket, dispatchValidation } from './server';
+import { createWebSocketServer, dispatchValidation } from './server';
 
 let openClients: WebSocket[] = [];
 
 function startServer(state: AppState): Promise<{ server: Server; port: number }> {
   return new Promise((resolve) => {
     const server = createServer();
-    attachWebSocket(server, state);
+    const wss = createWebSocketServer(state);
+    server.on('upgrade', (req, socket, head) => {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    });
     server.listen(0, () => {
       const addr = server.address();
       const port = typeof addr === 'object' && addr ? addr.port : 0;
@@ -20,7 +25,7 @@ function startServer(state: AppState): Promise<{ server: Server; port: number }>
 
 function connectClient(port: number): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}`);
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
     openClients.push(ws);
     ws.on('open', () => resolve(ws));
     ws.on('error', reject);

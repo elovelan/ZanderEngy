@@ -19,19 +19,20 @@ export interface AppState {
   >;
 }
 
-let instance: AppState | null = null;
+const GLOBAL_KEY = '__engy_app_state__' as const;
 
 export function getAppState(): AppState {
-  if (!instance) {
-    instance = {
+  const g = globalThis as Record<string, unknown>;
+  if (!g[GLOBAL_KEY]) {
+    g[GLOBAL_KEY] = {
       daemon: null,
       fileChanges: new Map(),
       pendingValidations: new Map(),
     };
   }
-  return instance;
+  return g[GLOBAL_KEY] as AppState;
 }
 
 export function resetAppState(): void {
-  instance = null;
+  (globalThis as Record<string, unknown>)[GLOBAL_KEY] = undefined;
 }

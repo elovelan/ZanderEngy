@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import next from 'next';
 import { getAppState } from './src/server/trpc/context';
-import { attachWebSocket } from './src/server/ws/server';
+import { createWebSocketServer } from './src/server/ws/server';
 import { attachMCP } from './src/server/mcp/index';
 import { runMigrations } from './src/server/db/migrate';
 
@@ -14,13 +14,24 @@ const handle = app.getRequestHandler();
 app.prepare().then(() => {
   runMigrations();
 
+  const state = getAppState();
+
   const server = createServer((req, res) => {
     handle(req, res);
   });
 
-  const state = getAppState();
+  const wss = createWebSocketServer(state);
 
-  attachWebSocket(server, state);
+  server.on('upgrade', (req, socket, head) => {
+    const { pathname } = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+    if (pathname === '/ws') {
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    }
+    // Non-/ws upgrades (e.g. Next.js HMR) fall through to Next.js
+  });
+
   attachMCP(server);
 
   server.listen(port, () => {

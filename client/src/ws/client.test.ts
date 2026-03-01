@@ -12,11 +12,11 @@ const mockedAccess = vi.mocked(access);
 
 describe('deriveWsUrl', () => {
   it('converts http to ws', () => {
-    expect(deriveWsUrl('http://localhost:3000')).toBe('ws://localhost:3000');
+    expect(deriveWsUrl('http://localhost:3000')).toBe('ws://localhost:3000/ws');
   });
 
   it('converts https to wss', () => {
-    expect(deriveWsUrl('https://example.com')).toBe('wss://example.com');
+    expect(deriveWsUrl('https://example.com')).toBe('wss://example.com/ws');
   });
 });
 
