@@ -11,9 +11,7 @@ import {
   RiFileList2Line,
   RiEyeLine,
   RiFolderLine,
-  RiAddLine,
 } from "@remixicon/react";
-import { Button } from "@/components/ui/button";
 
 interface SpecTreeProps {
   workspaceSlug: string;
