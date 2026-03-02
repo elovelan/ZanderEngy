@@ -38,7 +38,7 @@ Engy extends SDD with two things most SDD tools lack:
 
 **Lifecycle and disposal.** Specs don't drift because projects are short-lived. The spec drives a bounded piece of work, the project completes, its valuable outputs get extracted (memory promotions, system doc updates), and the project is archived. The outcomes survive; the process becomes read-only reference.
 
----
+***
 
 ## Interaction Model
 
@@ -52,14 +52,14 @@ Every stage of the SDD loop is driven through the terminal via **Claude Code ski
 
 **Context-scoped terminal.** The terminal adapts to where you are in the app — both its working directory and its default agent:
 
-| Location | Working Directory | Default Agent | Scope |
-|----------|------------------|---------------|-------|
-| Spec page | `specs/{slug}/` | `engy:spec-assistant` — drafting, research tasks, context files | Writes scoped to spec dir |
-| Project overview / Tasks | Project's primary repo | `engy:project-assistant` — milestone planning, group creation, task management | Writes to repo via worktrees |
-| Diffs tab | Task group's worktree | No special agent — CLI with diff context injected | Ad-hoc feedback, "explain this" |
-| System docs page | `system/` | `engy:sysdoc-assistant` — editing system docs | Writes scoped to system dir |
-| Default project / workspace Tasks | Workspace root | `engy:workspace-assistant` — quick bugs, one-offs, ad-hoc queries | General purpose |
-| Home page | No terminal | — | — |
+| Location                          | Working Directory      | Default Agent                                                                  | Scope                           |
+| --------------------------------- | ---------------------- | ------------------------------------------------------------------------------ | ------------------------------- |
+| Spec page                         | `specs/{slug}/`        | `engy:spec-assistant` — drafting, research tasks, context files                | Writes scoped to spec dir       |
+| Project overview / Tasks          | Project's primary repo | `engy:project-assistant` — milestone planning, group creation, task management | Writes to repo via worktrees    |
+| Diffs tab                         | Task group's worktree  | No special agent — CLI with diff context injected                              | Ad-hoc feedback, "explain this" |
+| System docs page                  | `system/`              | `engy:sysdoc-assistant` — editing system docs                                  | Writes scoped to system dir     |
+| Default project / workspace Tasks | Workspace root         | `engy:workspace-assistant` — quick bugs, one-offs, ad-hoc queries              | General purpose                 |
+| Home page                         | No terminal            | —                                                                              | —                               |
 
 **Access outside scope is read-only via MCP.** When the terminal is scoped to a spec directory, the agent can still search system docs, read memories, and browse other specs — but only through MCP tools (read-only). Direct filesystem writes are limited to the scoped directory. This prevents accidental cross-contamination while keeping all context accessible.
 
@@ -125,7 +125,7 @@ Powered by ChromaDB (vector search) and SQLite (structured queries). Surfaces in
 
 **Terminal search** — the AI in the terminal searches the same index via MCP tools. "What do we know about rate limiting?" triggers a search across memories, system docs, and active project content. The AI interprets results, connects dots across sources, and answers follow-up questions — conversational exploration rather than a list of links.
 
----
+***
 
 ## Core Concepts
 
@@ -221,7 +221,7 @@ Planned → Active → Review → PR Open → Merged → Cleaned Up
              Stopped → (Restart) → Active
 ```
 
-- **Planned:** No worktree yet. **Active:** Worktree created, agent running, diffs flowing. **Paused:** Session suspended, worktree preserved. **Stopped:** Session killed, can restart with notes. **Review:** Diffs awaiting review, feedback routes to session. **PR Open:** Engy monitors CI/reviews — agent auto-fixes CI failures; reviewer comments are triaged by user who selects which to dispatch agent on. **Merged/Cleaned Up:** Terminal states.
+* **Planned:** No worktree yet. **Active:** Worktree created, agent running, diffs flowing. **Paused:** Session suspended, worktree preserved. **Stopped:** Session killed, can restart with notes. **Review:** Diffs awaiting review, feedback routes to session. **PR Open:** Engy monitors CI/reviews — agent auto-fixes CI failures; reviewer comments are triaged by user who selects which to dispatch agent on. **Merged/Cleaned Up:** Terminal states.
 
 **Group controls:** Pause, Stop, Resume, Restart, Complete — available from project overview, dependency graph, swimlane, PR tab, and task detail. Controls operate at the group level. **Complete** allows manually closing a group (e.g. remaining tasks are no longer needed), skipping the PR flow.
 
@@ -242,7 +242,9 @@ A **Milestone** is an organizational grouping of task groups. Lifecycle: **Plann
 Planning is progressive, not upfront. Each level has its own plan loop:
 
 1. **Project planning** — Spec → milestones with rough scope. No tasks yet.
+
 2. **Milestone planning** — When ready, decomposed into groups and tasks with full context from earlier milestones.
+
 3. **Task planning** (optional) — User triggers a planning loop for a task. Agent produces an implementation plan, user approves, and that plan guides the agent's execution. The task stays as-is — it just gets an approved plan attached.
 
 All three levels use the same planning skill and terminal interaction. Plan just-in-time, with maximum context.
@@ -275,7 +277,7 @@ Principle: every error auto-recovers or surfaces as a notification with clear ne
 
 Repetitive workflows are handled through Claude Code skills, not a separate template system. Skills encapsulate how to create specs, plan projects, or scaffold code for particular patterns — dynamic (pull from system docs and memory), not static.
 
----
+***
 
 ## Storage Architecture
 
@@ -323,11 +325,11 @@ See `context/filesystem.md` for the full directory structure reference.
 
 The AI terminal accesses Engy's data through an **MCP server**. Database operations go through MCP tools (validation, transactions, audit trail). File reads go through MCP tools. File writes go direct to filesystem (leveraging Claude Code's native capabilities).
 
-| Content | Read | Write |
-|---------|------|-------|
-| SQLite (projects, tasks, memories) | MCP tools | MCP tools |
-| Files (system docs, specs, shared docs) | MCP tools | Direct filesystem |
-| ChromaDB (search) | MCP tools | Automatic (reindex) |
+| Content                                 | Read      | Write               |
+| --------------------------------------- | --------- | ------------------- |
+| SQLite (projects, tasks, memories)      | MCP tools | MCP tools           |
+| Files (system docs, specs, shared docs) | MCP tools | Direct filesystem   |
+| ChromaDB (search)                       | MCP tools | Automatic (reindex) |
 
 MCP tools: project management (`createProject`, `getProject`, `updateProjectStatus`, `deleteProject`), task management (`createTask`, `updateTask`, `getTasks`, `getTasksByGroup`, `getTasksBySpec`), memory (`createFleetingMemory`, `promoteMemory`, `searchMemories`), planning (`createMilestone`, `planMilestone`, `createTaskGroup`, `replanTask`, `getPlan`), search (`search`, `getDocument`), workspace (`getWorkspaceConfig`, `getRepos`).
 
@@ -335,7 +337,7 @@ MCP tools: project management (`createProject`, `getProject`, `updateProjectStat
 
 `engy validate` checks: broken links in frontmatter references, schema compliance, duplicate IDs, orphaned content, lifecycle consistency. `engy reindex` rebuilds ChromaDB. Both available as terminal skills.
 
----
+***
 
 ## Memory Architecture
 
@@ -361,7 +363,7 @@ Permanent memories live as markdown files in `.engy/memory/` with YAML frontmatt
 
 Agents receive memories in order: project memories (SQLite) → workspace memories (files) → repo memories (files, filtered by `repo`). When planning new projects, agents see system docs + workspace memories + repo memories.
 
----
+***
 
 ## Cross-Workspace Work
 
@@ -369,7 +371,7 @@ Workspace boundaries are organizational, not technical. A task group can touch a
 
 For spec research needing docs from another workspace: copy relevant material into the spec's `context/` dir.
 
----
+***
 
 ## Known Tradeoffs and Open Questions
 

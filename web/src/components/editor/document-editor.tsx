@@ -19,8 +19,10 @@ import { EngyThreadStore } from "./thread-store";
 const USER_ID = "local-user";
 const LOCAL_USER: User = { id: USER_ID, username: "You", avatarUrl: "" };
 
-async function resolveUsers(): Promise<User[]> {
-  return [LOCAL_USER];
+async function resolveUsers(userIds: string[]): Promise<User[]> {
+  return userIds.map((id) =>
+    id === USER_ID ? LOCAL_USER : { id, username: id, avatarUrl: "" },
+  );
 }
 
 interface DocumentEditorProps {

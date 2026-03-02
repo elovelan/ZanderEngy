@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useCallback } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SpecTree } from "@/components/specs/spec-tree";
@@ -12,8 +12,18 @@ import { RiFileTextLine } from "@remixicon/react";
 
 export default function SpecsPage() {
   const params = useParams<{ workspace: string }>();
-  const [selectedSpec, setSelectedSpec] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const selectedSpec = searchParams.get("spec");
+  const selectedFile = searchParams.get("file");
+
+  function updateUrl(spec: string | null, file: string | null) {
+    const p = new URLSearchParams();
+    if (spec) p.set("spec", spec);
+    if (file) p.set("file", file);
+    const qs = p.toString();
+    router.replace(`/w/${params.workspace}/specs${qs ? `?${qs}` : ""}`, { scroll: false });
+  }
 
   return (
     <div className="flex h-[calc(100vh-6rem)]">
@@ -21,14 +31,8 @@ export default function SpecsPage() {
         <SpecTree
           workspaceSlug={params.workspace}
           selectedSpec={selectedSpec}
-          onSelectSpec={(slug) => {
-            setSelectedSpec(slug);
-            setSelectedFile(null);
-          }}
-          onSelectFile={(specSlug, filePath) => {
-            setSelectedSpec(specSlug);
-            setSelectedFile(filePath);
-          }}
+          onSelectSpec={(slug) => updateUrl(slug, null)}
+          onSelectFile={(specSlug, filePath) => updateUrl(specSlug, filePath)}
         />
       </div>
       <div className="flex-1 min-w-0">
@@ -37,10 +41,7 @@ export default function SpecsPage() {
             workspaceSlug={params.workspace}
             specSlug={selectedSpec}
             selectedFile={selectedFile}
-            onDeleted={() => {
-              setSelectedSpec(null);
-              setSelectedFile(null);
-            }}
+            onDeleted={() => updateUrl(null, null)}
           />
         ) : (
           <EmptyState />
