@@ -16,6 +16,9 @@ import { Button } from "@/components/ui/button";
 import { RiFileCopyLine, RiCheckLine } from "@remixicon/react";
 import { InMemoryThreadStore } from "./thread-store";
 
+export { InMemoryThreadStore } from "./thread-store";
+export { DefaultThreadStoreAuth } from "@blocknote/core/comments";
+
 const USER_ID = "local-user";
 const LOCAL_USER: User = { id: USER_ID, username: "You", avatarUrl: "" };
 
@@ -32,6 +35,8 @@ interface DocumentEditorProps {
   onSave: (markdown: string) => void;
   /** Enable inline comments (default: false) */
   comments?: boolean;
+  /** External thread store (persists across editor remounts) */
+  threadStore?: InMemoryThreadStore;
 }
 
 const AUTOSAVE_DELAY_MS = 1500;
@@ -40,6 +45,7 @@ export function DocumentEditor({
   initialMarkdown,
   onSave,
   comments = false,
+  threadStore: externalThreadStore,
 }: DocumentEditorProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedRef = useRef(false);
@@ -48,10 +54,12 @@ export function DocumentEditor({
   const onSaveRef = useRef(onSave);
   useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
-  const threadStore = useMemo(() => {
+  const internalStore = useMemo(() => {
     const auth = new DefaultThreadStoreAuth(USER_ID, 'editor');
     return new InMemoryThreadStore(USER_ID, auth);
   }, []);
+
+  const threadStore = externalThreadStore ?? internalStore;
 
   useEffect(() => {
     setHasThreads(threadStore.getThreads().size > 0);

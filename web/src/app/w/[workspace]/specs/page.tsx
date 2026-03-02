@@ -1,14 +1,22 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SpecTree } from "@/components/specs/spec-tree";
 import { SpecFrontmatter } from "@/components/specs/spec-frontmatter";
 import { SpecTasks } from "@/components/specs/spec-tasks";
-import { DynamicDocumentEditor } from "@/components/editor/dynamic-document-editor";
+import {
+  DynamicDocumentEditor,
+} from "@/components/editor/dynamic-document-editor";
+import {
+  InMemoryThreadStore,
+  DefaultThreadStoreAuth,
+} from "@/components/editor/document-editor";
 import { RiFileTextLine } from "@remixicon/react";
+
+const USER_ID = "local-user";
 
 export default function SpecsPage() {
   const params = useParams<{ workspace: string }>();
@@ -72,6 +80,11 @@ interface SpecDetailProps {
 
 function SpecDetail({ workspaceSlug, specSlug, selectedFile, onDeleted }: SpecDetailProps) {
   const utils = trpc.useUtils();
+
+  const threadStore = useMemo(() => {
+    const auth = new DefaultThreadStoreAuth(USER_ID, 'editor');
+    return new InMemoryThreadStore(USER_ID, auth);
+  }, [specSlug]); // eslint-disable-line react-hooks/exhaustive-deps
   const filePath = selectedFile ?? "spec.md";
   const isSpecMd = filePath === "spec.md";
 
@@ -151,6 +164,7 @@ function SpecDetail({ workspaceSlug, specSlug, selectedFile, onDeleted }: SpecDe
           initialMarkdown={editorBody}
           onSave={handleSave}
           comments={isSpecMd}
+          threadStore={isSpecMd ? threadStore : undefined}
         />
       </TabsContent>
       <TabsContent value="tasks" className="flex-1 overflow-hidden m-0">
