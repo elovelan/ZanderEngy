@@ -7,7 +7,6 @@ import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SpecTree } from "@/components/specs/spec-tree";
 import { SpecFrontmatter } from "@/components/specs/spec-frontmatter";
-import { SpecComments } from "@/components/specs/spec-comments";
 import { SpecTasks } from "@/components/specs/spec-tasks";
 import { RiFileTextLine } from "@remixicon/react";
 
@@ -106,19 +105,14 @@ function SpecDetail({ workspaceSlug, specSlug, onDeleted }: SpecDetailProps) {
         </TabsList>
       </SpecFrontmatter>
       <TabsContent value="content" className="flex flex-1 overflow-hidden m-0">
-        <div className="flex-1 overflow-auto">
-          <SpecEditor
-            workspaceSlug={workspaceSlug}
-            specSlug={specSlug}
-            initialBody={spec.body}
-          />
-        </div>
-        <div className="w-64 shrink-0">
-          <SpecComments
-            workspaceSlug={workspaceSlug}
-            documentPath={documentPath}
-          />
-        </div>
+        <SpecEditor
+          workspaceSlug={workspaceSlug}
+          specSlug={specSlug}
+          documentPath={documentPath}
+          initialBody={spec.body}
+          editorJson={spec.editorJson}
+          showComments
+        />
       </TabsContent>
       <TabsContent value="tasks" className="flex-1 overflow-hidden m-0">
         <SpecTasks specSlug={specSlug} />

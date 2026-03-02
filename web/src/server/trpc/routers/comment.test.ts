@@ -16,202 +16,309 @@ describe('comment router', () => {
     ctx.cleanup();
   });
 
-  describe('create', () => {
-    it('should create a comment with anchors', async () => {
-      const comment = await caller.comment.create({
+  describe('createThread', () => {
+    it('should create a thread with initial comment', async () => {
+      const thread = await caller.comment.createThread({
         workspaceSlug: 'test-ws',
-        documentPath: 'specs/1_auth/spec.md',
-        content: 'Needs more detail',
-        anchorStart: 10,
-        anchorEnd: 25,
+        documentPath: 'specs/auth/spec.md',
+        threadId: 'thread-1',
+        initialComment: {
+          id: 'comment-1',
+          body: [{ type: 'paragraph', content: 'Needs clarification' }],
+        },
       });
 
-      expect(comment.content).toBe('Needs more detail');
-      expect(comment.documentPath).toBe('specs/1_auth/spec.md');
-      expect(comment.anchorStart).toBe(10);
-      expect(comment.anchorEnd).toBe(25);
-      expect(comment.resolved).toBe(false);
-    });
-
-    it('should create a comment without anchors', async () => {
-      const comment = await caller.comment.create({
-        workspaceSlug: 'test-ws',
-        documentPath: 'specs/1_auth/spec.md',
-        content: 'General feedback',
-      });
-      expect(comment.anchorStart).toBeNull();
-      expect(comment.anchorEnd).toBeNull();
+      expect(thread.id).toBe('thread-1');
+      expect(thread.documentPath).toBe('specs/auth/spec.md');
+      expect(thread.resolved).toBe(false);
+      expect(thread.comments).toHaveLength(1);
+      expect(thread.comments[0].id).toBe('comment-1');
+      expect(thread.comments[0].userId).toBe('local-user');
     });
 
     it('should reject unknown workspace', async () => {
       await expect(
-        caller.comment.create({
+        caller.comment.createThread({
           workspaceSlug: 'nope',
           documentPath: 'x',
-          content: 'y',
+          threadId: 't1',
+          initialComment: { id: 'c1', body: [] },
         }),
       ).rejects.toThrow('not found');
     });
   });
 
-  describe('list', () => {
-    it('should return comments ordered by anchorStart', async () => {
-      await caller.comment.create({
+  describe('listThreads', () => {
+    it('should return threads with comments for a document', async () => {
+      await caller.comment.createThread({
         workspaceSlug: 'test-ws',
         documentPath: 'spec.md',
-        content: 'Second',
-        anchorStart: 20,
+        threadId: 'thread-1',
+        initialComment: { id: 'c1', body: [{ type: 'paragraph', content: 'First' }] },
       });
-      await caller.comment.create({
+      await caller.comment.createThread({
         workspaceSlug: 'test-ws',
         documentPath: 'spec.md',
-        content: 'First',
-        anchorStart: 5,
+        threadId: 'thread-2',
+        initialComment: { id: 'c2', body: [{ type: 'paragraph', content: 'Second' }] },
       });
 
-      const result = await caller.comment.list({
+      const threads = await caller.comment.listThreads({
         workspaceSlug: 'test-ws',
         documentPath: 'spec.md',
       });
-      expect(result).toHaveLength(2);
-      expect(result[0].content).toBe('First');
-      expect(result[1].content).toBe('Second');
+      expect(threads).toHaveLength(2);
+      expect(threads[0].comments).toHaveLength(1);
+      expect(threads[1].comments).toHaveLength(1);
     });
 
     it('should filter by documentPath', async () => {
-      await caller.comment.create({
+      await caller.comment.createThread({
         workspaceSlug: 'test-ws',
         documentPath: 'spec-a.md',
-        content: 'A',
+        threadId: 't1',
+        initialComment: { id: 'c1', body: [] },
       });
-      await caller.comment.create({
+      await caller.comment.createThread({
         workspaceSlug: 'test-ws',
         documentPath: 'spec-b.md',
-        content: 'B',
+        threadId: 't2',
+        initialComment: { id: 'c2', body: [] },
       });
 
-      const result = await caller.comment.list({
+      const result = await caller.comment.listThreads({
         workspaceSlug: 'test-ws',
         documentPath: 'spec-a.md',
       });
       expect(result).toHaveLength(1);
-      expect(result[0].content).toBe('A');
-    });
-  });
-
-  describe('update', () => {
-    it('should update comment content', async () => {
-      const comment = await caller.comment.create({
-        workspaceSlug: 'test-ws',
-        documentPath: 'spec.md',
-        content: 'Original',
-      });
-
-      const updated = await caller.comment.update({
-        workspaceSlug: 'test-ws',
-        id: comment.id,
-        content: 'Updated',
-      });
-      expect(updated.content).toBe('Updated');
+      expect(result[0].id).toBe('t1');
     });
 
-    it('should reject if comment belongs to another workspace', async () => {
-      await caller.workspace.create({ name: 'Other WS' });
-      const comment = await caller.comment.create({
+    it('should return empty array for no threads', async () => {
+      const result = await caller.comment.listThreads({
         workspaceSlug: 'test-ws',
-        documentPath: 'spec.md',
-        content: 'Test',
-      });
-
-      await expect(
-        caller.comment.update({
-          workspaceSlug: 'other-ws',
-          id: comment.id,
-          content: 'Hacked',
-        }),
-      ).rejects.toThrow('belongs to another workspace');
-    });
-
-    it('should throw NOT_FOUND for missing comment', async () => {
-      await expect(
-        caller.comment.update({
-          workspaceSlug: 'test-ws',
-          id: 999,
-          content: 'X',
-        }),
-      ).rejects.toThrow('not found');
-    });
-  });
-
-  describe('resolve / unresolve', () => {
-    it('should resolve and unresolve a comment', async () => {
-      const comment = await caller.comment.create({
-        workspaceSlug: 'test-ws',
-        documentPath: 'spec.md',
-        content: 'Fix this',
-      });
-
-      const resolved = await caller.comment.resolve({
-        workspaceSlug: 'test-ws',
-        id: comment.id,
-      });
-      expect(resolved.resolved).toBe(true);
-
-      const unresolved = await caller.comment.unresolve({
-        workspaceSlug: 'test-ws',
-        id: comment.id,
-      });
-      expect(unresolved.resolved).toBe(false);
-    });
-
-    it('should reject resolve for wrong workspace', async () => {
-      await caller.workspace.create({ name: 'Other WS' });
-      const comment = await caller.comment.create({
-        workspaceSlug: 'test-ws',
-        documentPath: 'spec.md',
-        content: 'Test',
-      });
-
-      await expect(
-        caller.comment.resolve({ workspaceSlug: 'other-ws', id: comment.id }),
-      ).rejects.toThrow('belongs to another workspace');
-    });
-  });
-
-  describe('delete', () => {
-    it('should delete a comment', async () => {
-      const comment = await caller.comment.create({
-        workspaceSlug: 'test-ws',
-        documentPath: 'spec.md',
-        content: 'Delete me',
-      });
-
-      await caller.comment.delete({ workspaceSlug: 'test-ws', id: comment.id });
-
-      const result = await caller.comment.list({
-        workspaceSlug: 'test-ws',
-        documentPath: 'spec.md',
+        documentPath: 'nonexistent.md',
       });
       expect(result).toHaveLength(0);
     });
+  });
 
-    it('should reject delete for wrong workspace', async () => {
-      await caller.workspace.create({ name: 'Other WS' });
-      const comment = await caller.comment.create({
+  describe('addComment', () => {
+    it('should add a reply to an existing thread', async () => {
+      await caller.comment.createThread({
         workspaceSlug: 'test-ws',
         documentPath: 'spec.md',
-        content: 'Test',
+        threadId: 'thread-1',
+        initialComment: { id: 'c1', body: [{ type: 'paragraph', content: 'Original' }] },
       });
 
-      await expect(
-        caller.comment.delete({ workspaceSlug: 'other-ws', id: comment.id }),
-      ).rejects.toThrow('belongs to another workspace');
+      const reply = await caller.comment.addComment({
+        workspaceSlug: 'test-ws',
+        threadId: 'thread-1',
+        commentId: 'c2',
+        body: [{ type: 'paragraph', content: 'Reply' }],
+      });
+
+      expect(reply.id).toBe('c2');
+      expect(reply.threadId).toBe('thread-1');
+
+      const threads = await caller.comment.listThreads({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+      });
+      expect(threads[0].comments).toHaveLength(2);
+    });
+  });
+
+  describe('updateComment', () => {
+    it('should update comment body', async () => {
+      await caller.comment.createThread({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+        threadId: 't1',
+        initialComment: { id: 'c1', body: [{ type: 'paragraph', content: 'Original' }] },
+      });
+
+      await caller.comment.updateComment({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+        commentId: 'c1',
+        body: [{ type: 'paragraph', content: 'Updated' }],
+      });
+
+      const threads = await caller.comment.listThreads({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+      });
+      const body = threads[0].comments[0].body as Array<{ content: string }>;
+      expect(body[0].content).toBe('Updated');
+    });
+  });
+
+  describe('deleteComment', () => {
+    it('should soft-delete a comment', async () => {
+      await caller.comment.createThread({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+        threadId: 't1',
+        initialComment: { id: 'c1', body: [{ type: 'paragraph', content: 'Delete me' }] },
+      });
+
+      await caller.comment.deleteComment({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+        commentId: 'c1',
+      });
+
+      const threads = await caller.comment.listThreads({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+      });
+      expect(threads[0].comments[0].deletedAt).toBeTruthy();
+      expect(threads[0].comments[0].body).toBeNull();
+    });
+  });
+
+  describe('deleteThread', () => {
+    it('should delete thread and cascade to comments', async () => {
+      await caller.comment.createThread({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+        threadId: 't1',
+        initialComment: { id: 'c1', body: [] },
+      });
+
+      await caller.comment.deleteThread({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+      });
+
+      const threads = await caller.comment.listThreads({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+      });
+      expect(threads).toHaveLength(0);
+    });
+  });
+
+  describe('resolveThread / unresolveThread', () => {
+    it('should resolve and unresolve a thread', async () => {
+      await caller.comment.createThread({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+        threadId: 't1',
+        initialComment: { id: 'c1', body: [] },
+      });
+
+      const resolved = await caller.comment.resolveThread({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+      });
+      expect(resolved.resolved).toBe(true);
+      expect(resolved.resolvedBy).toBe('local-user');
+      expect(resolved.resolvedAt).toBeTruthy();
+
+      const unresolved = await caller.comment.unresolveThread({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+      });
+      expect(unresolved.resolved).toBe(false);
+      expect(unresolved.resolvedBy).toBeNull();
+      expect(unresolved.resolvedAt).toBeNull();
+    });
+  });
+
+  describe('addReaction / deleteReaction', () => {
+    it('should add an emoji reaction to a comment', async () => {
+      await caller.comment.createThread({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+        threadId: 't1',
+        initialComment: { id: 'c1', body: [] },
+      });
+
+      await caller.comment.addReaction({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+        commentId: 'c1',
+        emoji: '👍',
+      });
+
+      const threads = await caller.comment.listThreads({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+      });
+      const reactions = threads[0].comments[0].reactions as Array<{
+        emoji: string;
+        userIds: string[];
+      }>;
+      expect(reactions).toHaveLength(1);
+      expect(reactions[0].emoji).toBe('👍');
+      expect(reactions[0].userIds).toContain('local-user');
     });
 
-    it('should throw NOT_FOUND for missing comment', async () => {
-      await expect(
-        caller.comment.delete({ workspaceSlug: 'test-ws', id: 999 }),
-      ).rejects.toThrow('not found');
+    it('should not duplicate user in reaction', async () => {
+      await caller.comment.createThread({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+        threadId: 't1',
+        initialComment: { id: 'c1', body: [] },
+      });
+
+      await caller.comment.addReaction({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+        commentId: 'c1',
+        emoji: '👍',
+      });
+      await caller.comment.addReaction({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+        commentId: 'c1',
+        emoji: '👍',
+      });
+
+      const threads = await caller.comment.listThreads({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+      });
+      const reactions = threads[0].comments[0].reactions as Array<{
+        emoji: string;
+        userIds: string[];
+      }>;
+      expect(reactions[0].userIds).toHaveLength(1);
+    });
+
+    it('should remove a reaction', async () => {
+      await caller.comment.createThread({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+        threadId: 't1',
+        initialComment: { id: 'c1', body: [] },
+      });
+
+      await caller.comment.addReaction({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+        commentId: 'c1',
+        emoji: '👍',
+      });
+      await caller.comment.deleteReaction({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+        commentId: 'c1',
+        emoji: '👍',
+      });
+
+      const threads = await caller.comment.listThreads({
+        workspaceSlug: 'test-ws',
+        documentPath: 'spec.md',
+      });
+      const reactions = threads[0].comments[0].reactions as Array<{
+        emoji: string;
+        userIds: string[];
+      }>;
+      expect(reactions).toHaveLength(0);
     });
   });
 });
