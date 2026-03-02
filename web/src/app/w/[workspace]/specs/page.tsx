@@ -104,7 +104,7 @@ function SpecDetail({ workspaceSlug, specSlug, onDeleted }: SpecDetailProps) {
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
         </TabsList>
       </SpecFrontmatter>
-      <TabsContent value="content" className="flex flex-1 overflow-hidden m-0">
+      <TabsContent value="content" className="flex flex-1 overflow-visible m-0">
         <SpecEditor
           workspaceSlug={workspaceSlug}
           specSlug={specSlug}

@@ -2,6 +2,8 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+@source "../../node_modules/@blocknote/shadcn/dist";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -125,11 +127,3 @@
   }
 }
 
-/* BlockNote comment composer sizing */
-.bn-comment-editor {
-  min-width: 300px;
-}
-
-.bn-thread {
-  min-width: 280px;
-}
