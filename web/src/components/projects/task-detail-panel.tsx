@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DynamicDocumentEditor } from "@/components/editor/dynamic-document-editor";
 import { cn } from "@/lib/utils";
 import { taskStatusOptions, taskStatusColors } from "./task-status-badge";
 import { RiDeleteBinLine } from "@remixicon/react";
@@ -50,10 +52,18 @@ export function TaskDetailPanel({
     },
   });
 
+  const handleDescriptionSave = useCallback(
+    (markdown: string) => {
+      if (!task) return;
+      updateTask.mutate({ id: task.id, description: markdown });
+    },
+    [task, updateTask],
+  );
+
   if (!task) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Loading...</DialogTitle>
           </DialogHeader>
@@ -66,58 +76,66 @@ export function TaskDetailPanel({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>{task.title}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          {task.description && (
-            <p className="text-xs text-muted-foreground">{task.description}</p>
-          )}
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium">Status</label>
+              <Select
+                value={task.status}
+                onValueChange={(value) =>
+                  updateTask.mutate({
+                    id: task.id,
+                    status: value as (typeof taskStatusOptions)[number],
+                  })
+                }
+              >
+                <SelectTrigger className="h-7 w-36 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {taskStatusOptions.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s.replace("_", " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="flex flex-col gap-2">
-            <label className="text-xs font-medium">Status</label>
-            <Select
-              value={task.status}
-              onValueChange={(value) =>
-                updateTask.mutate({
-                  id: task.id,
-                  status: value as (typeof taskStatusOptions)[number],
-                })
-              }
-            >
-              <SelectTrigger className="h-7 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {taskStatusOptions.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s.replace("_", " ")}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+            <div className="flex items-end gap-2 pb-0.5">
+              <Badge variant="secondary" className="text-[10px]">
+                {task.type}
+              </Badge>
+              <Badge
+                variant="outline"
+                className={cn("text-[10px]", taskStatusColors[task.status])}
+              >
+                {task.status.replace("_", " ")}
+              </Badge>
+            </div>
 
-          <div className="flex gap-2">
-            <Badge variant="secondary" className="text-[10px]">
-              {task.type}
-            </Badge>
-            <Badge
-              variant="outline"
-              className={cn("text-[10px]", taskStatusColors[task.status])}
-            >
-              {task.status.replace("_", " ")}
-            </Badge>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium">Priority</span>
+              <span className="text-xs text-muted-foreground">
+                {(task.importance ?? "not_important").replace("_", " ")} /{" "}
+                {(task.urgency ?? "not_urgent").replace("_", " ")}
+              </span>
+            </div>
           </div>
 
           <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium">Priority</span>
-            <span className="text-xs text-muted-foreground">
-              {(task.importance ?? "not_important").replace("_", " ")} /{" "}
-              {(task.urgency ?? "not_urgent").replace("_", " ")}
-            </span>
+            <label className="text-xs font-medium">Description</label>
+            <div className="min-h-[200px] rounded-none border border-border">
+              <DynamicDocumentEditor
+                initialMarkdown={task.description || ""}
+                onSave={handleDescriptionSave}
+              />
+            </div>
           </div>
 
           {deps.length > 0 && (
