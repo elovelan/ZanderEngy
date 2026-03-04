@@ -8,16 +8,18 @@ import {
   FloatingComposerController,
 } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
-import { CommentsExtension, DefaultThreadStoreAuth } from "@blocknote/core/comments";
+import { CommentsExtension } from "@blocknote/core/comments";
 import type { User } from "@blocknote/core/comments";
 import "@blocknote/shadcn/style.css";
 import "@blocknote/react/style.css";
 import { Button } from "@/components/ui/button";
 import { RiFileCopyLine, RiCheckLine } from "@remixicon/react";
-import { InMemoryThreadStore } from "./thread-store";
+import { InMemoryThreadStore, DefaultThreadStoreAuth } from "./thread-store";
+import type { CommentStore } from "./thread-store";
+import { snapshotAnchors } from "./comments/snapshot";
+import { reconcileAnchors } from "./comments/reconcile";
 
-export { InMemoryThreadStore } from "./thread-store";
-export { DefaultThreadStoreAuth } from "@blocknote/core/comments";
+export { InMemoryThreadStore, EngyThreadStore, DefaultThreadStoreAuth } from "./thread-store";
 
 const USER_ID = "local-user";
 const LOCAL_USER: User = { id: USER_ID, username: "You", avatarUrl: "" };
@@ -36,7 +38,7 @@ interface DocumentEditorProps {
   /** Enable inline comments (default: false) */
   comments?: boolean;
   /** External thread store (persists across editor remounts) */
-  threadStore?: InMemoryThreadStore;
+  threadStore?: CommentStore;
   /** Cached BlockNote blocks (preserves comment marks across file switches) */
   initialBlocks?: unknown[];
   /** Called when editor unmounts to cache blocks for later restoration */
@@ -63,7 +65,7 @@ export function DocumentEditor({
     return new InMemoryThreadStore(USER_ID, auth);
   }, []);
 
-  const threadStore = externalThreadStore ?? internalStore;
+  const threadStore: CommentStore = externalThreadStore ?? internalStore;
 
   useEffect(() => {
     setHasThreads(threadStore.getThreads().size > 0);
@@ -88,23 +90,31 @@ export function DocumentEditor({
     async function loadContent() {
       const blocks = await editor.tryParseMarkdownToBlocks(initialMarkdown);
       editor.replaceBlocks(editor.document, blocks);
-      // Allow autosave only after initial content is fully loaded
+      if (comments) {
+        await threadStore.ready;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        reconcileAnchors((editor as any)._tiptapEditor, threadStore);
+      }
       setTimeout(() => { readyRef.current = true; }, 500);
     }
     loadContent();
-  }, [editor, initialMarkdown]);
+  }, [editor, initialMarkdown, comments, threadStore]);
 
   const handleChange = useCallback(() => {
     if (!readyRef.current) return;
     if (timerRef.current) clearTimeout(timerRef.current);
 
     timerRef.current = setTimeout(async () => {
+      if (comments) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        snapshotAnchors((editor as any)._tiptapEditor.state.doc, threadStore);
+      }
       const raw = await editor.blocksToMarkdownLossy(editor.document);
-      // Clean up backslash-only lines that multiply on each round-trip
+      // Backslash-only lines multiply on each markdown round-trip — collapse them
       const markdown = raw.replace(/(\\\n){2,}/g, '\\\n');
       onSaveRef.current(markdown);
     }, AUTOSAVE_DELAY_MS);
-  }, [editor]);
+  }, [editor, comments, threadStore]);
 
   const handleCopyComments = useCallback(() => {
     const threads = threadStore.getThreads();
@@ -134,13 +144,22 @@ export function DocumentEditor({
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (comments) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        snapshotAnchors((editor as any)._tiptapEditor.state.doc, threadStore);
+      }
+    };
+  }, [editor, comments, threadStore]);
+
   return (
     <BlockNoteView
       editor={editor}
       onChange={handleChange}
       theme="dark"
       renderEditor={false}
-      comments={false}
+      comments={comments}
     >
       {comments && <FloatingComposerController />}
       <div className="relative flex w-full h-full overflow-hidden">
@@ -171,7 +190,7 @@ export function DocumentEditor({
               </Button>
             </div>
             <div className="p-3">
-              <ThreadsSidebar filter="all" sort="position" />
+              <ThreadsSidebar filter="open" sort="position" />
             </div>
           </div>
         )}

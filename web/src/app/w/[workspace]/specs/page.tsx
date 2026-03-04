@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -8,11 +8,9 @@ import { SpecTree } from "@/components/specs/spec-tree";
 import { SpecFrontmatter } from "@/components/specs/spec-frontmatter";
 import { SpecTasks } from "@/components/specs/spec-tasks";
 import { DynamicDocumentEditor } from "@/components/editor/dynamic-document-editor";
-import { InMemoryThreadStore, DefaultThreadStoreAuth } from "@/components/editor/document-editor";
+import { EngyThreadStore } from "@/components/editor/document-editor";
 import { RiFileTextLine, RiSideBarLine } from "@remixicon/react";
 import { Button } from "@/components/ui/button";
-
-const USER_ID = "local-user";
 
 export default function SpecsPage() {
   const params = useParams<{ workspace: string }>();
@@ -122,10 +120,17 @@ function SpecDetail({ workspaceSlug, specSlug, selectedFile, onDeleted }: SpecDe
 
   const filePath = selectedFile ?? "spec.md";
   const isSpecMd = filePath === "spec.md";
-  const threadStore = useMemo(() => {
-    const auth = new DefaultThreadStoreAuth(USER_ID, 'editor');
-    return new InMemoryThreadStore(USER_ID, auth);
-  }, [specSlug, filePath]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const threadStores = useRef<Map<string, EngyThreadStore>>(new Map());
+  const prevSpecSlug = useRef<string | null>(null);
+  if (prevSpecSlug.current !== specSlug) {
+    threadStores.current = new Map();
+    prevSpecSlug.current = specSlug;
+  }
+  if (!threadStores.current.has(filePath)) {
+    threadStores.current.set(filePath, new EngyThreadStore(workspaceSlug, `${specSlug}/${filePath}`));
+  }
+  const threadStore = threadStores.current.get(filePath)!;
 
   const { data: spec, isLoading, error } = trpc.spec.get.useQuery({
     workspaceSlug,
@@ -134,6 +139,7 @@ function SpecDetail({ workspaceSlug, specSlug, selectedFile, onDeleted }: SpecDe
 
   const { data: fileData, isLoading: isFileLoading } = trpc.spec.readFile.useQuery(
     { workspaceSlug, specSlug, filePath },
+    { enabled: !isSpecMd },
   );
 
   const specUpdateMutation = trpc.spec.update.useMutation({
@@ -183,8 +189,10 @@ function SpecDetail({ workspaceSlug, specSlug, selectedFile, onDeleted }: SpecDe
     );
   }
 
-  const editorBody = fileData?.content ?? "";
-  const isContentReady = !isFileLoading;
+  // For spec.md, body is already parsed (no frontmatter) from the spec.get query.
+  // For other files, use the raw file content from readFile.
+  const editorBody = isSpecMd ? (spec.body ?? "") : (fileData?.content ?? "");
+  const isContentReady = isSpecMd ? true : !isFileLoading;
 
   return (
     <Tabs defaultValue="content" className="flex h-full flex-col">

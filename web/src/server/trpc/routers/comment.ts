@@ -84,6 +84,18 @@ export const commentRouter = router({
       return { success: true };
     }),
 
+  updateThreadMetadata: publicProcedure
+    .input(z.object({ workspaceSlug: z.string(), threadId: z.string(), metadata: z.record(z.string(), z.unknown()) }))
+    .mutation(({ input }) => {
+      resolveWorkspace(input.workspaceSlug);
+      const db = getDb();
+      db.update(commentThreads)
+        .set({ metadata: input.metadata, updatedAt: new Date().toISOString() })
+        .where(eq(commentThreads.id, input.threadId))
+        .run();
+      return { success: true };
+    }),
+
   resolveThread: publicProcedure
     .input(z.object({ workspaceSlug: z.string(), threadId: z.string() }))
     .mutation(({ input }) => {
@@ -180,10 +192,15 @@ export const commentRouter = router({
     .mutation(({ input }) => {
       resolveWorkspace(input.workspaceSlug);
       const db = getDb();
-      db.update(threadComments)
-        .set({ deletedAt: new Date().toISOString(), body: null })
-        .where(eq(threadComments.id, input.commentId))
-        .run();
+      db.delete(threadComments).where(eq(threadComments.id, input.commentId)).run();
+      const remaining = db
+        .select()
+        .from(threadComments)
+        .where(eq(threadComments.threadId, input.threadId))
+        .all();
+      if (remaining.length === 0) {
+        db.delete(commentThreads).where(eq(commentThreads.id, input.threadId)).run();
+      }
       return { success: true };
     }),
 
@@ -257,14 +274,17 @@ export const commentRouter = router({
         .orderBy(asc(commentThreads.createdAt))
         .all();
 
-      return threads.map((thread) => {
-        const cmts = db
-          .select()
-          .from(threadComments)
-          .where(eq(threadComments.threadId, thread.id))
-          .orderBy(asc(threadComments.createdAt))
-          .all();
-        return { ...thread, comments: cmts };
-      });
+      return threads
+        .map((thread) => {
+          const cmts = db
+            .select()
+            .from(threadComments)
+            .where(eq(threadComments.threadId, thread.id))
+            .orderBy(asc(threadComments.createdAt))
+            .all()
+            .filter((c) => !c.deletedAt);
+          return { ...thread, comments: cmts };
+        })
+        .filter((thread) => thread.comments.length > 0);
     }),
 });
