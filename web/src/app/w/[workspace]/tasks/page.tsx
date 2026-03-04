@@ -37,7 +37,7 @@ export default function TasksPage() {
   if (!workspace || !defaultProject) return null;
 
   return (
-    <div className="flex flex-col gap-4 py-6">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 py-6">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold">Tasks</h2>
         <Button size="sm" onClick={() => setShowNewTask(true)}>
