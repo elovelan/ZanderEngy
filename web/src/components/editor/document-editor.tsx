@@ -95,7 +95,9 @@ export function DocumentEditor({
     if (timerRef.current) clearTimeout(timerRef.current);
 
     timerRef.current = setTimeout(async () => {
-      const markdown = await editor.blocksToMarkdownLossy(editor.document);
+      const raw = await editor.blocksToMarkdownLossy(editor.document);
+      // Clean up backslash-only lines that multiply on each round-trip
+      const markdown = raw.replace(/(\\\n){2,}/g, '\\\n');
       onSaveRef.current(markdown);
     }, AUTOSAVE_DELAY_MS);
   }, [editor]);
