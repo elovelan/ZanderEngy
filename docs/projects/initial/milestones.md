@@ -100,9 +100,6 @@ Create a workspace, see it on the home page, navigate to its sub-pages (empty st
 - Comment CRUD (create, update, resolve, delete — linked to document + position)
 - Spec task management (CRUD, dependency tracking, status updates)
 - Spec lifecycle validation (can't move to Ready with incomplete tasks)
-
-### Server
-
 - File watcher on `.engy/specs/` — picks up external spec file changes (e.g. edits via VS Code on the server machine or mounted volume) and syncs to UI
 - "Open in VS Code" button for spec files (works when server is local; remote setups use the content editor)
 
@@ -116,7 +113,31 @@ Write specs in Engy's editor, organize context files, leave inline review commen
 
 ---
 
-## M3: Project Planning
+## M3: Open Directory
+
+**What ships:** A lightweight "quick open" mode from the Home page — open any directory, browse/edit files, and collaborate with AI in a terminal. No workspace, no project, no spec overhead.
+
+### UI
+
+- **"Open Directory" action** on the Home page — pick any path on the server filesystem (or mounted volume)
+- Opens a minimal two-panel view: file tree + content editor (left), terminal panel (right)
+- File tree reflects the chosen directory — browse, open, edit any file
+- Content editor reuses the same BlockNote editor from M2 (markdown files, inline comments)
+- Terminal scoped to the chosen directory, no special agent — raw Claude Code CLI
+- Recent directories list on the Home page for quick re-open
+
+### Server
+
+- Directory browsing API (list files, read/write content)
+- Recent directories storage (per-user preference)
+
+### What you can do after M3
+
+Open any directory from the Home page and start working immediately — edit markdown files, iterate with AI in the terminal, no project setup required. Useful for ad-hoc work, documentation iteration, or any collaboration that doesn't need the full SDD workflow.
+
+---
+
+## M4: Project Planning
 
 **What ships:** The spec-to-project transition and the full planning model with visual project views.
 
@@ -157,13 +178,13 @@ Write specs in Engy's editor, organize context files, leave inline review commen
 - `engy:workspace-assistant` — quick bugs, one-offs on default project
 - Planning skill — guided progressive planning loops (project → milestone → groups/tasks)
 
-### What you can do after M3
+### What you can do after M4
 
 Approve a spec, create a project, plan milestones, create task groups, decompose into tasks with dependencies, visualize execution plans in three views. Manage ambient work in the default project.
 
 ---
 
-## M4: Terminal Integration
+## M5: Terminal Integration
 
 **What ships:** The Claude Code CLI terminal panel inside Engy — the action layer.
 
@@ -181,7 +202,7 @@ Approve a spec, create a project, plan milestones, create task groups, decompose
   - Project page → scoped to project's primary repo, starts `engy:project-assistant`
   - Default project / workspace Tasks → scoped to workspace root, starts `engy:workspace-assistant`
   - Diffs tab → scoped to task group's worktree, no special agent (CLI with diff context injected)
-  - Docs page → scoped to `system/` or `docs/`, starts `engy:sysdoc-assistant` (placeholder until M7)
+  - Docs page → scoped to `system/` or `docs/`, starts `engy:sysdoc-assistant` (placeholder until M8)
 - **Scope persistence** — open terminals keep their scope when navigating pages
 - **New terminal** — opens with scope matching current page
 
@@ -199,15 +220,15 @@ Approve a spec, create a project, plan milestones, create task groups, decompose
 
 ### Skills
 
-All previously shipped skills (`spec-assistant`, `project-assistant`, `workspace-assistant`, planning skill) now auto-start in the terminal panel. The skill framework is already working from M2-M3 — M4 brings it into the UI.
+All previously shipped skills (`spec-assistant`, `project-assistant`, `workspace-assistant`, planning skill) now auto-start in the terminal panel. The skill framework is already working from M2-M4 — M5 brings it into the UI.
 
-### What you can do after M4
+### What you can do after M5
 
 Open terminal panels scoped to any page context. Auto-start the right skill. Run multiple terminals side by side. The app is now a two-panel experience: visual UI for state, terminal for action.
 
 ---
 
-## M5: Diff Viewer + Review
+## M6: Diff Viewer + Review
 
 **What ships:** Code review inside Engy with the unified feedback model.
 
@@ -238,13 +259,13 @@ Open terminal panels scoped to any page context. Auto-start the right skill. Run
 - Pre-commit command execution in worktree
 - Feedback routing — deliver structured payload to active terminal session
 
-### What you can do after M5
+### What you can do after M6
 
 Review code diffs inside Engy, leave line-level comments, approve or send batched feedback. Pre-commit gates enforce quality. The review model works for both diffs and documents.
 
 ---
 
-## M6: Execution Engine
+## M7: Execution Engine
 
 **What ships:** Worktree management, task execution lifecycle, auto-commit, push, and PR creation.
 
@@ -287,13 +308,13 @@ Review code diffs inside Engy, leave line-level comments, approve or send batche
 
 - All existing skills gain worktree awareness — agents know which worktree they're operating in
 
-### What you can do after M6
+### What you can do after M7
 
 Start task groups, see worktrees created, execute tasks, review diffs, approve, auto-commit, push, and create PRs. The full execution loop works (manually driven, with terminal for AI assistance). Pause/stop/resume groups.
 
 ---
 
-## M7: Knowledge Layer
+## M8: Knowledge Layer
 
 **What ships:** System docs, shared docs, memory architecture, and search — the learning feedback loop.
 
@@ -331,7 +352,7 @@ Start task groups, see worktrees created, execute tasks, review diffs, approve, 
 
 ### Skills
 
-- `engy:sysdoc-assistant` — editing system docs (fully functional now, was placeholder in M4)
+- `engy:sysdoc-assistant` — editing system docs (fully functional now, was placeholder in M5)
 - Bootstrap skill — reads codebase via client connection, proposes initial system docs (written to `.engy/system/` on server)
 - Completion skill — memory distillation, system doc update proposals
 
@@ -340,13 +361,13 @@ Start task groups, see worktrees created, execute tasks, review diffs, approve, 
 - Agents receive memories in order: project → workspace → repo (filtered by `repo` field)
 - Planning agents see: system docs + workspace memories + repo memories
 
-### What you can do after M7
+### What you can do after M8
 
 Browse and edit system docs and shared docs. Manage memories (create, promote, search). Search across all content types. Complete projects with memory distillation and system doc updates. Bootstrap system docs for new workspaces. The full SDD knowledge feedback loop is closed.
 
 ---
 
-## M8: Workspace Polish
+## M9: Workspace Polish
 
 **What ships:** Dashboard, notifications, settings, and UX refinements that make the whole experience cohesive.
 
@@ -383,13 +404,13 @@ Browse and edit system docs and shared docs. Manage memories (create, promote, s
 - Activity feed aggregation
 - Usage tracking per agent session
 
-### What you can do after M8
+### What you can do after M9
 
 Full dashboard visibility across workspaces. Notifications keep you aware of what needs attention. Settings are organized and context-aware. The app feels polished and complete (minus automation).
 
 ---
 
-## M9: Async Agents
+## M10: Async Agents
 
 **What ships:** Mastra integration for autonomous background agent execution.
 
@@ -435,21 +456,21 @@ Full dashboard visibility across workspaces. Notifications keep you aware of wha
 ### Placeholder hooks (already in place from earlier milestones)
 
 - Task group state machine already supports agent-driven transitions
-- Feedback routing architecture already built in M5
-- Worktree management already built in M6
-- Memory pipeline already built in M7
+- Feedback routing architecture already built in M6
+- Worktree management already built in M7
+- Memory pipeline already built in M8
 
-### What you can do after M9
+### What you can do after M10
 
 Kick off task groups as autonomous agent sessions. Agents execute tasks, produce diffs, and surface results for review. Feedback routes back to the same agent session. Agents crash-recover. The system works without you being present.
 
 ---
 
-## M10: Dev Containers
+## M11: Dev Containers
 
 **What ships:** Optional sandboxed Docker execution for async agents — full permissions inside a network-firewalled container.
 
-**Depends on:** M6 (worktree management), M9 (async agent sessions)
+**Depends on:** M7 (worktree management), M10 (async agent sessions)
 
 ### Architecture
 
@@ -485,13 +506,13 @@ Kick off task groups as autonomous agent sessions. Agents execute tasks, produce
 - Workspace settings schema additions for container configuration
 - Agent session routing — direct sessions to container or host based on workspace setting
 
-### What you can do after M10
+### What you can do after M11
 
 Enable dev containers per workspace. Agents run autonomously with full permissions inside a firewalled Docker container — no manual permission approvals. Repos are bind-mounted so worktree changes persist on the host. The system still works without containers for users who don't need sandboxed execution.
 
 ---
 
-## M11: PR/CI Monitoring
+## M12: PR/CI Monitoring
 
 **What ships:** Automated monitoring of open PRs — CI status, reviewer comment triage, and auto-fix dispatch.
 
@@ -524,7 +545,7 @@ Enable dev containers per workspace. Agents run autonomously with full permissio
 - CI status change detection and notification triggers
 - Reviewer comment storage and triage state
 
-### What you can do after M11
+### What you can do after M12
 
 Open PRs are monitored automatically. CI failures trigger agent fixes. Reviewer comments are pulled back into Engy for triage — pick which to fix, agent handles the rest. The full PR lifecycle is managed inside Engy.
 
@@ -533,16 +554,16 @@ Open PRs are monitored automatically. CI failures trigger agent fixes. Reviewer 
 ## Milestone Dependencies
 
 ```text
-M1 ──→ M2 ──→ M3 ──→ M4 ──→ M5 ──→ M6 ──┐
-                                            ├──→ M8
-                                    M7 ─────┘
+M1 ──→ M2 ──→ M3 ──→ M4 ──→ M5 ──→ M6 ──→ M7 ──┐
+                                                    ├──→ M9
+                                            M8 ─────┘
 
-M9  depends on: M6 (worktrees), M7 (memory), M5 (feedback routing)
-M10 depends on: M6 (worktrees), M9 (async agents)
-M11 depends on: M6 (PR creation), M10 (dev containers for agent execution)
+M10 depends on: M7 (worktrees), M8 (memory), M6 (feedback routing)
+M11 depends on: M7 (worktrees), M10 (async agents)
+M12 depends on: M7 (PR creation), M11 (dev containers for agent execution)
 ```
 
-Note: M7 (Knowledge Layer) can potentially be worked on in parallel with M5-M6 since it's primarily about the knowledge/memory subsystem. M8 (Workspace Polish) depends on all prior features existing to polish.
+Note: M8 (Knowledge Layer) can potentially be worked on in parallel with M6-M7 since it's primarily about the knowledge/memory subsystem. M9 (Workspace Polish) depends on all prior features existing to polish.
 
 ---
 

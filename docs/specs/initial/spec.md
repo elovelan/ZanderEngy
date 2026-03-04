@@ -8,13 +8,7 @@ type: buildable
 ## Engy — v0.2
 
 **Prepared by:** Aleks\
-\
-\
-\
 **Date:** 2026-03-01\
-\
-\
-\
 **Status:** In Review
 
 ***
