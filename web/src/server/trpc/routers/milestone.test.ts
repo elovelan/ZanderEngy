@@ -35,16 +35,53 @@ describe('milestone router', () => {
       expect(updated.title).toBe('Updated Title');
     });
 
-    it('should update milestone status', async () => {
+    it('should allow valid forward status transitions', async () => {
       const milestone = await caller.milestone.create({
         projectId,
-        title: 'Status Test',
+        title: 'Forward Test',
+      });
+      await caller.milestone.update({ id: milestone.id, status: 'planning' });
+      await caller.milestone.update({ id: milestone.id, status: 'active' });
+      const result = await caller.milestone.update({
+        id: milestone.id,
+        status: 'complete',
+      });
+      expect(result.status).toBe('complete');
+    });
+
+    it('should reject skipping milestone status transitions', async () => {
+      const milestone = await caller.milestone.create({
+        projectId,
+        title: 'Skip Test',
+      });
+      await expect(
+        caller.milestone.update({ id: milestone.id, status: 'active' }),
+      ).rejects.toThrow('invalid milestone status transition');
+    });
+
+    it('should reject backward milestone status transitions', async () => {
+      const milestone = await caller.milestone.create({
+        projectId,
+        title: 'Backward Test',
+      });
+      await caller.milestone.update({ id: milestone.id, status: 'planning' });
+      await caller.milestone.update({ id: milestone.id, status: 'active' });
+      await expect(
+        caller.milestone.update({ id: milestone.id, status: 'planned' }),
+      ).rejects.toThrow('invalid milestone status transition');
+    });
+
+    it('should allow update without status change', async () => {
+      const milestone = await caller.milestone.create({
+        projectId,
+        title: 'No Status Change',
       });
       const updated = await caller.milestone.update({
         id: milestone.id,
-        status: 'active',
+        title: 'New Title',
       });
-      expect(updated.status).toBe('active');
+      expect(updated.title).toBe('New Title');
+      expect(updated.status).toBe('planned');
     });
 
     it('should update milestone scope', async () => {

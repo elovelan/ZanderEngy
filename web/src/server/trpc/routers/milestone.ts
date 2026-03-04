@@ -5,6 +5,21 @@ import { router, publicProcedure } from '../trpc';
 import { getDb } from '../../db/client';
 import { milestones } from '../../db/schema';
 
+const MILESTONE_STATUS_ORDER = ['planned', 'planning', 'active', 'complete'] as const;
+
+function validateMilestoneStatusTransition(current: string, next: string): void {
+  const currentIdx = MILESTONE_STATUS_ORDER.indexOf(
+    current as (typeof MILESTONE_STATUS_ORDER)[number],
+  );
+  const nextIdx = MILESTONE_STATUS_ORDER.indexOf(next as (typeof MILESTONE_STATUS_ORDER)[number]);
+  if (nextIdx !== currentIdx + 1) {
+    throw new TRPCError({
+      code: 'BAD_REQUEST',
+      message: `invalid milestone status transition: "${current}" → "${next}"`,
+    });
+  }
+}
+
 export const milestoneRouter = router({
   create: publicProcedure
     .input(
@@ -63,6 +78,15 @@ export const milestoneRouter = router({
     .mutation(({ input }) => {
       const db = getDb();
       const { id, ...updates } = input;
+
+      if (updates.status) {
+        const existing = db.select().from(milestones).where(eq(milestones.id, id)).get();
+        if (!existing) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Milestone not found' });
+        }
+        validateMilestoneStatusTransition(existing.status, updates.status);
+      }
+
       const result = db
         .update(milestones)
         .set({ ...updates, updatedAt: new Date().toISOString() })
