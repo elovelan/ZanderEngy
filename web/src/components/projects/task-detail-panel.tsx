@@ -107,16 +107,25 @@ export function TaskDetailPanel({
               </Select>
             </div>
 
-            <div className="flex items-end gap-2 pb-0.5">
-              <Badge variant="secondary" className="text-[10px]">
-                {task.type}
-              </Badge>
-              <Badge
-                variant="outline"
-                className={cn("text-[10px]", taskStatusColors[task.status])}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium">Type</label>
+              <Select
+                value={task.type}
+                onValueChange={(value) =>
+                  updateTask.mutate({
+                    id: task.id,
+                    type: value as "ai" | "human",
+                  })
+                }
               >
-                {task.status.replace("_", " ")}
-              </Badge>
+                <SelectTrigger className="h-7 w-28 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="human">human</SelectItem>
+                  <SelectItem value="ai">ai</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="flex flex-col gap-1">
