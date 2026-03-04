@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +15,9 @@ import {
   RiArrowRightLine,
   RiDeleteBinLine,
   RiMoreLine,
+  RiProjectorLine,
 } from "@remixicon/react";
+import { CreateProjectDialog } from "@/components/projects/create-project-dialog";
 
 type SpecStatus = "draft" | "ready" | "approved" | "active" | "completed";
 
@@ -57,6 +61,8 @@ export function SpecFrontmatter({
   onDeleted,
   children,
 }: SpecFrontmatterProps) {
+  const router = useRouter();
+  const [showCreateProject, setShowCreateProject] = useState(false);
   const utils = trpc.useUtils();
 
   const updateMutation = trpc.spec.update.useMutation({
@@ -85,7 +91,17 @@ export function SpecFrontmatter({
         {type}
       </Badge>
       <Badge className={`text-xs ${colorClass} border-0`}>{status}</Badge>
-      {next && (
+      {status === "approved" && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowCreateProject(true)}
+        >
+          <RiProjectorLine data-icon="inline-start" />
+          Create Project
+        </Button>
+      )}
+      {next && status !== "approved" && (
         <Button
           variant="outline"
           size="sm"
@@ -116,6 +132,16 @@ export function SpecFrontmatter({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <CreateProjectDialog
+        workspaceSlug={workspaceSlug}
+        specSlug={specSlug}
+        specTitle={title}
+        open={showCreateProject}
+        onOpenChange={setShowCreateProject}
+        onCreated={(projectSlug) => {
+          router.push(`/w/${workspaceSlug}/projects/${projectSlug}`);
+        }}
+      />
     </div>
   );
 }

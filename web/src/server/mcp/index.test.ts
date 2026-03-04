@@ -11,7 +11,6 @@ import {
   tasks,
   milestones,
   taskGroups,
-  planContent,
   fleetingMemories,
 } from '../db/schema';
 
@@ -817,7 +816,6 @@ describe('MCP Server', () => {
   });
 
   describe('project planning tools', () => {
-    let workspaceId: number;
     let projectId: number;
     let milestoneId: number;
 
@@ -828,7 +826,6 @@ describe('MCP Server', () => {
         .values({ name: 'Plan Test', slug: 'plan-test' })
         .returning()
         .get();
-      workspaceId = ws.id;
       const proj = db
         .insert(projects)
         .values({ workspaceId: ws.id, name: 'P1', slug: 'p1' })
