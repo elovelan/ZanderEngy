@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { TaskStatusBadge } from "@/components/projects/task-status-badge";
 
 type Task = {
   id: number;
@@ -28,13 +28,6 @@ const quadrants: Quadrant[] = [
     urgency: "not_urgent",
   },
 ];
-
-const statusColors: Record<string, string> = {
-  todo: "bg-muted text-muted-foreground",
-  in_progress: "bg-blue-500/10 text-blue-500",
-  review: "bg-yellow-500/10 text-yellow-500",
-  done: "bg-green-500/10 text-green-500",
-};
 
 export function EisenhowerMatrix({
   tasks,
@@ -71,12 +64,12 @@ export function EisenhowerMatrix({
                 <Badge variant="secondary" className="shrink-0 text-[10px]">
                   {task.type}
                 </Badge>
-                <Badge
-                  variant="outline"
-                  className={cn("shrink-0 text-[10px]", statusColors[task.status])}
-                >
-                  {task.status.replace("_", " ")}
-                </Badge>
+                <TaskStatusBadge
+                  taskId={task.id}
+                  status={task.status}
+                  clickable
+                  className="shrink-0"
+                />
               </button>
             ))}
             {tasksForQuadrant(q).length === 0 && (

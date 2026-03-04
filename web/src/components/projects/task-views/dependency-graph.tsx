@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
+import { TaskStatusBadge } from "@/components/projects/task-status-badge";
 import { cn } from "@/lib/utils";
 
 type Task = {
@@ -179,9 +180,11 @@ export function DependencyGraph({
                     <Badge variant="secondary" className="text-[10px]">
                       {task.type}
                     </Badge>
-                    <Badge variant="outline" className="text-[10px]">
-                      {task.status.replace("_", " ")}
-                    </Badge>
+                    <TaskStatusBadge
+                      taskId={taskId}
+                      status={task.status}
+                      clickable
+                    />
                   </div>
                 </button>
               );

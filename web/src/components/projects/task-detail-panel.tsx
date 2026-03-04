@@ -2,12 +2,14 @@
 
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -16,15 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-
-const statusOptions = ["todo", "in_progress", "review", "done"] as const;
-
-const statusColors: Record<string, string> = {
-  todo: "bg-muted text-muted-foreground",
-  in_progress: "bg-blue-500/10 text-blue-500",
-  review: "bg-yellow-500/10 text-yellow-500",
-  done: "bg-green-500/10 text-green-500",
-};
+import { taskStatusOptions, taskStatusColors } from "./task-status-badge";
+import { RiDeleteBinLine } from "@remixicon/react";
 
 export function TaskDetailPanel({
   taskId,
@@ -48,28 +43,35 @@ export function TaskDetailPanel({
     },
   });
 
+  const deleteTask = trpc.task.delete.useMutation({
+    onSuccess: () => {
+      utils.task.list.invalidate();
+      onOpenChange(false);
+    },
+  });
+
   if (!task) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Loading...</SheetTitle>
-          </SheetHeader>
-        </SheetContent>
-      </Sheet>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Loading...</DialogTitle>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
     );
   }
 
   const deps = (task.dependencies as number[]) ?? [];
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>{task.title}</SheetTitle>
-        </SheetHeader>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{task.title}</DialogTitle>
+        </DialogHeader>
 
-        <div className="flex flex-col gap-4 px-4 pb-4">
+        <div className="flex flex-col gap-4">
           {task.description && (
             <p className="text-xs text-muted-foreground">{task.description}</p>
           )}
@@ -81,7 +83,7 @@ export function TaskDetailPanel({
               onValueChange={(value) =>
                 updateTask.mutate({
                   id: task.id,
-                  status: value as (typeof statusOptions)[number],
+                  status: value as (typeof taskStatusOptions)[number],
                 })
               }
             >
@@ -89,7 +91,7 @@ export function TaskDetailPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {statusOptions.map((s) => (
+                {taskStatusOptions.map((s) => (
                   <SelectItem key={s} value={s}>
                     {s.replace("_", " ")}
                   </SelectItem>
@@ -104,7 +106,7 @@ export function TaskDetailPanel({
             </Badge>
             <Badge
               variant="outline"
-              className={cn("text-[10px]", statusColors[task.status])}
+              className={cn("text-[10px]", taskStatusColors[task.status])}
             >
               {task.status.replace("_", " ")}
             </Badge>
@@ -129,8 +131,20 @@ export function TaskDetailPanel({
             </div>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:bg-destructive/10"
+            onClick={() => deleteTask.mutate({ id: task.id })}
+          >
+            <RiDeleteBinLine className="mr-1 size-3" />
+            Delete
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -148,7 +162,7 @@ function DependencyBadge({ taskId }: { taskId: number }) {
   return (
     <Badge
       variant="outline"
-      className={cn("text-[10px]", statusColors[task.status])}
+      className={cn("text-[10px]", taskStatusColors[task.status])}
     >
       #{task.id} {task.title}
     </Badge>
