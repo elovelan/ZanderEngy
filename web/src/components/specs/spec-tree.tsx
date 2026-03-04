@@ -16,6 +16,7 @@ import {
 interface SpecTreeProps {
   workspaceSlug: string;
   selectedSpec: string | null;
+  selectedFile?: string | null;
   onSelectSpec: (specSlug: string | null) => void;
   onSelectFile?: (specSlug: string, filePath: string) => void;
 }
@@ -63,6 +64,7 @@ function buildFileTree(specName: string, files: string[]): TreeDataItem[] {
 export function SpecTree({
   workspaceSlug,
   selectedSpec,
+  selectedFile,
   onSelectSpec,
   onSelectFile,
 }: SpecTreeProps) {
@@ -122,7 +124,11 @@ export function SpecTree({
           <div className="p-2">
             <TreeView
               data={treeData}
-              initialSelectedItemId={selectedSpec ?? undefined}
+              initialSelectedItemId={
+                selectedSpec
+                  ? (selectedFile ? `${selectedSpec}/${selectedFile}` : selectedSpec)
+                  : undefined
+              }
               onSelectChange={(item) => {
                 if (!item) {
                   onSelectSpec(null);

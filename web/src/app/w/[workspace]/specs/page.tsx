@@ -60,6 +60,7 @@ export default function SpecsPage() {
           <SpecTree
             workspaceSlug={params.workspace}
             selectedSpec={selectedSpec}
+            selectedFile={selectedFile}
             onSelectSpec={(slug) => updateUrl(slug, null)}
             onSelectFile={(specSlug, filePath) => updateUrl(specSlug, filePath)}
           />
@@ -119,25 +120,27 @@ interface SpecDetailProps {
 function SpecDetail({ workspaceSlug, specSlug, selectedFile, onDeleted }: SpecDetailProps) {
   const utils = trpc.useUtils();
 
+  const filePath = selectedFile ?? "spec.md";
+  const isSpecMd = filePath === "spec.md";
   const threadStore = useMemo(() => {
     const auth = new DefaultThreadStoreAuth(USER_ID, 'editor');
     return new InMemoryThreadStore(USER_ID, auth);
-  }, [specSlug]); // eslint-disable-line react-hooks/exhaustive-deps
-  const filePath = selectedFile ?? "spec.md";
-  const isSpecMd = filePath === "spec.md";
+  }, [specSlug, filePath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: spec, isLoading, error } = trpc.spec.get.useQuery({
     workspaceSlug,
     specSlug,
   });
 
-  const { data: fileData } = trpc.spec.readFile.useQuery(
+  const { data: fileData, isLoading: isFileLoading } = trpc.spec.readFile.useQuery(
     { workspaceSlug, specSlug, filePath },
-    { enabled: !isSpecMd },
   );
 
   const specUpdateMutation = trpc.spec.update.useMutation({
-    onSuccess: () => utils.spec.get.invalidate({ workspaceSlug, specSlug }),
+    onSuccess: () => {
+      utils.spec.get.invalidate({ workspaceSlug, specSlug });
+      utils.spec.readFile.invalidate({ workspaceSlug, specSlug, filePath: "spec.md" });
+    },
   });
 
   const writeFileMutation = trpc.spec.writeFile.useMutation({
@@ -180,7 +183,8 @@ function SpecDetail({ workspaceSlug, specSlug, selectedFile, onDeleted }: SpecDe
     );
   }
 
-  const editorBody = isSpecMd ? spec.body : (fileData?.content ?? "");
+  const editorBody = fileData?.content ?? "";
+  const isContentReady = !isFileLoading;
 
   return (
     <Tabs defaultValue="content" className="flex h-full flex-col">
@@ -197,19 +201,23 @@ function SpecDetail({ workspaceSlug, specSlug, selectedFile, onDeleted }: SpecDe
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
         </TabsList>
       </SpecFrontmatter>
-      {!isSpecMd && (
-        <div className="px-4 py-1 text-xs text-muted-foreground border-b border-border">
-          {filePath}
-        </div>
-      )}
+      <div className="px-4 py-1 text-xs text-muted-foreground border-b border-border">
+        {filePath}
+      </div>
       <TabsContent value="content" className="flex flex-1 overflow-visible m-0">
-        <DynamicDocumentEditor
-          key={filePath}
-          initialMarkdown={editorBody}
-          onSave={handleSave}
-          comments={isSpecMd}
-          threadStore={isSpecMd ? threadStore : undefined}
-        />
+        {!isContentReady ? (
+          <div className="flex items-center justify-center flex-1">
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        ) : (
+          <DynamicDocumentEditor
+            key={filePath}
+            initialMarkdown={editorBody}
+            onSave={handleSave}
+            comments={true}
+            threadStore={threadStore}
+          />
+        )}
       </TabsContent>
       <TabsContent value="tasks" className="flex-1 overflow-hidden m-0">
         <SpecTasks specSlug={specSlug} />
