@@ -58,7 +58,7 @@ export default function WorkspaceLayout({
   }
 
   return (
-    <div>
+    <div className="flex flex-1 flex-col">
       <nav className="border-b border-border" aria-label="Workspace sections">
         <div className="mx-auto flex w-[95%] max-w-[1800px]">
           {tabs.map((tab) => (
@@ -76,7 +76,7 @@ export default function WorkspaceLayout({
           ))}
         </div>
       </nav>
-      <div className="mx-auto w-[95%] max-w-[1800px]">{children}</div>
+      <div className="mx-auto flex min-h-0 flex-1 flex-col w-[95%] max-w-[1800px]">{children}</div>
     </div>
   );
 }

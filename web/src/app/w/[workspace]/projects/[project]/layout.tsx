@@ -47,7 +47,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
   }
 
   return (
-    <div>
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-3 border-b border-border px-0 py-3">
         <h1 className="text-sm font-semibold">{project.name}</h1>
         <Badge variant="secondary" className="text-[10px]">
@@ -84,7 +84,7 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
         </div>
       </nav>
 
-      <div>{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );
 }

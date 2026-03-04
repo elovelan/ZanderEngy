@@ -45,14 +45,14 @@ export function EisenhowerMatrix({
   }
 
   return (
-    <div className="grid grid-cols-2 grid-rows-2 gap-px bg-border" style={{ minHeight: 400 }}>
+    <div className="grid min-h-0 flex-1 grid-cols-2 grid-rows-2 gap-px bg-border">
       {quadrants.map((q) => (
         <div
           key={q.label}
-          className="flex flex-col gap-2 bg-background p-3"
+          className="flex min-h-0 flex-col gap-2 bg-background p-3"
         >
-          <span className="text-xs font-medium text-muted-foreground">{q.label}</span>
-          <div className="flex flex-col gap-1">
+          <span className="shrink-0 text-xs font-medium text-muted-foreground">{q.label}</span>
+          <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
             {tasksForQuadrant(q).map((task) => (
               <button
                 key={task.id}
