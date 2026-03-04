@@ -1,9 +1,12 @@
 import { z } from 'zod';
+import path from 'node:path';
 import { eq, asc } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import { getDb } from '../../db/client';
-import { milestones } from '../../db/schema';
+import { milestones, projects, workspaces } from '../../db/schema';
+import { getWorkspaceDir } from '../../engy-dir/init';
+import { milestoneFilename, renamePlanFile } from '../../plan/service';
 
 const MILESTONE_STATUS_ORDER = ['planned', 'planning', 'active', 'complete'] as const;
 
@@ -79,11 +82,12 @@ export const milestoneRouter = router({
       const db = getDb();
       const { id, ...updates } = input;
 
+      const existing = db.select().from(milestones).where(eq(milestones.id, id)).get();
+      if (!existing) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Milestone not found' });
+      }
+
       if (updates.status) {
-        const existing = db.select().from(milestones).where(eq(milestones.id, id)).get();
-        if (!existing) {
-          throw new TRPCError({ code: 'NOT_FOUND', message: 'Milestone not found' });
-        }
         validateMilestoneStatusTransition(existing.status, updates.status);
       }
 
@@ -92,11 +96,38 @@ export const milestoneRouter = router({
         .set({ ...updates, updatedAt: new Date().toISOString() })
         .where(eq(milestones.id, id))
         .returning()
-        .get();
+        .get()!;
 
-      if (!result) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Milestone not found' });
+      // Rename plan file if title or sortOrder changed
+      const titleChanged = updates.title !== undefined && updates.title !== existing.title;
+      const orderChanged = updates.sortOrder !== undefined && updates.sortOrder !== existing.sortOrder;
+      if (titleChanged || orderChanged) {
+        try {
+          const project = db
+            .select()
+            .from(projects)
+            .where(eq(projects.id, existing.projectId))
+            .get();
+          if (project?.specPath) {
+            const workspace = db
+              .select()
+              .from(workspaces)
+              .where(eq(workspaces.id, project.workspaceId))
+              .get();
+            if (workspace) {
+              const specsDir = path.join(getWorkspaceDir(workspace), 'specs');
+              const oldFilename = milestoneFilename(existing.sortOrder, existing.title);
+              const newFilename = milestoneFilename(result.sortOrder, result.title);
+              if (oldFilename !== newFilename) {
+                renamePlanFile(specsDir, project.specPath, oldFilename, newFilename);
+              }
+            }
+          }
+        } catch {
+          // Best-effort rename — no error if file doesn't exist
+        }
       }
+
       return result;
     }),
 

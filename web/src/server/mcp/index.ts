@@ -14,7 +14,6 @@ import {
   milestones,
   taskGroups,
   fleetingMemories,
-  planContent,
 } from '../db/schema';
 import { generateSlug, uniqueProjectSlug } from '../trpc/utils';
 import { getAppState } from '../trpc/context';
@@ -28,6 +27,7 @@ import {
   writeContextFile,
 } from '../spec/service';
 import { validateDependencies } from '../tasks/validation';
+import { milestoneFilename, writePlanFile } from '../plan/service';
 
 // ── MCP Response Helpers ──────────────────────────────────────────
 
@@ -718,28 +718,19 @@ function registerProjectPlanningTools(mcp: McpServer): void {
       const milestone = db.select().from(milestones).where(eq(milestones.id, milestoneId)).get();
       if (!milestone) return mcpError('Milestone not found');
 
-      // Upsert plan content
-      const existing = db
-        .select()
-        .from(planContent)
-        .where(eq(planContent.milestoneId, milestoneId))
-        .get();
+      const project = db.select().from(projects).where(eq(projects.id, milestone.projectId)).get();
+      if (!project) return mcpError('Project not found');
 
-      let plan;
-      if (existing) {
-        plan = db
-          .update(planContent)
-          .set({ content, updatedAt: new Date().toISOString() })
-          .where(eq(planContent.id, existing.id))
-          .returning()
-          .get();
-      } else {
-        plan = db
-          .insert(planContent)
-          .values({ milestoneId, content })
-          .returning()
-          .get();
+      if (!project.specPath) {
+        return mcpError('Project has no specPath — cannot write plan file');
       }
+
+      const workspace = db.select().from(workspaces).where(eq(workspaces.id, project.workspaceId)).get();
+      if (!workspace) return mcpError('Workspace not found');
+
+      const specsDir = path.join(getWorkspaceDir(workspace), 'specs');
+      const filename = milestoneFilename(milestone.sortOrder, milestone.title);
+      writePlanFile(specsDir, project.specPath, filename, content);
 
       // Optionally transition to planning
       if (transitionToPlanning && milestone.status === 'planned') {
@@ -749,7 +740,7 @@ function registerProjectPlanningTools(mcp: McpServer): void {
           .run();
       }
 
-      return mcpResult(plan);
+      return mcpResult({ milestoneId, content, filename });
     },
   );
 

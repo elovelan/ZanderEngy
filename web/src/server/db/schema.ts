@@ -248,32 +248,6 @@ export const projectMemoriesRelations = relations(projectMemories, ({ one }) => 
   }),
 }));
 
-// ── Plan Content ────────────────────────────────────────────────────
-
-export const planContent = sqliteTable('plan_content', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  milestoneId: integer('milestone_id').references(() => milestones.id, { onDelete: 'cascade' }),
-  taskId: integer('task_id').references(() => tasks.id, { onDelete: 'cascade' }),
-  content: text('content').notNull(),
-  createdAt: text('created_at')
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-  updatedAt: text('updated_at')
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
-
-export const planContentRelations = relations(planContent, ({ one }) => ({
-  milestone: one(milestones, {
-    fields: [planContent.milestoneId],
-    references: [milestones.id],
-  }),
-  task: one(tasks, {
-    fields: [planContent.taskId],
-    references: [tasks.id],
-  }),
-}));
-
 // ── Comments ────────────────────────────────────────────────────────
 
 export const comments = sqliteTable('comments', {

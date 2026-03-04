@@ -1,6 +1,6 @@
 ---
 title: ''
-status: draft
+status: active
 type: buildable
 ---
 # Software Requirements Specification

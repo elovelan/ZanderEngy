@@ -826,9 +826,11 @@ describe('MCP Server', () => {
         .values({ name: 'Plan Test', slug: 'plan-test' })
         .returning()
         .get();
+      const planSpecSlug = 'plan-spec';
+      fs.mkdirSync(path.join(ctx.tmpDir, 'plan-test', 'specs', planSpecSlug), { recursive: true });
       const proj = db
         .insert(projects)
-        .values({ workspaceId: ws.id, name: 'P1', slug: 'p1' })
+        .values({ workspaceId: ws.id, name: 'P1', slug: 'p1', specPath: planSpecSlug })
         .returning()
         .get();
       projectId = proj.id;
@@ -838,7 +840,6 @@ describe('MCP Server', () => {
         .returning()
         .get();
       milestoneId = ms.id;
-      fs.mkdirSync(path.join(ctx.tmpDir, 'plan-test', 'specs'), { recursive: true });
     });
 
     it('createProjectFromSpec should create a project from approved spec', async () => {
