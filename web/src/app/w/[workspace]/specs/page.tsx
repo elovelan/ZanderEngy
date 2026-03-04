@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,7 +9,8 @@ import { SpecFrontmatter } from "@/components/specs/spec-frontmatter";
 import { SpecTasks } from "@/components/specs/spec-tasks";
 import { DynamicDocumentEditor } from "@/components/editor/dynamic-document-editor";
 import { InMemoryThreadStore, DefaultThreadStoreAuth } from "@/components/editor/document-editor";
-import { RiFileTextLine } from "@remixicon/react";
+import { RiFileTextLine, RiSideBarLine } from "@remixicon/react";
+import { Button } from "@/components/ui/button";
 
 const USER_ID = "local-user";
 
@@ -28,15 +29,55 @@ export default function SpecsPage() {
     router.replace(`/w/${params.workspace}/specs${qs ? `?${qs}` : ""}`, { scroll: false });
   }
 
+  const [collapsed, setCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  const dragging = useRef(false);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    dragging.current = true;
+    const startX = e.clientX;
+    const startWidth = sidebarWidth;
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!dragging.current) return;
+      const newWidth = Math.min(384, Math.max(180, startWidth + ev.clientX - startX));
+      setSidebarWidth(newWidth);
+    };
+    const onMouseUp = () => {
+      dragging.current = false;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }, [sidebarWidth]);
+
   return (
     <div className="flex h-[calc(100vh-6rem)]">
-      <div className="w-64 min-w-48 max-w-96 shrink-0 border-r border-border resize-x overflow-hidden">
-        <SpecTree
-          workspaceSlug={params.workspace}
-          selectedSpec={selectedSpec}
-          onSelectSpec={(slug) => updateUrl(slug, null)}
-          onSelectFile={(specSlug, filePath) => updateUrl(specSlug, filePath)}
-        />
+      {!collapsed && (
+        <div className="shrink-0 border-r border-border overflow-hidden" style={{ width: sidebarWidth }}>
+          <SpecTree
+            workspaceSlug={params.workspace}
+            selectedSpec={selectedSpec}
+            onSelectSpec={(slug) => updateUrl(slug, null)}
+            onSelectFile={(specSlug, filePath) => updateUrl(specSlug, filePath)}
+          />
+        </div>
+      )}
+      <div
+        className="flex shrink-0 items-center cursor-col-resize hover:bg-muted/50 active:bg-muted group"
+        style={{ width: 8 }}
+        onMouseDown={collapsed ? undefined : handleMouseDown}
+      >
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => setCollapsed((c) => !c)}
+        >
+          <RiSideBarLine className="size-3" />
+        </Button>
       </div>
       <div className="flex-1 min-w-0">
         {selectedSpec ? (
