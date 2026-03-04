@@ -46,6 +46,18 @@ describe('comment router', () => {
         }),
       ).rejects.toThrow('not found');
     });
+
+    it('should create a thread without a workspace (open-dir mode)', async () => {
+      const thread = await caller.comment.createThread({
+        documentPath: '/Users/aleks/notes/readme.md',
+        threadId: 'thread-open-1',
+        initialComment: { id: 'c-open-1', body: [{ type: 'paragraph', content: 'A comment' }] },
+      });
+
+      expect(thread.id).toBe('thread-open-1');
+      expect(thread.workspaceId).toBeNull();
+      expect(thread.documentPath).toBe('/Users/aleks/notes/readme.md');
+    });
   });
 
   describe('listThreads', () => {
@@ -100,6 +112,47 @@ describe('comment router', () => {
         documentPath: 'nonexistent.md',
       });
       expect(result).toHaveLength(0);
+    });
+
+    it('should list threads scoped by documentPath only when no workspace', async () => {
+      const docPath = '/Users/aleks/notes/readme.md';
+      await caller.comment.createThread({
+        documentPath: docPath,
+        threadId: 't-open-1',
+        initialComment: { id: 'c1', body: [] },
+      });
+      await caller.comment.createThread({
+        documentPath: '/other/doc.md',
+        threadId: 't-open-2',
+        initialComment: { id: 'c2', body: [] },
+      });
+
+      const result = await caller.comment.listThreads({ documentPath: docPath });
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('t-open-1');
+    });
+
+    it('should not return workspace threads when listing without workspace', async () => {
+      const docPath = 'spec.md';
+      await caller.comment.createThread({
+        workspaceSlug: 'test-ws',
+        documentPath: docPath,
+        threadId: 't-ws',
+        initialComment: { id: 'c1', body: [] },
+      });
+      await caller.comment.createThread({
+        documentPath: docPath,
+        threadId: 't-open',
+        initialComment: { id: 'c2', body: [] },
+      });
+
+      const openResult = await caller.comment.listThreads({ documentPath: docPath });
+      expect(openResult).toHaveLength(1);
+      expect(openResult[0].id).toBe('t-open');
+
+      const wsResult = await caller.comment.listThreads({ workspaceSlug: 'test-ws', documentPath: docPath });
+      expect(wsResult).toHaveLength(1);
+      expect(wsResult[0].id).toBe('t-ws');
     });
   });
 
@@ -156,12 +209,19 @@ describe('comment router', () => {
   });
 
   describe('deleteComment', () => {
-    it('should soft-delete a comment', async () => {
+    it('should soft-delete a comment by setting deletedAt and nulling body', async () => {
       await caller.comment.createThread({
         workspaceSlug: 'test-ws',
         documentPath: 'spec.md',
         threadId: 't1',
         initialComment: { id: 'c1', body: [{ type: 'paragraph', content: 'Delete me' }] },
+      });
+
+      await caller.comment.addComment({
+        workspaceSlug: 'test-ws',
+        threadId: 't1',
+        commentId: 'c2',
+        body: [{ type: 'paragraph', content: 'Keep me' }],
       });
 
       await caller.comment.deleteComment({
@@ -174,8 +234,10 @@ describe('comment router', () => {
         workspaceSlug: 'test-ws',
         documentPath: 'spec.md',
       });
-      expect(threads[0].comments[0].deletedAt).toBeTruthy();
-      expect(threads[0].comments[0].body).toBeNull();
+      expect(threads).toHaveLength(1);
+      const deleted = threads[0].comments.find((c) => c.id === 'c1');
+      expect(deleted?.deletedAt).toBeTruthy();
+      expect(deleted?.body).toBeNull();
     });
   });
 

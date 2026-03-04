@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -121,16 +121,10 @@ function SpecDetail({ workspaceSlug, specSlug, selectedFile, onDeleted }: SpecDe
   const filePath = selectedFile ?? "spec.md";
   const isSpecMd = filePath === "spec.md";
 
-  const threadStores = useRef<Map<string, EngyThreadStore>>(new Map());
-  const prevSpecSlug = useRef<string | null>(null);
-  if (prevSpecSlug.current !== specSlug) {
-    threadStores.current = new Map();
-    prevSpecSlug.current = specSlug;
-  }
-  if (!threadStores.current.has(filePath)) {
-    threadStores.current.set(filePath, new EngyThreadStore(workspaceSlug, `${specSlug}/${filePath}`));
-  }
-  const threadStore = threadStores.current.get(filePath)!;
+  const threadStore = useMemo(
+    () => new EngyThreadStore(workspaceSlug, `${specSlug}/${filePath}`),
+    [workspaceSlug, specSlug, filePath],
+  );
 
   const { data: spec, isLoading, error } = trpc.spec.get.useQuery({
     workspaceSlug,

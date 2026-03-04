@@ -1,17 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { CreateWorkspaceDialog } from "@/components/create-workspace-dialog";
+import { OpenDirDialog } from "@/components/open-dir/open-dir-dialog";
+import { useRecentDirs } from "@/hooks/use-recent-dirs";
+import { RiFolderOpenLine } from "@remixicon/react";
 
 export default function HomePage() {
   const { data: workspaces, isLoading, error } = trpc.workspace.list.useQuery();
+  const [openDirDialogOpen, setOpenDirDialogOpen] = useState(false);
+  const { dirs: recentDirs, removeDir } = useRecentDirs();
+  const router = useRouter();
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
-      <h1 className="mb-6 text-lg font-semibold">Workspaces</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-lg font-semibold">Workspaces</h1>
+        <Button variant="outline" size="sm" onClick={() => setOpenDirDialogOpen(true)}>
+          <RiFolderOpenLine className="mr-2 size-4" />
+          Open Directory
+        </Button>
+      </div>
+
+      <OpenDirDialog open={openDirDialogOpen} onOpenChange={setOpenDirDialogOpen} />
 
       {isLoading && (
         <p className="text-sm text-muted-foreground" aria-live="polite">Loading...</p>
@@ -60,6 +77,34 @@ export default function HomePage() {
           ))}
           <div className="mt-2">
             <CreateWorkspaceDialog />
+          </div>
+        </div>
+      )}
+
+      {recentDirs.length > 0 && (
+        <div className="mt-8">
+          <h2 className="mb-3 text-sm font-medium text-muted-foreground">Recent Directories</h2>
+          <div className="flex flex-col gap-1">
+            {recentDirs.map((dir) => (
+              <div key={dir} className="flex items-center gap-2 group">
+                <button
+                  type="button"
+                  className="flex flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted/50 truncate"
+                  onClick={() => router.push(`/open?path=${encodeURIComponent(dir)}`)}
+                >
+                  <RiFolderOpenLine className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate font-mono text-xs">{dir}</span>
+                </button>
+                <button
+                  type="button"
+                  className="shrink-0 text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground px-1"
+                  onClick={() => removeDir(dir)}
+                  aria-label="Remove from recent"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}

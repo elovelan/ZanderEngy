@@ -306,9 +306,7 @@ export const commentsRelations = relations(comments, ({ one }) => ({
 
 export const commentThreads = sqliteTable('comment_threads', {
   id: text('id').primaryKey(),
-  workspaceId: integer('workspace_id')
-    .notNull()
-    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  workspaceId: integer('workspace_id').references(() => workspaces.id, { onDelete: 'cascade' }),
   documentPath: text('document_path').notNull(),
   resolved: integer('resolved', { mode: 'boolean' }).notNull().default(false),
   resolvedBy: text('resolved_by'),

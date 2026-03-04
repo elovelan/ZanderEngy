@@ -226,12 +226,12 @@ export class EngyThreadStore extends ThreadStore implements CommentStore {
   private threads: Map<string, ThreadData> = new Map();
   private subscribers: Set<(threads: Map<string, ThreadData>) => void> = new Set();
   private readonly client: ReturnType<typeof createTRPCClient<AppRouter>>;
-  private readonly workspaceSlug: string;
+  private readonly workspaceSlug: string | undefined;
   private readonly documentPath: string;
 
   readonly ready: Promise<void>;
 
-  constructor(workspaceSlug: string, documentPath: string) {
+  constructor(workspaceSlug: string | undefined, documentPath: string) {
     super(new DefaultThreadStoreAuth(USER_ID, 'editor'));
     this.workspaceSlug = workspaceSlug;
     this.documentPath = documentPath;

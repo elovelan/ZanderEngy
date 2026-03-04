@@ -19,7 +19,7 @@ import type { CommentStore } from "./thread-store";
 import { snapshotAnchors } from "./comments/snapshot";
 import { reconcileAnchors } from "./comments/reconcile";
 
-export { InMemoryThreadStore, EngyThreadStore, DefaultThreadStoreAuth } from "./thread-store";
+export { EngyThreadStore } from "./thread-store";
 
 const USER_ID = "local-user";
 const LOCAL_USER: User = { id: USER_ID, username: "You", avatarUrl: "" };

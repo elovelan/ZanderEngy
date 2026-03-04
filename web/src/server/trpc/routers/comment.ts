@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eq, and, asc } from 'drizzle-orm';
+import { eq, and, asc, isNull } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import { getDb } from '../../db/client';
@@ -29,11 +29,13 @@ function getThreadWithComments(threadId: string) {
   return { ...thread, comments };
 }
 
+const workspaceSlugField = z.string().optional();
+
 export const commentRouter = router({
   createThread: publicProcedure
     .input(
       z.object({
-        workspaceSlug: z.string(),
+        workspaceSlug: workspaceSlugField,
         documentPath: z.string().min(1),
         threadId: z.string(),
         initialComment: z.object({
@@ -45,14 +47,14 @@ export const commentRouter = router({
       }),
     )
     .mutation(({ input }) => {
-      const ws = resolveWorkspace(input.workspaceSlug);
+      const workspaceId = input.workspaceSlug ? resolveWorkspace(input.workspaceSlug).id : null;
       const db = getDb();
       const now = new Date().toISOString();
 
       db.insert(commentThreads)
         .values({
           id: input.threadId,
-          workspaceId: ws.id,
+          workspaceId,
           documentPath: input.documentPath,
           metadata: input.metadata ?? null,
           createdAt: now,
@@ -76,18 +78,18 @@ export const commentRouter = router({
     }),
 
   deleteThread: publicProcedure
-    .input(z.object({ workspaceSlug: z.string(), threadId: z.string() }))
+    .input(z.object({ workspaceSlug: workspaceSlugField, threadId: z.string() }))
     .mutation(({ input }) => {
-      resolveWorkspace(input.workspaceSlug);
+      if (input.workspaceSlug) resolveWorkspace(input.workspaceSlug);
       const db = getDb();
       db.delete(commentThreads).where(eq(commentThreads.id, input.threadId)).run();
       return { success: true };
     }),
 
   updateThreadMetadata: publicProcedure
-    .input(z.object({ workspaceSlug: z.string(), threadId: z.string(), metadata: z.record(z.string(), z.unknown()) }))
+    .input(z.object({ workspaceSlug: workspaceSlugField, threadId: z.string(), metadata: z.record(z.string(), z.unknown()) }))
     .mutation(({ input }) => {
-      resolveWorkspace(input.workspaceSlug);
+      if (input.workspaceSlug) resolveWorkspace(input.workspaceSlug);
       const db = getDb();
       db.update(commentThreads)
         .set({ metadata: input.metadata, updatedAt: new Date().toISOString() })
@@ -97,9 +99,9 @@ export const commentRouter = router({
     }),
 
   resolveThread: publicProcedure
-    .input(z.object({ workspaceSlug: z.string(), threadId: z.string() }))
+    .input(z.object({ workspaceSlug: workspaceSlugField, threadId: z.string() }))
     .mutation(({ input }) => {
-      resolveWorkspace(input.workspaceSlug);
+      if (input.workspaceSlug) resolveWorkspace(input.workspaceSlug);
       const db = getDb();
       const now = new Date().toISOString();
       db.update(commentThreads)
@@ -110,9 +112,9 @@ export const commentRouter = router({
     }),
 
   unresolveThread: publicProcedure
-    .input(z.object({ workspaceSlug: z.string(), threadId: z.string() }))
+    .input(z.object({ workspaceSlug: workspaceSlugField, threadId: z.string() }))
     .mutation(({ input }) => {
-      resolveWorkspace(input.workspaceSlug);
+      if (input.workspaceSlug) resolveWorkspace(input.workspaceSlug);
       const db = getDb();
       db.update(commentThreads)
         .set({ resolved: false, resolvedBy: null, resolvedAt: null, updatedAt: new Date().toISOString() })
@@ -124,7 +126,7 @@ export const commentRouter = router({
   addComment: publicProcedure
     .input(
       z.object({
-        workspaceSlug: z.string(),
+        workspaceSlug: workspaceSlugField,
         threadId: z.string(),
         commentId: z.string(),
         body: z.any(),
@@ -132,7 +134,7 @@ export const commentRouter = router({
       }),
     )
     .mutation(({ input }) => {
-      resolveWorkspace(input.workspaceSlug);
+      if (input.workspaceSlug) resolveWorkspace(input.workspaceSlug);
       const db = getDb();
       const now = new Date().toISOString();
 
@@ -159,7 +161,7 @@ export const commentRouter = router({
   updateComment: publicProcedure
     .input(
       z.object({
-        workspaceSlug: z.string(),
+        workspaceSlug: workspaceSlugField,
         threadId: z.string(),
         commentId: z.string(),
         body: z.any(),
@@ -167,7 +169,7 @@ export const commentRouter = router({
       }),
     )
     .mutation(({ input }) => {
-      resolveWorkspace(input.workspaceSlug);
+      if (input.workspaceSlug) resolveWorkspace(input.workspaceSlug);
       const db = getDb();
       const now = new Date().toISOString();
       db.update(threadComments)
@@ -184,37 +186,33 @@ export const commentRouter = router({
   deleteComment: publicProcedure
     .input(
       z.object({
-        workspaceSlug: z.string(),
+        workspaceSlug: workspaceSlugField,
         threadId: z.string(),
         commentId: z.string(),
       }),
     )
     .mutation(({ input }) => {
-      resolveWorkspace(input.workspaceSlug);
+      if (input.workspaceSlug) resolveWorkspace(input.workspaceSlug);
       const db = getDb();
-      db.delete(threadComments).where(eq(threadComments.id, input.commentId)).run();
-      const remaining = db
-        .select()
-        .from(threadComments)
-        .where(eq(threadComments.threadId, input.threadId))
-        .all();
-      if (remaining.length === 0) {
-        db.delete(commentThreads).where(eq(commentThreads.id, input.threadId)).run();
-      }
+      const now = new Date().toISOString();
+      db.update(threadComments)
+        .set({ body: null, deletedAt: now, updatedAt: now })
+        .where(eq(threadComments.id, input.commentId))
+        .run();
       return { success: true };
     }),
 
   addReaction: publicProcedure
     .input(
       z.object({
-        workspaceSlug: z.string(),
+        workspaceSlug: workspaceSlugField,
         threadId: z.string(),
         commentId: z.string(),
         emoji: z.string(),
       }),
     )
     .mutation(({ input }) => {
-      resolveWorkspace(input.workspaceSlug);
+      if (input.workspaceSlug) resolveWorkspace(input.workspaceSlug);
       const db = getDb();
       const comment = db.select().from(threadComments).where(eq(threadComments.id, input.commentId)).get();
       if (!comment) throw new TRPCError({ code: 'NOT_FOUND', message: 'Comment not found' });
@@ -233,14 +231,14 @@ export const commentRouter = router({
   deleteReaction: publicProcedure
     .input(
       z.object({
-        workspaceSlug: z.string(),
+        workspaceSlug: workspaceSlugField,
         threadId: z.string(),
         commentId: z.string(),
         emoji: z.string(),
       }),
     )
     .mutation(({ input }) => {
-      resolveWorkspace(input.workspaceSlug);
+      if (input.workspaceSlug) resolveWorkspace(input.workspaceSlug);
       const db = getDb();
       const comment = db.select().from(threadComments).where(eq(threadComments.id, input.commentId)).get();
       if (!comment) throw new TRPCError({ code: 'NOT_FOUND', message: 'Comment not found' });
@@ -258,19 +256,21 @@ export const commentRouter = router({
   listThreads: publicProcedure
     .input(
       z.object({
-        workspaceSlug: z.string(),
+        workspaceSlug: workspaceSlugField,
         documentPath: z.string(),
       }),
     )
     .query(({ input }) => {
-      const ws = resolveWorkspace(input.workspaceSlug);
       const db = getDb();
+
+      const workspaceCondition = input.workspaceSlug
+        ? eq(commentThreads.workspaceId, resolveWorkspace(input.workspaceSlug).id)
+        : isNull(commentThreads.workspaceId);
+
       const threads = db
         .select()
         .from(commentThreads)
-        .where(
-          and(eq(commentThreads.workspaceId, ws.id), eq(commentThreads.documentPath, input.documentPath)),
-        )
+        .where(and(workspaceCondition, eq(commentThreads.documentPath, input.documentPath)))
         .orderBy(asc(commentThreads.createdAt))
         .all();
 
@@ -281,8 +281,7 @@ export const commentRouter = router({
             .from(threadComments)
             .where(eq(threadComments.threadId, thread.id))
             .orderBy(asc(threadComments.createdAt))
-            .all()
-            .filter((c) => !c.deletedAt);
+            .all();
           return { ...thread, comments: cmts };
         })
         .filter((thread) => thread.comments.length > 0);
