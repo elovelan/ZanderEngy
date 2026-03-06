@@ -6,7 +6,8 @@
     "build": "turbo run build",
     "lint": "turbo run lint:eslint && knip && jscpd",
     "test": "turbo run test",
-    "blt": "turbo run build lint:eslint test && knip && jscpd"
+    "blt": "turbo run build lint:eslint test && knip && jscpd",
+    "postinstall": "chmod +x node_modules/.pnpm/node-pty@*/node_modules/node-pty/prebuilds/*/spawn-helper 2>/dev/null || true"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -24,6 +25,7 @@
     "onlyBuiltDependencies": [
       "better-sqlite3",
       "esbuild",
+      "node-pty",
       "sharp",
       "unrs-resolver"
     ]

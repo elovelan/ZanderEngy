@@ -53,4 +53,6 @@ export type ClientToServerMessage =
   | ValidatePathsResponseMessage
   | FileChangeMessage;
 
-export type ServerToClientMessage = WorkspacesSyncMessage | ValidatePathsRequestMessage;
+export type ServerToClientMessage =
+  | WorkspacesSyncMessage
+  | ValidatePathsRequestMessage;

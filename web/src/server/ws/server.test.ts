@@ -59,6 +59,8 @@ describe('WebSocket Server', () => {
       pendingValidations: new Map(),
       specLastChanged: new Map(),
       specDebounceTimers: new Map(),
+      terminalSessions: new Map(),
+      terminalDaemon: null,
     };
     const result = await startServer(state);
     server = result.server;

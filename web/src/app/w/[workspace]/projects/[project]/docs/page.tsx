@@ -216,7 +216,7 @@ function ProjectDetail({ workspaceSlug, projectSlug, selectedFile }: ProjectDeta
       <div className="px-4 py-1 text-xs text-muted-foreground border-b border-border">
         {selectedFile}
       </div>
-      <TabsContent value="content" className="flex flex-1 overflow-visible m-0">
+      <TabsContent value="content" className="flex flex-1 overflow-hidden m-0">
         {!isContentReady ? (
           <div className="flex items-center justify-center flex-1">
             <p className="text-sm text-muted-foreground">Loading...</p>

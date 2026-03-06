@@ -2,6 +2,10 @@ import { createServer } from 'node:http';
 import next from 'next';
 import { getAppState } from './src/server/trpc/context';
 import { createWebSocketServer } from './src/server/ws/server';
+import {
+  createTerminalWebSocketServer,
+  createTerminalRelayWebSocketServer,
+} from './src/server/ws/terminal-server';
 import { attachMCP } from './src/server/mcp/index';
 import { runMigrations } from './src/server/db/migrate';
 
@@ -21,6 +25,8 @@ app.prepare().then(() => {
   });
 
   const wss = createWebSocketServer(state);
+  const terminalWss = createTerminalWebSocketServer(state);
+  const terminalRelayWss = createTerminalRelayWebSocketServer(state);
   const nextUpgrade = app.getUpgradeHandler();
 
   server.on('upgrade', (req, socket, head) => {
@@ -28,6 +34,14 @@ app.prepare().then(() => {
     if (pathname === '/ws') {
       wss.handleUpgrade(req, socket, head, (ws) => {
         wss.emit('connection', ws, req);
+      });
+    } else if (pathname === '/ws/terminal') {
+      terminalWss.handleUpgrade(req, socket, head, (ws) => {
+        terminalWss.emit('connection', ws, req);
+      });
+    } else if (pathname === '/ws/terminal-relay') {
+      terminalRelayWss.handleUpgrade(req, socket, head, (ws) => {
+        terminalRelayWss.emit('connection', ws, req);
       });
     } else {
       nextUpgrade(req, socket, head);

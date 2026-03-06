@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WebSocketServer, type WebSocket as WsWebSocket } from 'ws';
-import { WsClient, computeBackoff, deriveWsUrl } from './client.js';
+import { WsClient, computeBackoff, deriveWsUrl, deriveTerminalRelayUrl } from './client.js';
 import type { WorkspacesSyncMessage, ValidatePathsRequestMessage } from '@engy/common';
 import { access } from 'node:fs/promises';
 
@@ -17,6 +17,16 @@ describe('deriveWsUrl', () => {
 
   it('converts https to wss', () => {
     expect(deriveWsUrl('https://example.com')).toBe('wss://example.com/ws');
+  });
+});
+
+describe('deriveTerminalRelayUrl', () => {
+  it('converts http to ws with terminal-relay path', () => {
+    expect(deriveTerminalRelayUrl('http://localhost:3000')).toBe('ws://localhost:3000/ws/terminal-relay');
+  });
+
+  it('converts https to wss with terminal-relay path', () => {
+    expect(deriveTerminalRelayUrl('https://example.com')).toBe('wss://example.com/ws/terminal-relay');
   });
 });
 

@@ -4,6 +4,7 @@ import { useParams, usePathname } from "next/navigation";
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { cn } from "@/lib/utils";
+import { TerminalShell } from "@/components/terminal/terminal-shell";
 
 const tabs = [
   { label: "Overview", segment: "" },
@@ -58,7 +59,7 @@ export default function WorkspaceLayout({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex flex-1 flex-col overflow-hidden">
       {!isProjectRoute && (
         <nav className="border-b border-border" aria-label="Workspace sections">
           <div className="mx-auto flex w-[95%] max-w-[1800px]">
@@ -78,7 +79,11 @@ export default function WorkspaceLayout({
           </div>
         </nav>
       )}
-      <div className="mx-auto flex min-h-0 flex-1 flex-col w-[95%] max-w-[1800px]">{children}</div>
+      <TerminalShell>
+        <div className="mx-auto flex min-h-0 flex-1 flex-col w-[95%] max-w-[1800px] overflow-y-auto overflow-x-hidden">
+          {children}
+        </div>
+      </TerminalShell>
     </div>
   );
 }

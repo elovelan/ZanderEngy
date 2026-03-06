@@ -19,6 +19,10 @@ export interface AppState {
   >;
   specLastChanged: Map<string, number>;
   specDebounceTimers: Map<string, ReturnType<typeof setTimeout>>;
+  /** Maps sessionId → browser WebSocket for terminal I/O relay */
+  terminalSessions: Map<string, WebSocket>;
+  /** Dedicated daemon WebSocket for terminal traffic (zero-parse relay) */
+  terminalDaemon: WebSocket | null;
 }
 
 const GLOBAL_KEY = '__engy_app_state__' as const;
@@ -32,6 +36,8 @@ export function getAppState(): AppState {
       pendingValidations: new Map(),
       specLastChanged: new Map(),
       specDebounceTimers: new Map(),
+      terminalSessions: new Map(),
+      terminalDaemon: null,
     };
   }
   return g[GLOBAL_KEY] as AppState;

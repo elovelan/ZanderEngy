@@ -181,7 +181,7 @@ export const workspaceRouter = router({
     if (!workspace) {
       throw new TRPCError({ code: 'NOT_FOUND', message: `Workspace "${input.slug}" not found` });
     }
-    return workspace;
+    return { ...workspace, resolvedDir: getWorkspaceDir(workspace) };
   }),
 
   delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input, ctx }) => {

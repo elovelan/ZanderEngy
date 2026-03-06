@@ -2,10 +2,10 @@ import WebSocket from 'ws';
 import { access } from 'node:fs/promises';
 import type {
   ClientToServerMessage,
-  ServerToClientMessage,
   WorkspacesSyncMessage,
   ValidatePathsRequestMessage,
 } from '@engy/common';
+import type { TerminalManager } from '../terminal/manager.js';
 
 const INITIAL_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 30_000;
@@ -14,6 +14,7 @@ const JITTER_FACTOR = 0.2;
 interface WsClientOptions {
   serverUrl: string;
   onWorkspacesSync?: (message: WorkspacesSyncMessage) => void;
+  terminalManager?: TerminalManager;
 }
 
 export function computeBackoff(attempt: number): number {
@@ -25,6 +26,11 @@ export function computeBackoff(attempt: number): number {
 export function deriveWsUrl(httpUrl: string): string {
   const base = httpUrl.replace(/^http/, 'ws').replace(/\/+$/, '');
   return `${base}/ws`;
+}
+
+export function deriveTerminalRelayUrl(httpUrl: string): string {
+  const base = httpUrl.replace(/^http/, 'ws').replace(/\/+$/, '');
+  return `${base}/ws/terminal-relay`;
 }
 
 async function validatePaths(paths: string[]): Promise<Array<{ path: string; exists: boolean }>> {
@@ -40,22 +46,72 @@ async function validatePaths(paths: string[]): Promise<Array<{ path: string; exi
   );
 }
 
+// Compact terminal message types (daemon ↔ server relay)
+interface TerminalSpawnMsg {
+  t: 'spawn';
+  sessionId: string;
+  workingDir: string;
+  command?: string;
+  cols: number;
+  rows: number;
+  scopeType: string;
+  scopeLabel: string;
+}
+
+interface TerminalInputMsg {
+  t: 'i';
+  sessionId: string;
+  d: string;
+}
+
+interface TerminalResizeMsg {
+  t: 'resize';
+  sessionId: string;
+  cols: number;
+  rows: number;
+}
+
+interface TerminalKillMsg {
+  t: 'kill';
+  sessionId: string;
+}
+
+interface TerminalReconnectMsg {
+  t: 'reconnect';
+  sessionId: string;
+}
+
+type TerminalRelayMessage =
+  | TerminalSpawnMsg
+  | TerminalInputMsg
+  | TerminalResizeMsg
+  | TerminalKillMsg
+  | TerminalReconnectMsg;
+
 export class WsClient {
   private ws: WebSocket | null = null;
+  private terminalWs: WebSocket | null = null;
   private attempt = 0;
+  private terminalAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private terminalReconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private intentionallyClosed = false;
   private readonly wsUrl: string;
+  private readonly terminalRelayUrl: string;
   private readonly onWorkspacesSync?: (message: WorkspacesSyncMessage) => void;
+  private readonly terminalManager?: TerminalManager;
 
   constructor(options: WsClientOptions) {
     this.wsUrl = deriveWsUrl(options.serverUrl);
+    this.terminalRelayUrl = deriveTerminalRelayUrl(options.serverUrl);
     this.onWorkspacesSync = options.onWorkspacesSync;
+    this.terminalManager = options.terminalManager;
   }
 
   connect(): void {
     this.intentionallyClosed = false;
     this.createConnection();
+    this.createTerminalConnection();
   }
 
   send(message: ClientToServerMessage): void {
@@ -70,8 +126,14 @@ export class WsClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    if (this.terminalReconnectTimer) {
+      clearTimeout(this.terminalReconnectTimer);
+      this.terminalReconnectTimer = null;
+    }
     this.ws?.close();
     this.ws = null;
+    this.terminalWs?.close();
+    this.terminalWs = null;
   }
 
   get connected(): boolean {
@@ -99,20 +161,81 @@ export class WsClient {
     });
   }
 
+  private createTerminalConnection(): void {
+    if (!this.terminalManager) return;
+
+    this.terminalWs = new WebSocket(this.terminalRelayUrl);
+
+    this.terminalWs.on('open', () => {
+      this.terminalAttempt = 0;
+      // Wire terminal manager to send via terminal WS
+      this.terminalManager!.setSendCallback((msg) => {
+        if (this.terminalWs?.readyState === WebSocket.OPEN) {
+          this.terminalWs.send(msg);
+        }
+      });
+    });
+
+    this.terminalWs.on('message', (data) => {
+      this.handleTerminalMessage(data);
+    });
+
+    this.terminalWs.on('close', () => {
+      this.scheduleTerminalReconnect();
+    });
+
+    this.terminalWs.on('error', () => {
+      // close event follows, which triggers reconnect
+    });
+  }
+
   private handleMessage(data: WebSocket.RawData): void {
-    let message: ServerToClientMessage;
+    let message: { type: string; payload: unknown };
     try {
-      message = JSON.parse(data.toString()) as ServerToClientMessage;
+      message = JSON.parse(data.toString());
     } catch {
       return;
     }
 
     switch (message.type) {
       case 'WORKSPACES_SYNC':
-        this.onWorkspacesSync?.(message);
+        this.onWorkspacesSync?.(message as WorkspacesSyncMessage);
         break;
       case 'VALIDATE_PATHS_REQUEST':
-        this.handleValidatePathsRequest(message);
+        this.handleValidatePathsRequest(message as ValidatePathsRequestMessage);
+        break;
+    }
+  }
+
+  private handleTerminalMessage(data: WebSocket.RawData): void {
+    let msg: TerminalRelayMessage;
+    try {
+      msg = JSON.parse(data.toString()) as TerminalRelayMessage;
+    } catch {
+      return;
+    }
+
+    switch (msg.t) {
+      case 'spawn':
+        this.terminalManager?.spawn({
+          sessionId: msg.sessionId,
+          workingDir: msg.workingDir,
+          cols: msg.cols,
+          rows: msg.rows,
+          command: msg.command,
+        });
+        break;
+      case 'i':
+        this.terminalManager?.write(msg.sessionId, msg.d);
+        break;
+      case 'resize':
+        this.terminalManager?.resize(msg.sessionId, msg.cols, msg.rows);
+        break;
+      case 'kill':
+        this.terminalManager?.kill(msg.sessionId);
+        break;
+      case 'reconnect':
+        this.terminalManager?.handleReconnect(msg.sessionId);
         break;
     }
   }
@@ -136,6 +259,17 @@ export class WsClient {
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
       this.createConnection();
+    }, delay);
+  }
+
+  private scheduleTerminalReconnect(): void {
+    if (this.intentionallyClosed) return;
+
+    const delay = computeBackoff(this.terminalAttempt);
+    this.terminalAttempt++;
+    this.terminalReconnectTimer = setTimeout(() => {
+      this.terminalReconnectTimer = null;
+      this.createTerminalConnection();
     }, delay);
   }
 }
