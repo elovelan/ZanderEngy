@@ -18,6 +18,8 @@ import { InMemoryThreadStore, DefaultThreadStoreAuth } from "./thread-store";
 import type { CommentStore } from "./thread-store";
 import { snapshotAnchors } from "./comments/snapshot";
 import { reconcileAnchors } from "./comments/reconcile";
+import { formatCommentsForExport } from "./format-comments";
+import { SendToTerminalButton } from "../terminal/send-to-terminal-button";
 
 export { EngyThreadStore } from "./thread-store";
 
@@ -39,10 +41,8 @@ interface DocumentEditorProps {
   comments?: boolean;
   /** External thread store (persists across editor remounts) */
   threadStore?: CommentStore;
-  /** Cached BlockNote blocks (preserves comment marks across file switches) */
-  initialBlocks?: unknown[];
-  /** Called when editor unmounts to cache blocks for later restoration */
-  onCacheBlocks?: (blocks: unknown[]) => void;
+  /** File path displayed in comment exports */
+  filePath?: string;
 }
 
 const AUTOSAVE_DELAY_MS = 1500;
@@ -52,6 +52,7 @@ export function DocumentEditor({
   onSave,
   comments = false,
   threadStore: externalThreadStore,
+  filePath,
 }: DocumentEditorProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadedRef = useRef(false);
@@ -119,27 +120,23 @@ export function DocumentEditor({
     }, AUTOSAVE_DELAY_MS);
   }, [editor, comments, threadStore]);
 
-  const handleCopyComments = useCallback(() => {
+  const getFormattedComments = useCallback(() => {
     const threads = threadStore.getThreads();
-    if (threads.size === 0) return;
+    if (threads.size === 0) return '';
 
-    const lines: string[] = [];
-    for (const [, thread] of threads) {
-      if (thread.deletedAt) continue;
-      const threadComments = thread.comments.filter((c) => !c.deletedAt);
-      if (threadComments.length === 0) continue;
-      if (thread.resolved) lines.push("*(Resolved)*");
-      for (const comment of threadComments) {
-        lines.push(`> ${extractCommentText(comment.body)}`);
-      }
-      lines.push("");
-    }
+    const markdown = editor.blocksToMarkdownLossy(editor.document);
+    return formatCommentsForExport({ threads, markdown, filePath });
+  }, [threadStore, editor, filePath]);
 
-    navigator.clipboard.writeText(lines.join("\n").trim()).then(() => {
+  const handleCopyComments = useCallback(() => {
+    const formatted = getFormattedComments();
+    if (!formatted) return;
+
+    navigator.clipboard.writeText(formatted).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }, [threadStore]);
+  }, [getFormattedComments]);
 
   useEffect(() => {
     return () => {
@@ -192,6 +189,7 @@ export function DocumentEditor({
                     </>
                   )}
                 </Button>
+                <SendToTerminalButton getContent={getFormattedComments} />
                 <Button
                   variant="ghost"
                   size="sm"
@@ -223,18 +221,4 @@ export function DocumentEditor({
       </div>
     </BlockNoteView>
   );
-}
-
-function extractCommentText(body: unknown): string {
-  if (!body || !Array.isArray(body)) return "";
-  return body
-    .map((block: { content?: Array<{ type: string; text?: string }> }) => {
-      if (!block.content || !Array.isArray(block.content)) return "";
-      return block.content
-        .filter((item) => item.type === "text")
-        .map((item) => item.text ?? "")
-        .join("");
-    })
-    .join("\n")
-    .trim();
 }

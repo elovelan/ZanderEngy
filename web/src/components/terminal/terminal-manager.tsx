@@ -122,6 +122,29 @@ export function TerminalManager({ onCollapse, defaultScope }: TerminalManagerPro
     [],
   );
 
+  // Broadcast terminal active state for external consumers
+  useEffect(() => {
+    const hasActiveTab =
+      activeTabId !== null && tabs.some((t) => t.sessionId === activeTabId && t.status !== 'exited');
+    window.__engy_terminal_active = hasActiveTab;
+    window.dispatchEvent(
+      new CustomEvent('terminal:active-changed', {
+        detail: { hasActiveTab },
+      }),
+    );
+  }, [tabs, activeTabId]);
+
+  useEffect(() => {
+    return () => {
+      window.__engy_terminal_active = false;
+      window.dispatchEvent(
+        new CustomEvent('terminal:active-changed', {
+          detail: { hasActiveTab: false },
+        }),
+      );
+    };
+  }, []);
+
   // Listen for terminal:inject custom events
   useEffect(() => {
     function onInject(e: Event) {

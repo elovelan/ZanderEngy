@@ -195,6 +195,7 @@ function ProjectDetail({ workspaceSlug, projectSlug, selectedFile }: ProjectDeta
             onSave={handleSave}
             comments={true}
             threadStore={threadStore}
+            filePath={`${projectSlug}/${selectedFile}`}
           />
         )}
       </TabsContent>

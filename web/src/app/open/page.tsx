@@ -179,6 +179,7 @@ function FileEditor({ dirPath, absoluteFilePath }: FileEditorProps) {
         onSave={handleSave}
         comments={true}
         threadStore={threadStore}
+        filePath={relPath}
       />
     </div>
   );
