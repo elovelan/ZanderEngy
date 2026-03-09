@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { trpc } from '@/lib/trpc';
@@ -33,7 +33,17 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     error,
   } = trpc.workspace.get.useQuery({ slug: params.workspace });
 
-  const [terminalCollapsed, setTerminalCollapsed] = useState(false);
+  const [terminalCollapsed, setTerminalCollapsed] = useState(true);
+
+  // Auto-expand terminal when active sessions are restored on page load
+  useEffect(() => {
+    function onActiveChanged(e: Event) {
+      const { hasActiveTab } = (e as CustomEvent<{ hasActiveTab: boolean }>).detail;
+      if (hasActiveTab) setTerminalCollapsed(false);
+    }
+    window.addEventListener('terminal:active-changed', onActiveChanged);
+    return () => window.removeEventListener('terminal:active-changed', onActiveChanged);
+  }, []);
 
   const handleCollapse = useCallback(() => {
     setTerminalCollapsed(true);

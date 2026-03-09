@@ -6,7 +6,6 @@ import { RiEditLine } from "@remixicon/react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { WorkspaceOverview } from "@/components/workspace/workspace-overview";
 import { EditWorkspaceDialog } from "@/components/workspace/edit-workspace-dialog";
 
@@ -28,11 +27,11 @@ export default function WorkspaceOverviewPage() {
   if (!workspace) return null;
 
   return (
-    <div className="flex flex-col gap-6 overflow-y-auto py-6">
-      <div className="flex items-start justify-between">
-        <div>
+    <div className="flex flex-col gap-4 overflow-y-auto py-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <h2 className="text-lg font-semibold">{workspace.name}</h2>
-          <Badge variant="secondary" className="mt-1 font-mono text-xs">
+          <Badge variant="secondary" className="font-mono text-xs">
             {workspace.slug}
           </Badge>
         </div>
@@ -40,8 +39,6 @@ export default function WorkspaceOverviewPage() {
           <RiEditLine />
         </Button>
       </div>
-
-      <Separator />
 
       <WorkspaceOverview workspaceId={workspace.id} workspaceSlug={params.workspace} />
 
