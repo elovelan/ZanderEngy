@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,8 +11,9 @@ import {
   RiCheckboxBlankLine,
   RiRobotLine,
   RiUserLine,
+  RiAddLine,
 } from "@remixicon/react";
-import { CreateSpecTaskDialog } from "./create-spec-task-dialog";
+import { TaskDialog } from "@/components/projects/task-dialog";
 
 interface SpecTasksProps {
   specSlug: string;
@@ -20,6 +22,7 @@ interface SpecTasksProps {
 export function SpecTasks({ specSlug }: SpecTasksProps) {
   const specId = specSlug;
   const utils = trpc.useUtils();
+  const [showNewTask, setShowNewTask] = useState(false);
 
   const { data: tasks, isLoading } = trpc.task.listBySpecId.useQuery({
     specId,
@@ -45,9 +48,10 @@ export function SpecTasks({ specSlug }: SpecTasksProps) {
         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
           Tasks ({tasks?.length ?? 0})
         </h3>
-        <CreateSpecTaskDialog
-          specSlug={specSlug}
-        />
+        <Button variant="outline" size="sm" onClick={() => setShowNewTask(true)}>
+          <RiAddLine data-icon="inline-start" />
+          New Task
+        </Button>
       </div>
       <ScrollArea className="flex-1">
         <div className="flex flex-col gap-1 p-2">
@@ -104,6 +108,16 @@ export function SpecTasks({ specSlug }: SpecTasksProps) {
           })}
         </div>
       </ScrollArea>
+      <TaskDialog
+        mode="create"
+        specId={specId}
+        open={showNewTask}
+        onOpenChange={setShowNewTask}
+        onCreated={() => {
+          setShowNewTask(false);
+          utils.task.listBySpecId.invalidate({ specId });
+        }}
+      />
     </div>
   );
 }

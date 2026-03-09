@@ -46,6 +46,18 @@ describe('task router', () => {
       expect(t2.dependencies).toEqual([t1.id]);
     });
 
+    it('should create a task with specId and no projectId', async () => {
+      const task = await caller.task.create({
+        title: 'Spec task',
+        specId: 'my-spec',
+        type: 'human',
+        description: 'A description',
+      });
+      expect(task.title).toBe('Spec task');
+      expect(task.specId).toBe('my-spec');
+      expect(task.projectId).toBeNull();
+    });
+
     it('should reject non-existent dependency', async () => {
       await expect(
         caller.task.create({

@@ -7,8 +7,7 @@ import { ViewToggle, type TaskView } from "@/components/projects/task-views/view
 import { DependencyGraph } from "@/components/projects/task-views/dependency-graph";
 import { SwimlaneBoard } from "@/components/projects/task-views/swimlane-board";
 import { EisenhowerMatrix } from "@/components/projects/task-views/eisenhower-matrix";
-import { TaskDetailPanel } from "@/components/projects/task-detail-panel";
-import { TaskForm } from "@/components/projects/task-form";
+import { TaskDialog } from "@/components/projects/task-dialog";
 import { TaskGroupForm } from "@/components/projects/task-group-form";
 import { Button } from "@/components/ui/button";
 import { RiAddLine } from "@remixicon/react";
@@ -80,15 +79,17 @@ export default function ProjectTasksPage() {
         <EisenhowerMatrix tasks={tasks ?? []} onTaskClick={setSelectedTaskId} />
       )}
 
-      <TaskDetailPanel
-        taskId={selectedTaskId}
-        open={selectedTaskId !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedTaskId(null);
-        }}
-      />
+      {selectedTaskId !== null && (
+        <TaskDialog
+          mode="edit"
+          taskId={selectedTaskId}
+          open
+          onOpenChange={(open) => { if (!open) setSelectedTaskId(null); }}
+        />
+      )}
 
-      <TaskForm
+      <TaskDialog
+        mode="create"
         projectId={project.id}
         open={showNewTask}
         onOpenChange={setShowNewTask}

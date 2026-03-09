@@ -4,8 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
 import { EisenhowerMatrix } from "@/components/projects/task-views/eisenhower-matrix";
-import { TaskDetailPanel } from "@/components/projects/task-detail-panel";
-import { TaskForm } from "@/components/projects/task-form";
+import { TaskDialog } from "@/components/projects/task-dialog";
 import { Button } from "@/components/ui/button";
 import { RiAddLine } from "@remixicon/react";
 
@@ -29,11 +28,6 @@ export default function TasksPage() {
 
   const utils = trpc.useUtils();
 
-  function handleTaskCreated() {
-    setShowNewTask(false);
-    utils.task.list.invalidate();
-  }
-
   if (!workspace || !defaultProject) return null;
 
   return (
@@ -48,19 +42,24 @@ export default function TasksPage() {
 
       <EisenhowerMatrix tasks={tasks ?? []} onTaskClick={setSelectedTaskId} />
 
-      <TaskDetailPanel
-        taskId={selectedTaskId}
-        open={selectedTaskId !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelectedTaskId(null);
-        }}
-      />
+      {selectedTaskId !== null && (
+        <TaskDialog
+          mode="edit"
+          taskId={selectedTaskId}
+          open
+          onOpenChange={(open) => { if (!open) setSelectedTaskId(null); }}
+        />
+      )}
 
-      <TaskForm
+      <TaskDialog
+        mode="create"
         projectId={defaultProject.id}
         open={showNewTask}
         onOpenChange={setShowNewTask}
-        onCreated={handleTaskCreated}
+        onCreated={() => {
+          setShowNewTask(false);
+          utils.task.list.invalidate();
+        }}
       />
     </div>
   );
