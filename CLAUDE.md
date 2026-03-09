@@ -141,14 +141,15 @@ Typed discriminated union in `@engy/common`. Message types: `REGISTER`, `WORKSPA
 3. `turbo run test` — Vitest with coverage thresholds
 4. `knip` — dead code / unused exports detection
 5. `jscpd` — copy-paste detection (threshold: 3 dupes, min 10 lines)
-6. CRITICAL: When implementing changes ALWAYS add a final task: "run /engy:review, run pnpm blt and test in chrome"
 
 ### Validation Setup
-1. Check what port `.dev.env` is set to (default 4000)
-2. Check if any other process is using that port (`lsof -i :4000` on Mac/Linux)
-3. If port is in use, change `PORT` in `.dev.env` to an open port and update `ENGY_SERVER_URL` accordingly
+1. Run `pnpm install` to ensure all dependencies are up to date
+2. Check what port `.dev.env` is set to (default 4000)
+3. Check if any other process is using that port (`lsof -i :4000` on Mac/Linux)
+4. If port is in use, change `PORT` in `.dev.env` to an open port and update `ENGY_SERVER_URL` accordingly
 
 ## Formatting
 
 Prettier: semicolons, single quotes, trailing commas, 100 char width, 2-space indent.
 
+CRITICAL: When implementing changes ALWAYS add a final task: "run /engy:review, run pnpm blt and test in chrome"

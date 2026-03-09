@@ -3,8 +3,16 @@ import { eq } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import { getDb } from '../../db/client';
-import { tasks } from '../../db/schema';
-import { detectCycle } from '../../tasks/validation';
+import { tasks, taskDependencies } from '../../db/schema';
+import { validateDependencies, attachBlockedBy } from '../../tasks/validation';
+
+function checkedValidateDeps(taskId: number | null, blockedBy: number[]): number[] {
+  try {
+    return validateDependencies(taskId, blockedBy);
+  } catch (err) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: (err as Error).message });
+  }
+}
 
 export const taskRouter = router({
   create: publicProcedure
@@ -18,46 +26,26 @@ export const taskRouter = router({
         type: z.enum(['ai', 'human']).default('human'),
         importance: z.enum(['important', 'not_important']).default('not_important'),
         urgency: z.enum(['urgent', 'not_urgent']).default('not_urgent'),
-        dependencies: z.array(z.number()).default([]),
+        blockedBy: z.array(z.number()).default([]),
         specId: z.string().optional(),
       }),
     )
     .mutation(({ input }) => {
       const db = getDb();
+      const { blockedBy: rawBlockedBy, ...values } = input;
+      const dedupedBlockedBy = checkedValidateDeps(null, rawBlockedBy);
 
-      if (input.dependencies.length > 0) {
-        const allTasks = new Map<number, number[]>();
-        const existingTasks = db.select().from(tasks).all();
-        for (const t of existingTasks) {
-          allTasks.set(t.id, (t.dependencies as number[]) ?? []);
+      return db.transaction((tx) => {
+        const newTask = tx.insert(tasks).values(values).returning().get();
+
+        for (const blockerId of dedupedBlockedBy) {
+          tx.insert(taskDependencies)
+            .values({ taskId: newTask.id, blockerTaskId: blockerId })
+            .run();
         }
 
-        for (const depId of input.dependencies) {
-          if (!allTasks.has(depId)) {
-            throw new TRPCError({
-              code: 'BAD_REQUEST',
-              message: `Dependency task ${depId} does not exist`,
-            });
-          }
-        }
-      }
-
-      return db
-        .insert(tasks)
-        .values({
-          projectId: input.projectId,
-          milestoneRef: input.milestoneRef,
-          taskGroupId: input.taskGroupId,
-          title: input.title,
-          description: input.description,
-          type: input.type,
-          importance: input.importance,
-          urgency: input.urgency,
-          dependencies: input.dependencies,
-          specId: input.specId,
-        })
-        .returning()
-        .get();
+        return { ...newTask, blockedBy: dedupedBlockedBy };
+      });
     }),
 
   list: publicProcedure
@@ -71,29 +59,18 @@ export const taskRouter = router({
     .query(({ input }) => {
       const db = getDb();
 
+      let rows;
       if (input.taskGroupId) {
-        return db
-          .select()
-          .from(tasks)
-          .where(eq(tasks.taskGroupId, input.taskGroupId))
-          .all();
-      }
-      if (input.milestoneRef) {
-        return db
-          .select()
-          .from(tasks)
-          .where(eq(tasks.milestoneRef, input.milestoneRef))
-          .all();
-      }
-      if (input.projectId) {
-        return db
-          .select()
-          .from(tasks)
-          .where(eq(tasks.projectId, input.projectId))
-          .all();
+        rows = db.select().from(tasks).where(eq(tasks.taskGroupId, input.taskGroupId)).all();
+      } else if (input.milestoneRef) {
+        rows = db.select().from(tasks).where(eq(tasks.milestoneRef, input.milestoneRef)).all();
+      } else if (input.projectId) {
+        rows = db.select().from(tasks).where(eq(tasks.projectId, input.projectId)).all();
+      } else {
+        rows = db.select().from(tasks).all();
       }
 
-      return db.select().from(tasks).all();
+      return attachBlockedBy(rows);
     }),
 
   get: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => {
@@ -102,7 +79,7 @@ export const taskRouter = router({
     if (!task) {
       throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' });
     }
-    return task;
+    return attachBlockedBy([task])[0];
   }),
 
   update: publicProcedure
@@ -115,48 +92,50 @@ export const taskRouter = router({
         type: z.enum(['ai', 'human']).optional(),
         importance: z.enum(['important', 'not_important']).optional(),
         urgency: z.enum(['urgent', 'not_urgent']).optional(),
-        dependencies: z.array(z.number()).optional(),
+        blockedBy: z.array(z.number()).optional(),
         milestoneRef: z.string().nullable().optional(),
         taskGroupId: z.number().nullable().optional(),
       }),
     )
     .mutation(({ input }) => {
       const db = getDb();
-      const { id, ...updates } = input;
+      const { id, blockedBy, ...updates } = input;
 
-      if (updates.dependencies) {
-        const allTasks = new Map<number, number[]>();
-        const existingTasks = db.select().from(tasks).all();
-        for (const t of existingTasks) {
-          allTasks.set(t.id, (t.dependencies as number[]) ?? []);
+      const dedupedBlockedBy = blockedBy !== undefined
+        ? checkedValidateDeps(id, blockedBy)
+        : undefined;
+
+      return db.transaction((tx) => {
+        if (dedupedBlockedBy !== undefined) {
+          tx.delete(taskDependencies).where(eq(taskDependencies.taskId, id)).run();
+          for (const blockerId of dedupedBlockedBy) {
+            tx.insert(taskDependencies)
+              .values({ taskId: id, blockerTaskId: blockerId })
+              .run();
+          }
         }
 
-        if (detectCycle(id, updates.dependencies, allTasks)) {
-          throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message: 'Circular dependency detected',
-          });
+        const result = tx
+          .update(tasks)
+          .set({ ...updates, updatedAt: new Date().toISOString() })
+          .where(eq(tasks.id, id))
+          .returning()
+          .get();
+
+        if (!result) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' });
         }
-      }
 
-      const result = db
-        .update(tasks)
-        .set({ ...updates, updatedAt: new Date().toISOString() })
-        .where(eq(tasks.id, id))
-        .returning()
-        .get();
-
-      if (!result) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' });
-      }
-      return result;
+        return attachBlockedBy([result])[0];
+      });
     }),
 
   listBySpecId: publicProcedure
     .input(z.object({ specId: z.string() }))
     .query(({ input }) => {
       const db = getDb();
-      return db.select().from(tasks).where(eq(tasks.specId, input.specId)).all();
+      const rows = db.select().from(tasks).where(eq(tasks.specId, input.specId)).all();
+      return attachBlockedBy(rows);
     }),
 
   delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => {

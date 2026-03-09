@@ -28,14 +28,17 @@ export const taskGroupRouter = router({
     }),
 
   list: publicProcedure
-    .input(z.object({ milestoneRef: z.string() }))
+    .input(z.object({ milestoneRef: z.string().optional() }))
     .query(({ input }) => {
       const db = getDb();
-      return db
-        .select()
-        .from(taskGroups)
-        .where(eq(taskGroups.milestoneRef, input.milestoneRef))
-        .all();
+      if (input.milestoneRef) {
+        return db
+          .select()
+          .from(taskGroups)
+          .where(eq(taskGroups.milestoneRef, input.milestoneRef))
+          .all();
+      }
+      return db.select().from(taskGroups).all();
     }),
 
   get: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => {

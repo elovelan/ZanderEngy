@@ -30,10 +30,10 @@ describe('task router', () => {
       });
       expect(task.status).toBe('todo');
       expect(task.type).toBe('human');
-      expect(task.dependencies).toEqual([]);
+      expect(task.blockedBy).toEqual([]);
     });
 
-    it('should create a task with dependencies', async () => {
+    it('should create a task with blockedBy', async () => {
       const t1 = await caller.task.create({
         projectId,
         title: 'First task',
@@ -41,9 +41,9 @@ describe('task router', () => {
       const t2 = await caller.task.create({
         projectId,
         title: 'Second task',
-        dependencies: [t1.id],
+        blockedBy: [t1.id],
       });
-      expect(t2.dependencies).toEqual([t1.id]);
+      expect(t2.blockedBy).toEqual([t1.id]);
     });
 
     it('should create a task with specId and no projectId', async () => {
@@ -58,14 +58,14 @@ describe('task router', () => {
       expect(task.projectId).toBeNull();
     });
 
-    it('should reject non-existent dependency', async () => {
+    it('should reject non-existent blocker', async () => {
       await expect(
         caller.task.create({
           projectId,
           title: 'Bad deps',
-          dependencies: [9999],
+          blockedBy: [9999],
         }),
-      ).rejects.toThrow('Dependency task 9999 does not exist');
+      ).rejects.toThrow('Task 9999 does not exist');
     });
   });
 
@@ -109,6 +109,29 @@ describe('task router', () => {
       const result = await caller.task.list({});
       expect(result).toHaveLength(3);
     });
+
+    it('should include blockedBy in list results', async () => {
+      const t1 = await caller.task.create({ projectId, title: 'Blocker' });
+      await caller.task.create({ projectId, title: 'Blocked', blockedBy: [t1.id] });
+
+      const result = await caller.task.list({ projectId });
+      const blocked = result.find((t) => t.title === 'Blocked');
+      expect(blocked?.blockedBy).toEqual([t1.id]);
+    });
+  });
+
+  describe('get', () => {
+    it('should include blockedBy in get result', async () => {
+      const t1 = await caller.task.create({ projectId, title: 'Blocker' });
+      const t2 = await caller.task.create({
+        projectId,
+        title: 'Blocked',
+        blockedBy: [t1.id],
+      });
+
+      const fetched = await caller.task.get({ id: t2.id });
+      expect(fetched.blockedBy).toEqual([t1.id]);
+    });
   });
 
   describe('update', () => {
@@ -124,6 +147,56 @@ describe('task router', () => {
       expect(updated.status).toBe('in_progress');
     });
 
+    it('should update blockedBy', async () => {
+      const t1 = await caller.task.create({ projectId, title: 'Blocker 1' });
+      const t2 = await caller.task.create({ projectId, title: 'Blocker 2' });
+      const task = await caller.task.create({ projectId, title: 'Task' });
+
+      const updated = await caller.task.update({
+        id: task.id,
+        blockedBy: [t1.id, t2.id],
+      });
+      expect(updated.blockedBy).toEqual(expect.arrayContaining([t1.id, t2.id]));
+    });
+
+    it('should replace blockedBy on update', async () => {
+      const t1 = await caller.task.create({ projectId, title: 'Blocker 1' });
+      const t2 = await caller.task.create({ projectId, title: 'Blocker 2' });
+      const task = await caller.task.create({
+        projectId,
+        title: 'Task',
+        blockedBy: [t1.id],
+      });
+
+      const updated = await caller.task.update({
+        id: task.id,
+        blockedBy: [t2.id],
+      });
+      expect(updated.blockedBy).toEqual([t2.id]);
+    });
+
+    it('should clear blockedBy with empty array', async () => {
+      const t1 = await caller.task.create({ projectId, title: 'Blocker' });
+      const task = await caller.task.create({
+        projectId,
+        title: 'Task',
+        blockedBy: [t1.id],
+      });
+
+      const updated = await caller.task.update({
+        id: task.id,
+        blockedBy: [],
+      });
+      expect(updated.blockedBy).toEqual([]);
+    });
+
+    it('should reject self-blocking', async () => {
+      const task = await caller.task.create({ projectId, title: 'Self' });
+      await expect(
+        caller.task.update({ id: task.id, blockedBy: [task.id] }),
+      ).rejects.toThrow('A task cannot block itself');
+    });
+
     it('should detect circular dependencies', async () => {
       const t1 = await caller.task.create({
         projectId,
@@ -132,13 +205,13 @@ describe('task router', () => {
       const t2 = await caller.task.create({
         projectId,
         title: 'T2',
-        dependencies: [t1.id],
+        blockedBy: [t1.id],
       });
 
       await expect(
         caller.task.update({
           id: t1.id,
-          dependencies: [t2.id],
+          blockedBy: [t2.id],
         }),
       ).rejects.toThrow('Circular dependency');
     });
@@ -158,6 +231,19 @@ describe('task router', () => {
       });
       await caller.task.delete({ id: task.id });
       await expect(caller.task.get({ id: task.id })).rejects.toThrow('not found');
+    });
+
+    it('should cascade delete dependencies when task is deleted', async () => {
+      const blocker = await caller.task.create({ projectId, title: 'Blocker' });
+      const task = await caller.task.create({
+        projectId,
+        title: 'Blocked',
+        blockedBy: [blocker.id],
+      });
+
+      await caller.task.delete({ id: blocker.id });
+      const fetched = await caller.task.get({ id: task.id });
+      expect(fetched.blockedBy).toEqual([]);
     });
   });
 });

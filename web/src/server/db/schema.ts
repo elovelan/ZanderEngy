@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { relations } from 'drizzle-orm';
 
 // ── Workspaces ──────────────────────────────────────────────────────
@@ -97,7 +97,6 @@ export const tasks = sqliteTable('tasks', {
     .default('human'),
   importance: text('importance', { enum: ['important', 'not_important'] }).default('not_important'),
   urgency: text('urgency', { enum: ['urgent', 'not_urgent'] }).default('not_urgent'),
-  dependencies: text('dependencies', { mode: 'json' }).$type<number[]>().default([]),
   specId: text('spec_id'),
   createdAt: text('created_at')
     .notNull()
@@ -115,6 +114,31 @@ export const tasksRelations = relations(tasks, ({ one }) => ({
   taskGroup: one(taskGroups, {
     fields: [tasks.taskGroupId],
     references: [taskGroups.id],
+  }),
+}));
+
+// ── Task Dependencies (join table) ──────────────────────────────────
+
+export const taskDependencies = sqliteTable('task_dependencies', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  taskId: integer('task_id')
+    .notNull()
+    .references(() => tasks.id, { onDelete: 'cascade' }),
+  blockerTaskId: integer('blocker_task_id')
+    .notNull()
+    .references(() => tasks.id, { onDelete: 'cascade' }),
+}, (table) => [
+  uniqueIndex('task_dep_unique').on(table.taskId, table.blockerTaskId),
+]);
+
+export const taskDependenciesRelations = relations(taskDependencies, ({ one }) => ({
+  task: one(tasks, {
+    fields: [taskDependencies.taskId],
+    references: [tasks.id],
+  }),
+  blockerTask: one(tasks, {
+    fields: [taskDependencies.blockerTaskId],
+    references: [tasks.id],
   }),
 }));
 

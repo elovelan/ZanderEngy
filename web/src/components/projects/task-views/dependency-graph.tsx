@@ -9,7 +9,7 @@ type Task = {
   status: string;
   type: string;
   taskGroupId: number | null;
-  dependencies: number[] | null;
+  blockedBy: number[];
 };
 
 const statusNodeColors: Record<string, string> = {
@@ -38,7 +38,7 @@ function topoSort(tasks: Task[]): { layers: number[][]; taskMap: Map<number, Tas
   }
 
   for (const t of tasks) {
-    const deps = (t.dependencies ?? []).filter((d) => taskMap.has(d));
+    const deps = t.blockedBy.filter((d) => taskMap.has(d));
     inDegree.set(t.id, deps.length);
     for (const d of deps) {
       adj.get(d)!.push(t.id);
@@ -115,7 +115,7 @@ export function DependencyGraph({
   const edges = useMemo(() => {
     const result: { from: number; to: number }[] = [];
     for (const t of tasks) {
-      for (const dep of (t.dependencies ?? []).filter((d) => taskMap.has(d))) {
+      for (const dep of t.blockedBy.filter((d) => taskMap.has(d))) {
         result.push({ from: dep, to: t.id });
       }
     }
