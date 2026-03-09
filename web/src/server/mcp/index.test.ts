@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getMcpServer, resetMcpServer, isPathAllowed } from './index';
+import { getMcpServer, isPathAllowed } from './index';
 import { setupTestDb, type TestContext } from '../trpc/test-helpers';
 import { getDb } from '../db/client';
 import {
@@ -9,6 +9,7 @@ import {
   projects,
   tasks,
   taskGroups,
+  taskDependencies,
   fleetingMemories,
 } from '../db/schema';
 
@@ -16,25 +17,16 @@ describe('MCP Server', () => {
   let ctx: TestContext;
 
   beforeEach(() => {
-    resetMcpServer();
     ctx = setupTestDb();
   });
 
   afterEach(() => {
-    resetMcpServer();
     ctx.cleanup();
   });
 
   describe('getMcpServer', () => {
-    it('should return a singleton McpServer instance', () => {
+    it('should return a fresh McpServer instance each call', () => {
       const server1 = getMcpServer();
-      const server2 = getMcpServer();
-      expect(server1).toBe(server2);
-    });
-
-    it('should return a new instance after reset', () => {
-      const server1 = getMcpServer();
-      resetMcpServer();
       const server2 = getMcpServer();
       expect(server1).not.toBe(server2);
     });
@@ -253,7 +245,7 @@ describe('MCP Server', () => {
       const tool = tools['createTask'];
 
       const result = await tool.handler(
-        { title: 'Do something', projectId, type: 'human', importance: 'not_important', urgency: 'not_urgent', dependencies: [] },
+        { title: 'Do something', projectId, type: 'human', importance: 'not_important', urgency: 'not_urgent', blockedBy: [] },
         {} as any,
       );
       const data = JSON.parse(result.content[0].text);
@@ -368,7 +360,7 @@ describe('MCP Server', () => {
       const tool = tools['createTask'];
 
       const result = await tool.handler(
-        { title: 'Bad Dep', projectId, type: 'human', importance: 'not_important', urgency: 'not_urgent', dependencies: [9999] },
+        { title: 'Bad Dep', projectId, type: 'human', importance: 'not_important', urgency: 'not_urgent', blockedBy: [9999] },
         {} as any,
       );
       expect(result.isError).toBe(true);
@@ -386,7 +378,7 @@ describe('MCP Server', () => {
       const tool = tools['createTask'];
 
       const result = await tool.handler(
-        { title: 'Mixed Deps', projectId, type: 'human', importance: 'not_important', urgency: 'not_urgent', dependencies: [existing.id, 8888] },
+        { title: 'Mixed Deps', projectId, type: 'human', importance: 'not_important', urgency: 'not_urgent', blockedBy: [existing.id, 8888] },
         {} as any,
       );
       expect(result.isError).toBe(true);
@@ -403,7 +395,7 @@ describe('MCP Server', () => {
       const tools = (mcp as any)._registeredTools;
       const tool = tools['updateTask'];
 
-      const result = await tool.handler({ id: task.id, dependencies: [9999] }, {} as any);
+      const result = await tool.handler({ id: task.id, blockedBy: [9999] }, {} as any);
       expect(result.isError).toBe(true);
       const data = JSON.parse(result.content[0].text);
       expect(data.error).toContain('9999');
@@ -413,17 +405,14 @@ describe('MCP Server', () => {
     it('updateTask should return error for circular dependency', async () => {
       const db = getDb();
       const taskA = db.insert(tasks).values({ title: 'A', projectId }).returning().get();
-      const taskB = db
-        .insert(tasks)
-        .values({ title: 'B', projectId, dependencies: [taskA.id] })
-        .returning()
-        .get();
+      const taskB = db.insert(tasks).values({ title: 'B', projectId }).returning().get();
+      db.insert(taskDependencies).values({ taskId: taskB.id, blockerTaskId: taskA.id }).run();
 
       const mcp = getMcpServer();
       const tools = (mcp as any)._registeredTools;
       const tool = tools['updateTask'];
 
-      const result = await tool.handler({ id: taskA.id, dependencies: [taskB.id] }, {} as any);
+      const result = await tool.handler({ id: taskA.id, blockedBy: [taskB.id] }, {} as any);
       expect(result.isError).toBe(true);
       const data = JSON.parse(result.content[0].text);
       expect(data.error).toContain('Circular dependency');
