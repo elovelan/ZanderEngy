@@ -10,7 +10,7 @@ function validatePath(base: string, target: string): string {
   return resolved;
 }
 
-function slugify(title: string): string {
+export function slugify(title: string): string {
   return title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
@@ -96,7 +96,7 @@ function parseFrontmatter(content: string): Record<string, string> {
   return result;
 }
 
-export function parseMilestoneFilename(filename: string): { num: number } | null {
+function parseMilestoneFilename(filename: string): { num: number } | null {
   const match = filename.match(/^m(\d+(?:\.\d+)?)-/);
   if (!match) return null;
   return { num: parseFloat(match[1]) };
@@ -113,6 +113,14 @@ export function buildMilestoneFrontmatter(
   return lines.join('\n');
 }
 
+export function titleFromFilename(filename: string): string {
+  return filename
+    .replace(/^m[\d.]+-/, '')
+    .replace(/\.plan\.md$/, '')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function listMilestones(specsDir: string, specSlug: string): FilesystemMilestone[] {
   const files = listPlanFiles(specsDir, specSlug);
   const result: FilesystemMilestone[] = [];
@@ -125,7 +133,7 @@ export function listMilestones(specsDir: string, specSlug: string): FilesystemMi
       ref: `m${parsed.num}`,
       num: parsed.num,
       filename,
-      title: fm.title ?? filename,
+      title: fm.title ?? titleFromFilename(filename),
       status: (fm.status as MilestoneStatus) ?? 'planned',
       scope: fm.scope || undefined,
     });

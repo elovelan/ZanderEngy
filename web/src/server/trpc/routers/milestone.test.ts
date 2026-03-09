@@ -1,6 +1,11 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { appRouter } from '../root';
 import { setupTestDb, type TestContext } from '../test-helpers';
+import { getDb, getEngyDir } from '../../db/client';
+import { projects, workspaces } from '../../db/schema';
+import { eq } from 'drizzle-orm';
 
 describe('milestone router', () => {
   let ctx: TestContext;
@@ -145,6 +150,57 @@ describe('milestone router', () => {
       await expect(
         caller.milestone.update({ projectId, filename: 'm99-nope.plan.md', title: 'Nope' }),
       ).rejects.toThrow('not found');
+    });
+  });
+
+  describe('update (files without frontmatter)', () => {
+    function getProjectDir(): string {
+      const db = getDb();
+      const proj = db.select().from(projects).where(eq(projects.id, projectId)).get()!;
+      const ws = db.select().from(workspaces).where(eq(workspaces.id, proj.workspaceId)).get()!;
+      const wsDir = ws.docsDir ?? path.join(getEngyDir(), ws.slug);
+      return path.join(wsDir, 'projects', proj.projectDir ?? proj.slug);
+    }
+
+    it('should preserve filename on status-only update', async () => {
+      const filename = 'm1-foundation.plan.md';
+      const originalContent = '# Plan: M1 Foundation\n\nSome body content here.';
+      const dir = getProjectDir();
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, filename), originalContent);
+
+      const updated = await caller.milestone.update({
+        projectId,
+        filename,
+        status: 'planning',
+      });
+
+      expect(updated.filename).toBe(filename);
+      const content = fs.readFileSync(path.join(dir, filename), 'utf-8');
+      expect(content).toContain('# Plan: M1 Foundation');
+      expect(content).toContain('Some body content here.');
+      expect(content).toContain('status: planning');
+    });
+
+    it('should add frontmatter while preserving body content', async () => {
+      const filename = 'm2-api-layer.plan.md';
+      const originalContent = '# Plan: M2 API Layer\n\n## Tasks\n- Build endpoints';
+      const dir = getProjectDir();
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, filename), originalContent);
+
+      const updated = await caller.milestone.update({
+        projectId,
+        filename,
+        status: 'planning',
+      });
+
+      expect(updated.filename).toBe(filename);
+      const content = fs.readFileSync(path.join(dir, filename), 'utf-8');
+      expect(content).toMatch(/^---\n/);
+      expect(content).toContain('status: planning');
+      expect(content).toContain('# Plan: M2 API Layer');
+      expect(content).toContain('- Build endpoints');
     });
   });
 

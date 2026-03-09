@@ -13,7 +13,7 @@ import {
   readPlanFile,
   writePlanFile,
   deletePlanFile,
-  parseMilestoneFilename,
+  slugify,
 } from '../../plan/service';
 
 const MILESTONE_STATUS_ORDER = ['planned', 'planning', 'active', 'complete'] as const;
@@ -31,14 +31,6 @@ function validateStatusTransition(current: MilestoneStatus, next: MilestoneStatu
   }
 }
 
-function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
 function resolveProjectDir(projectId: number) {
   const db = getDb();
   const project = db.select().from(projects).where(eq(projects.id, projectId)).get();
@@ -53,8 +45,8 @@ function resolveProjectDir(projectId: number) {
 function updateFrontmatter(existing: string, title: string, status: MilestoneStatus, scope?: string): string {
   const frontmatter = buildMilestoneFrontmatter(title, status, scope);
   const bodyMatch = existing.match(/^---\n[\s\S]*?\n---\n?([\s\S]*)$/);
-  const body = bodyMatch ? bodyMatch[1] : '';
-  return frontmatter + body;
+  const body = (bodyMatch ? bodyMatch[1] : existing).replace(/^\n+/, '');
+  return frontmatter + '\n' + body;
 }
 
 export const milestoneRouter = router({
@@ -120,7 +112,9 @@ export const milestoneRouter = router({
       const newTitle = input.title ?? existing.title;
       const newStatus = input.status ?? existing.status;
       const newScope = input.scope !== undefined ? input.scope : existing.scope;
-      const newFilename = `m${existing.num}-${slugify(newTitle)}.plan.md`;
+      const newFilename = input.title
+        ? `m${existing.num}-${slugify(input.title)}.plan.md`
+        : input.filename;
 
       const existingContent = readPlanFile(specsDir, specSlug, input.filename) ?? '';
       const newContent = updateFrontmatter(existingContent, newTitle, newStatus, newScope);

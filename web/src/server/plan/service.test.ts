@@ -9,6 +9,7 @@ import {
   listPlanFiles,
   deletePlanFile,
   renamePlanFile,
+  titleFromFilename,
 } from './service';
 
 describe('plan service', () => {
@@ -153,6 +154,20 @@ describe('plan service', () => {
       expect(() => deletePlanFile(specsDir, specSlug, '../../etc/passwd')).toThrow(
         'Path traversal',
       );
+    });
+  });
+
+  describe('titleFromFilename', () => {
+    it('should extract title from standard milestone filename', () => {
+      expect(titleFromFilename('m1-foundation.plan.md')).toBe('Foundation');
+    });
+
+    it('should handle multi-word titles', () => {
+      expect(titleFromFilename('m2-api-layer.plan.md')).toBe('Api Layer');
+    });
+
+    it('should handle decimal milestone numbers', () => {
+      expect(titleFromFilename('m1.5-auth-setup.plan.md')).toBe('Auth Setup');
     });
   });
 
