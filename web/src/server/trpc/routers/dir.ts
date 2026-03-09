@@ -33,6 +33,37 @@ function hasMdFiles(dirPath: string, depth: number): boolean {
   return false;
 }
 
+function collectMarkdownFiles(
+  rootDir: string,
+  currentDir: string,
+  depth: number,
+): { path: string; mtime: number }[] {
+  if (depth <= 0) return [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(currentDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const files: { path: string; mtime: number }[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+    const fullPath = path.join(currentDir, entry.name);
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      try {
+        const stat = fs.statSync(fullPath);
+        files.push({ path: path.relative(rootDir, fullPath), mtime: stat.mtimeMs });
+      } catch {
+        // file may have been deleted between readdir and stat
+      }
+    } else if (entry.isDirectory()) {
+      files.push(...collectMarkdownFiles(rootDir, fullPath, depth - 1));
+    }
+  }
+  return files;
+}
+
 function listDir(dirPath: string): { dirs: string[]; files: string[] } {
   let entries: fs.Dirent[];
   try {
@@ -72,6 +103,20 @@ export const dirRouter = router({
       } catch {
         return { dirs: [] };
       }
+    }),
+
+  listFiles: publicProcedure
+    .input(z.object({ dirPath: z.string().min(1) }))
+    .query(({ input }) => {
+      if (!fs.existsSync(input.dirPath)) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Directory not found: ${input.dirPath}` });
+      }
+      const stat = fs.statSync(input.dirPath);
+      if (!stat.isDirectory()) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Not a directory: ${input.dirPath}` });
+      }
+      const files = collectMarkdownFiles(input.dirPath, input.dirPath, MAX_DEPTH);
+      return { files: files.sort((a, b) => a.path.localeCompare(b.path)) };
     }),
 
   list: publicProcedure

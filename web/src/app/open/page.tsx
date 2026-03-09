@@ -1,11 +1,12 @@
 'use client';
 
+import path from 'path';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import { DynamicDocumentEditor } from '@/components/editor/dynamic-document-editor';
 import { EngyThreadStore } from '@/components/editor/document-editor';
-import { OpenDirTree } from '@/components/open-dir/open-dir-tree';
+import { FileTree } from '@/components/file-tree';
 import { useRecentDirs } from '@/hooks/use-recent-dirs';
 import { ThreePanelLayout, type ShortcutDef } from '@/components/layout/three-panel-layout';
 import { TerminalManager } from '@/components/terminal/terminal-manager';
@@ -62,7 +63,7 @@ function OpenPageInner({ dirPath }: { dirPath: string }) {
     if (dirPath) addDir(dirPath);
   }, [dirPath, addDir]);
 
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [selectedRelPath, setSelectedRelPath] = useState<string | null>(null);
   const [terminalCollapsed, setTerminalCollapsed] = useState(false);
 
   const terminalScope = useMemo<TerminalScope>(
@@ -87,15 +88,15 @@ function OpenPageInner({ dirPath }: { dirPath: string }) {
       onRightCollapsedChange={setTerminalCollapsed}
       rightShortcut={TERMINAL_SHORTCUT}
       leftContent={
-        <OpenDirTree
+        <DirFileTree
           dirPath={dirPath}
-          selectedFile={selectedFile}
-          onSelectFile={setSelectedFile}
+          selectedFile={selectedRelPath}
+          onSelectFile={setSelectedRelPath}
         />
       }
       centerContent={
-        selectedFile ? (
-          <FileEditor dirPath={dirPath} absoluteFilePath={selectedFile} />
+        selectedRelPath ? (
+          <FileEditor dirPath={dirPath} relPath={selectedRelPath} />
         ) : (
           <EmptyState />
         )
@@ -112,6 +113,35 @@ function OpenPageInner({ dirPath }: { dirPath: string }) {
   );
 }
 
+function DirFileTree({
+  dirPath,
+  selectedFile,
+  onSelectFile,
+}: {
+  dirPath: string;
+  selectedFile: string | null;
+  onSelectFile: (relPath: string) => void;
+}) {
+  const { data, isLoading } = trpc.dir.listFiles.useQuery({ dirPath });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-10">
+        <p className="text-sm text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
+  return (
+    <FileTree
+      files={data?.files ?? []}
+      selectedFile={selectedFile}
+      onSelectFile={onSelectFile}
+      label={path.basename(dirPath) || dirPath}
+    />
+  );
+}
+
 function EmptyState() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-2">
@@ -123,15 +153,12 @@ function EmptyState() {
 
 interface FileEditorProps {
   dirPath: string;
-  absoluteFilePath: string;
+  relPath: string;
 }
 
-function FileEditor({ dirPath, absoluteFilePath }: FileEditorProps) {
+function FileEditor({ dirPath, relPath }: FileEditorProps) {
   const utils = trpc.useUtils();
-
-  const relPath = absoluteFilePath.startsWith(dirPath + '/')
-    ? absoluteFilePath.slice(dirPath.length + 1)
-    : absoluteFilePath;
+  const absoluteFilePath = path.join(dirPath, relPath);
 
   const threadStore = useMemo(
     () => new EngyThreadStore(undefined, absoluteFilePath),
