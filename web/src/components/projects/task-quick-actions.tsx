@@ -36,7 +36,7 @@ export function TaskQuickActions({ taskId, workspaceSlug }: TaskQuickActionsProp
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 shrink-0 opacity-0 group-hover/task:opacity-100 data-[state=open]:opacity-100"
+          className="h-6 w-6 shrink-0 border border-border text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground"
           onClick={(e) => e.stopPropagation()}
         >
           <RiMore2Line className="size-3" />

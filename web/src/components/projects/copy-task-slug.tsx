@@ -36,13 +36,13 @@ export function CopyTaskSlug({ taskId, workspaceSlug }: CopyTaskSlugProps) {
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') handleClick(e);
             }}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-0.5 font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+            className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-0.5 rounded border border-border px-1 font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
           >
             T-{taskId}
             {copied ? (
               <RiCheckLine className="size-3 text-green-500" />
             ) : (
-              <RiFileCopyLine className="size-3 opacity-0 group-hover/task:opacity-100" />
+              <RiFileCopyLine className="size-3" />
             )}
           </span>
         </TooltipTrigger>
