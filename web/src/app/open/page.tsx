@@ -43,7 +43,7 @@ function OpenPageOuter() {
 
   if (!dirPath) {
     return (
-      <div className="flex h-[calc(100vh-6rem)] flex-col items-center justify-center gap-3">
+      <div className="flex flex-1 min-h-0 flex-col items-center justify-center gap-3">
         <RiFolderOpenLine className="size-10 text-muted-foreground/50" />
         <p className="text-sm text-muted-foreground">No directory selected.</p>
         <p className="text-xs text-muted-foreground">
@@ -81,7 +81,7 @@ function OpenPageInner({ dirPath }: { dirPath: string }) {
 
   return (
     <ThreePanelLayout
-      className="h-[calc(100vh-6rem)]"
+      className="flex-1 min-h-0"
       left={LEFT_PANEL_CONFIG}
       right={TERMINAL_CONFIG}
       rightCollapsed={terminalCollapsed}

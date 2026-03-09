@@ -28,7 +28,7 @@ export default function WorkspaceOverviewPage() {
   if (!workspace) return null;
 
   return (
-    <div className="flex flex-col gap-6 py-6">
+    <div className="flex flex-col gap-6 overflow-y-auto py-6">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-lg font-semibold">{workspace.name}</h2>

@@ -21,11 +21,11 @@ export default function RootLayout({
     <html lang="en" className={`${jetbrainsMono.variable} dark`}>
       <body className="font-sans antialiased">
         <Providers>
-          <div className="flex min-h-screen flex-col">
+          <div className="flex h-screen flex-col overflow-hidden">
             <Suspense>
               <AppHeader />
             </Suspense>
-            <main className="flex flex-1 flex-col">{children}</main>
+            <main className="flex flex-1 flex-col min-h-0">{children}</main>
           </div>
         </Providers>
       </body>
