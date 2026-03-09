@@ -10,7 +10,7 @@ export interface PanelConfig {
   storageKey?: string;
 }
 
-export interface PanelState {
+interface PanelState {
   width: number;
   collapsed: boolean;
   isResizing: boolean;

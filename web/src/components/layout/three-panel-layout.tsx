@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback } from 'react';
 import { RiArrowLeftSLine, RiArrowRightSLine } from '@remixicon/react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -34,8 +34,6 @@ export function defaultRightShortcut(e: KeyboardEvent): boolean {
   const isModKey = e.metaKey || e.ctrlKey;
   return isModKey && e.shiftKey && (e.key === '>' || e.key === '.');
 }
-
-export type { PanelConfig, ShortcutMatcher };
 
 export function ThreePanelLayout({
   left,
@@ -91,9 +89,6 @@ export function ThreePanelLayout({
     [onRightCollapsedChange, rightPanel],
   );
 
-  const stateRef = useRef({ isLeftCollapsed, isRightCollapsed });
-  stateRef.current = { isLeftCollapsed, isRightCollapsed };
-
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if (!containerRef.current || containerRef.current.offsetWidth === 0) return;
@@ -107,16 +102,16 @@ export function ThreePanelLayout({
 
       if (leftPanel && leftShortcut(e)) {
         e.preventDefault();
-        setLeftCollapsed(!stateRef.current.isLeftCollapsed);
+        setLeftCollapsed(!isLeftCollapsed);
       } else if (rightPanel && rightShortcut(e)) {
         e.preventDefault();
-        setRightCollapsed(!stateRef.current.isRightCollapsed);
+        setRightCollapsed(!isRightCollapsed);
       }
     }
 
     document.addEventListener('keydown', handler);
     return () => document.removeEventListener('keydown', handler);
-  }, [leftPanel, rightPanel, leftShortcut, rightShortcut, setLeftCollapsed, setRightCollapsed, containerRef]);
+  }, [leftPanel, rightPanel, leftShortcut, rightShortcut, setLeftCollapsed, setRightCollapsed, containerRef, isLeftCollapsed, isRightCollapsed]);
 
   return (
     <div ref={containerRef} className={cn('flex overflow-hidden', className)}>

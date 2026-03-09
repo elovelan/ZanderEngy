@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { JetBrains_Mono } from "next/font/google";
 import { Providers } from "@/components/providers";
@@ -21,7 +22,9 @@ export default function RootLayout({
       <body className="font-sans antialiased">
         <Providers>
           <div className="flex min-h-screen flex-col">
-            <AppHeader />
+            <Suspense>
+              <AppHeader />
+            </Suspense>
             <main className="flex flex-1 flex-col">{children}</main>
           </div>
         </Providers>

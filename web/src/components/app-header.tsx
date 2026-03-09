@@ -2,7 +2,7 @@
 
 import { Fragment } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -11,12 +11,25 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-function useBreadcrumbs() {
+interface BreadcrumbEntry {
+  label: string;
+  href: string;
+  tooltip?: string;
+}
+
+function useBreadcrumbs(): BreadcrumbEntry[] {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const segments = pathname.split("/").filter(Boolean);
 
-  const crumbs: Array<{ label: string; href: string }> = [];
+  const crumbs: BreadcrumbEntry[] = [];
 
   for (let i = 0; i < segments.length; i++) {
     const segment = segments[i];
@@ -26,6 +39,18 @@ function useBreadcrumbs() {
     if (segment === "projects") continue;
 
     crumbs.push({ label: segment, href });
+  }
+
+  if (segments[0] === "open") {
+    const dirPath = searchParams.get("path");
+    if (dirPath) {
+      const dirName = dirPath.split("/").filter(Boolean).pop() ?? dirPath;
+      crumbs.push({
+        label: dirName,
+        href: `/open?path=${encodeURIComponent(dirPath)}`,
+        tooltip: dirPath,
+      });
+    }
   }
 
   return crumbs;
@@ -51,20 +76,36 @@ export function AppHeader() {
               </BreadcrumbLink>
             )}
           </BreadcrumbItem>
-          {crumbs.map((crumb, i) => (
-            <Fragment key={crumb.href}>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                {i === crumbs.length - 1 ? (
-                  <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-                ) : (
-                  <BreadcrumbLink asChild>
-                    <Link href={crumb.href}>{crumb.label}</Link>
-                  </BreadcrumbLink>
-                )}
-              </BreadcrumbItem>
-            </Fragment>
-          ))}
+          {crumbs.map((crumb, i) => {
+            const isLast = i === crumbs.length - 1;
+            const content = isLast ? (
+              <BreadcrumbPage>{crumb.label}</BreadcrumbPage>
+            ) : (
+              <BreadcrumbLink asChild>
+                <Link href={crumb.href}>{crumb.label}</Link>
+              </BreadcrumbLink>
+            );
+
+            return (
+              <Fragment key={crumb.href}>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  {crumb.tooltip ? (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>{content}</TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p className="font-mono">{crumb.tooltip}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    content
+                  )}
+                </BreadcrumbItem>
+              </Fragment>
+            );
+          })}
         </BreadcrumbList>
       </Breadcrumb>
     </header>

@@ -1,58 +1,46 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { trpc } from '@/lib/trpc';
 import { DynamicDocumentEditor } from '@/components/editor/dynamic-document-editor';
 import { EngyThreadStore } from '@/components/editor/document-editor';
 import { OpenDirTree } from '@/components/open-dir/open-dir-tree';
 import { useRecentDirs } from '@/hooks/use-recent-dirs';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { RiSideBarLine, RiFolderOpenLine } from '@remixicon/react';
+import { ThreePanelLayout } from '@/components/layout/three-panel-layout';
+import { TerminalManager } from '@/components/terminal/terminal-manager';
+import type { TerminalScope } from '@/components/terminal/types';
+import { RiFolderOpenLine } from '@remixicon/react';
+
+const LEFT_PANEL_CONFIG = {
+  defaultWidth: 256,
+  minWidth: 180,
+  maxWidth: 384,
+  storageKey: 'engy-open-sidebar-width',
+} as const;
+
+const TERMINAL_CONFIG = {
+  defaultWidth: 480,
+  minWidth: 240,
+  maxWidth: 900,
+  storageKey: 'engy-open-terminal-width',
+} as const;
+
+function terminalShortcut(e: KeyboardEvent): boolean {
+  return e.key === '`' && (e.ctrlKey || e.metaKey);
+}
 
 export default function OpenPage() {
   return (
     <Suspense fallback={null}>
-      <OpenPageInner />
+      <OpenPageOuter />
     </Suspense>
   );
 }
 
-function OpenPageInner() {
+function OpenPageOuter() {
   const searchParams = useSearchParams();
   const dirPath = searchParams.get('path') ?? '';
-  const { addDir } = useRecentDirs();
-
-  useEffect(() => {
-    if (dirPath) addDir(dirPath);
-  }, [dirPath, addDir]);
-
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(256);
-  const dragging = useRef(false);
-
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault();
-      dragging.current = true;
-      const startX = e.clientX;
-      const startWidth = sidebarWidth;
-      const onMouseMove = (ev: MouseEvent) => {
-        if (!dragging.current) return;
-        setSidebarWidth(Math.min(384, Math.max(180, startWidth + ev.clientX - startX)));
-      };
-      const onMouseUp = () => {
-        dragging.current = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-      };
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    },
-    [sidebarWidth],
-  );
 
   if (!dirPath) {
     return (
@@ -66,47 +54,63 @@ function OpenPageInner() {
     );
   }
 
+  return <OpenPageInner key={dirPath} dirPath={dirPath} />;
+}
+
+function OpenPageInner({ dirPath }: { dirPath: string }) {
+  const { addDir } = useRecentDirs();
+
+  useEffect(() => {
+    if (dirPath) addDir(dirPath);
+  }, [dirPath, addDir]);
+
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [terminalCollapsed, setTerminalCollapsed] = useState(false);
+
+  const terminalScope = useMemo<TerminalScope>(
+    () => ({
+      scopeType: 'dir',
+      scopeLabel: dirPath,
+      workingDir: dirPath,
+    }),
+    [dirPath],
+  );
+
+  const handleTerminalCollapse = useCallback(() => {
+    setTerminalCollapsed(true);
+  }, []);
+
   return (
-    <div className="flex h-[calc(100vh-6rem)]">
-      {!collapsed && (
-        <div
-          className="shrink-0 overflow-hidden border-r border-border"
-          style={{ width: sidebarWidth }}
-        >
-          <OpenDirTree
-            dirPath={dirPath}
-            selectedFile={selectedFile}
-            onSelectFile={setSelectedFile}
-          />
-        </div>
-      )}
-      <div className="relative flex shrink-0 items-stretch">
-        {!collapsed && (
-          <div
-            className="w-1.5 cursor-col-resize transition-colors hover:bg-primary/30 active:bg-primary/50"
-            onMouseDown={handleMouseDown}
-          />
-        )}
-        <Button
-          variant="outline"
-          size="icon"
-          className={cn(
-            'absolute top-2 z-10 h-7 w-7 rounded-sm border bg-muted shadow-sm hover:bg-accent',
-            collapsed ? 'left-1' : '-left-3.5',
-          )}
-          onClick={() => setCollapsed((c) => !c)}
-        >
-          <RiSideBarLine className="size-3.5" />
-        </Button>
-      </div>
-      <div className="min-w-0 flex-1">
-        {selectedFile ? (
+    <ThreePanelLayout
+      className="h-[calc(100vh-6rem)]"
+      left={LEFT_PANEL_CONFIG}
+      right={TERMINAL_CONFIG}
+      rightCollapsed={terminalCollapsed}
+      onRightCollapsedChange={setTerminalCollapsed}
+      rightShortcut={terminalShortcut}
+      leftContent={
+        <OpenDirTree
+          dirPath={dirPath}
+          selectedFile={selectedFile}
+          onSelectFile={setSelectedFile}
+        />
+      }
+      centerContent={
+        selectedFile ? (
           <FileEditor dirPath={dirPath} absoluteFilePath={selectedFile} />
         ) : (
           <EmptyState />
-        )}
-      </div>
-    </div>
+        )
+      }
+      rightContent={
+        <div className="flex flex-1 min-h-0 flex-col bg-[#0a0a0a]">
+          <TerminalManager
+            onCollapse={handleTerminalCollapse}
+            defaultScope={terminalScope}
+          />
+        </div>
+      }
+    />
   );
 }
 

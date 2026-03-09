@@ -13,6 +13,18 @@ import {
 } from "@remixicon/react";
 import type { TerminalTab } from "./types";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+function collapseLabel(label: string): string {
+  const parts = label.split('/').filter(Boolean);
+  if (parts.length <= 2) return label;
+  return `/${parts[0]}/.../${parts[parts.length - 1]}`;
+}
 
 const SCOPE_ICONS: Record<string, React.ElementType> = {
   project: RiFolderLine,
@@ -60,7 +72,20 @@ export function TerminalTabBar({
               )}
             >
               <ScopeIcon className="size-[11px] shrink-0" />
-              <span className="min-w-0 truncate">{tab.scope.scopeLabel}</span>
+              {tab.scope.scopeType === 'dir' ? (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="min-w-0 truncate">{collapseLabel(tab.scope.scopeLabel)}</span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <p className="font-mono">{tab.scope.scopeLabel}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                <span className="min-w-0 truncate">{tab.scope.scopeLabel}</span>
+              )}
               {tab.status === 'exited' && (
                 <span className="shrink-0 text-[9px] text-muted-foreground">[exited]</span>
               )}

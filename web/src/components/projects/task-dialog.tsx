@@ -45,11 +45,11 @@ interface EditProps {
   taskId: number;
 }
 
-export type TaskDialogProps = CreateProps | EditProps;
+type TaskDialogProps = CreateProps | EditProps;
 
 export function TaskDialog(props: TaskDialogProps) {
   if (props.mode === "edit") {
-    return <EditTask {...props} />;
+    return <EditTask key={props.taskId} {...props} />;
   }
   return <CreateTask {...props} />;
 }
@@ -144,24 +144,23 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
     { enabled: open },
   );
 
-  const [title, setTitle] = useState("");
-  const [status, setStatus] = useState<string>("");
-  const [type, setType] = useState<"ai" | "human">("human");
-  const [importance, setImportance] = useState<"important" | "not_important">("not_important");
-  const [urgency, setUrgency] = useState<"urgent" | "not_urgent">("not_urgent");
-  const descriptionRef = useRef("");
+  const [title, setTitle] = useState(task?.title ?? "");
+  const [status, setStatus] = useState(task?.status ?? "");
+  const [type, setType] = useState<"ai" | "human">((task?.type as "ai" | "human") ?? "human");
+  const [importance, setImportance] = useState<"important" | "not_important">((task?.importance as "important" | "not_important") ?? "not_important");
+  const [urgency, setUrgency] = useState<"urgent" | "not_urgent">((task?.urgency as "urgent" | "not_urgent") ?? "not_urgent");
+  const [description, setDescription] = useState(task?.description ?? "");
   const [dirty, setDirty] = useState(false);
-  const initializedRef = useRef<number | null>(null);
+  const [initialized, setInitialized] = useState(!!task);
 
-  if (task && initializedRef.current !== task.id) {
-    initializedRef.current = task.id;
+  if (task && !initialized) {
+    setInitialized(true);
     setTitle(task.title);
     setStatus(task.status);
     setType(task.type as "ai" | "human");
     setImportance((task.importance ?? "not_important") as "important" | "not_important");
     setUrgency((task.urgency ?? "not_urgent") as "urgent" | "not_urgent");
-    descriptionRef.current = task.description || "";
-    setDirty(false);
+    setDescription(task.description || "");
   }
 
   const utils = trpc.useUtils();
@@ -191,7 +190,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
       type,
       importance,
       urgency,
-      description: descriptionRef.current,
+      description,
     });
   }
 
@@ -257,7 +256,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
             <div className="min-h-[200px] border border-border">
               <DynamicDocumentEditor
                 initialMarkdown={task.description || ""}
-                onSave={(md: string) => { descriptionRef.current = md; setDirty(true); }}
+                onSave={(md: string) => { setDescription(md); setDirty(true); }}
               />
             </div>
           </div>
