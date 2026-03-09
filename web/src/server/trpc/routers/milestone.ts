@@ -21,7 +21,9 @@ const MILESTONE_STATUS_ORDER = ['planned', 'planning', 'active', 'complete'] as 
 function validateStatusTransition(current: MilestoneStatus, next: MilestoneStatus): void {
   const currentIdx = MILESTONE_STATUS_ORDER.indexOf(current);
   const nextIdx = MILESTONE_STATUS_ORDER.indexOf(next);
-  if (nextIdx !== currentIdx + 1) {
+  const isForwardStep = nextIdx === currentIdx + 1;
+  const isCycleBack = current === 'complete' && next === 'planned';
+  if (!isForwardStep && !isCycleBack) {
     throw new TRPCError({
       code: 'BAD_REQUEST',
       message: `invalid milestone status transition: "${current}" → "${next}"`,

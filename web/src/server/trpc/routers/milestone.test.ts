@@ -122,6 +122,15 @@ describe('milestone router', () => {
       ).rejects.toThrow('invalid milestone status transition');
     });
 
+    it('should allow cycling from complete back to planned', async () => {
+      const m = await caller.milestone.create({ projectId, num: 1, title: 'Cycle Test' });
+      const m2 = await caller.milestone.update({ projectId, filename: m.filename, status: 'planning' });
+      const m3 = await caller.milestone.update({ projectId, filename: m2.filename, status: 'active' });
+      const m4 = await caller.milestone.update({ projectId, filename: m3.filename, status: 'complete' });
+      const result = await caller.milestone.update({ projectId, filename: m4.filename, status: 'planned' });
+      expect(result.status).toBe('planned');
+    });
+
     it('should update scope', async () => {
       const m = await caller.milestone.create({ projectId, num: 1, title: 'Scope Test' });
       const updated = await caller.milestone.update({

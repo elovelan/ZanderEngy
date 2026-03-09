@@ -70,7 +70,7 @@ export function ProjectOverview({
             Add
           </Button>
         </div>
-        <MilestoneList milestones={milestones ?? []} />
+        <MilestoneList projectId={project.id} milestones={milestones ?? []} />
       </div>
 
       <MilestoneForm

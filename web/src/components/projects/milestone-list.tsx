@@ -1,16 +1,8 @@
 "use client";
 
 import { trpc } from "@/lib/trpc";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { cn } from "@/lib/utils";
-
-const milestoneStatusColors: Record<string, string> = {
-  planned: "bg-muted text-muted-foreground",
-  planning: "bg-blue-500/10 text-blue-500",
-  active: "bg-yellow-500/10 text-yellow-500",
-  complete: "bg-green-500/10 text-green-500",
-};
+import { MilestoneStatusBadge } from "./milestone-status-badge";
 
 type Milestone = {
   ref: string;
@@ -22,8 +14,10 @@ type Milestone = {
 };
 
 export function MilestoneList({
+  projectId,
   milestones,
 }: {
+  projectId: number;
   milestones: Milestone[];
 }) {
   const sorted = [...milestones].sort((a, b) => a.num - b.num);
@@ -31,7 +25,7 @@ export function MilestoneList({
   return (
     <div className="flex flex-col gap-2">
       {sorted.map((ms) => (
-        <MilestoneRow key={ms.ref} milestone={ms} />
+        <MilestoneRow key={ms.ref} projectId={projectId} milestone={ms} />
       ))}
       {sorted.length === 0 && (
         <p className="py-4 text-center text-xs text-muted-foreground">No milestones yet</p>
@@ -41,8 +35,10 @@ export function MilestoneList({
 }
 
 function MilestoneRow({
+  projectId,
   milestone,
 }: {
+  projectId: number;
   milestone: Milestone;
 }) {
   const { data: tasks } = trpc.task.list.useQuery({ milestoneRef: milestone.ref });
@@ -55,12 +51,12 @@ function MilestoneRow({
       <div className="flex flex-1 flex-col gap-1">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium">{milestone.title}</span>
-          <Badge
-            variant="outline"
-            className={cn("text-[10px]", milestoneStatusColors[milestone.status])}
-          >
-            {milestone.status}
-          </Badge>
+          <MilestoneStatusBadge
+            projectId={projectId}
+            filename={milestone.filename}
+            status={milestone.status}
+            clickable
+          />
         </div>
         {milestone.scope && (
           <p className="text-xs text-muted-foreground line-clamp-1">{milestone.scope}</p>
