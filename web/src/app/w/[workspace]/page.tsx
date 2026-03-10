@@ -47,6 +47,7 @@ export default function WorkspaceOverviewPage() {
         open={editOpen}
         onOpenChange={setEditOpen}
         onSaved={handleSaved}
+        onDeleted={() => router.replace("/")}
       />
     </div>
   );

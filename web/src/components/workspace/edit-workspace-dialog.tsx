@@ -1,19 +1,29 @@
 "use client";
 
 import { useState } from "react";
-import { RiAddLine, RiCloseLine } from "@remixicon/react";
+import { RiAddLine, RiCloseLine, RiDeleteBinLine } from "@remixicon/react";
 import { trpc } from "@/lib/trpc";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 
 interface EditWorkspaceDialogProps {
   workspace: {
@@ -28,6 +38,7 @@ interface EditWorkspaceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved: (newSlug: string) => void;
+  onDeleted?: () => void;
 }
 
 function initialRepos(repos: string[] | null): string[] {
@@ -39,6 +50,7 @@ export function EditWorkspaceDialog({
   open,
   onOpenChange,
   onSaved,
+  onDeleted,
 }: EditWorkspaceDialogProps) {
   const [name, setName] = useState(workspace.name);
   const [slug, setSlug] = useState(workspace.slug);
@@ -48,6 +60,19 @@ export function EditWorkspaceDialog({
   const [planSkill, setPlanSkill] = useState(workspace.planSkill ?? "");
   const [implementSkill, setImplementSkill] = useState(workspace.implementSkill ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  const utils = trpc.useUtils();
+  const deleteMutation = trpc.workspace.delete.useMutation({
+    onSuccess: () => {
+      utils.workspace.list.invalidate();
+      onOpenChange(false);
+      onDeleted?.();
+    },
+    onError: (err) => {
+      setError(err.message);
+    },
+  });
 
   const updateMutation = trpc.workspace.update.useMutation({
     onSuccess: () => {
@@ -115,6 +140,7 @@ export function EditWorkspaceDialog({
       setPlanSkill(workspace.planSkill ?? "");
       setImplementSkill(workspace.implementSkill ?? "");
       setError(null);
+      setDeleteConfirmOpen(false);
     }
     onOpenChange(val);
   }
@@ -219,13 +245,49 @@ export function EditWorkspaceDialog({
             </div>
             {error && <p className="text-xs text-destructive">{error}</p>}
           </div>
-          <DialogFooter>
+          <Separator />
+          <div className="flex items-center justify-between pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-destructive"
+              onClick={() => setDeleteConfirmOpen(true)}
+            >
+              <RiDeleteBinLine data-icon="inline-start" />
+              Delete workspace
+            </Button>
             <Button type="submit" disabled={updateMutation.isPending || !name.trim()}>
               {updateMutation.isPending ? "Saving..." : "Save"}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
       </DialogContent>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete &ldquo;{workspace.name}&rdquo;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this workspace and all its projects, tasks, and data.
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                deleteMutation.mutate({ id: workspace.id });
+              }}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
