@@ -68,6 +68,8 @@ export function DocumentEditor({
   const [hasOpenThreads, setHasOpenThreads] = useState(false);
   const [commentsCollapsed, setCommentsCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSaveRef = useRef(onSave);
   useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
@@ -134,6 +136,9 @@ export function DocumentEditor({
       if (contentHash === lastContentHashRef.current) return;
       lastContentHashRef.current = contentHash;
       onSaveRef.current(markdown);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      setShowSaved(true);
+      savedTimerRef.current = setTimeout(() => setShowSaved(false), 2000);
     }, AUTOSAVE_DELAY_MS);
   }, [editor, comments, threadStore]);
 
@@ -158,6 +163,7 @@ export function DocumentEditor({
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
     };
   }, []);
 
@@ -182,6 +188,11 @@ export function DocumentEditor({
       <div className="relative flex w-full h-full overflow-hidden">
         <div className="relative flex-1 min-w-0 overflow-y-auto">
           <BlockNoteViewEditor />
+          {showSaved && (
+            <span className="absolute bottom-3 right-3 text-xs text-muted-foreground/70 animate-in fade-in duration-200">
+              Saved
+            </span>
+          )}
         </div>
         {comments && hasOpenThreads && !commentsCollapsed && (
           <div className="w-72 border-l border-border overflow-y-auto shrink-0">
