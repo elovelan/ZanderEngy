@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react';
 import {
   RiFolderLine,
   RiLayoutGridLine,
-  RiFileTextLine,
-  RiFileCodeLine,
   RiFolderOpenLine,
   RiTerminalLine,
   RiCloseLine,
@@ -29,8 +27,6 @@ function collapseLabel(label: string): string {
 const SCOPE_ICONS: Record<string, React.ElementType> = {
   project: RiFolderLine,
   workspace: RiLayoutGridLine,
-  docs: RiFileTextLine,
-  spec: RiFileCodeLine,
   dir: RiFolderOpenLine,
 };
 

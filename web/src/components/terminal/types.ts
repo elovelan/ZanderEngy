@@ -1,4 +1,4 @@
-export type TerminalScopeType = 'spec' | 'project' | 'workspace' | 'docs' | 'dir';
+export type TerminalScopeType = 'project' | 'workspace' | 'dir';
 
 export type TerminalStatus = 'connecting' | 'active' | 'exited' | 'error';
 

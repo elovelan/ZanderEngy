@@ -11,10 +11,11 @@ const noop = () => {};
 
 export function TerminalPanel({ onCollapse }: TerminalPanelProps) {
   const scope = useTerminalScope();
+  const scopeKey = `${scope.scopeType}:${scope.scopeLabel}`;
 
   return (
     <div className="flex flex-1 min-h-0 flex-col bg-[#0a0a0a]">
-      <TerminalManager onCollapse={onCollapse ?? noop} defaultScope={scope} />
+      <TerminalManager key={scopeKey} onCollapse={onCollapse ?? noop} defaultScope={scope} />
     </div>
   );
 }
