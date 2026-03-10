@@ -12,15 +12,12 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSendToTerminal } from '@/components/terminal/use-send-to-terminal';
 import { trpc } from '@/lib/trpc';
+import { shellEscape, buildAddDirFlags } from '@/lib/shell';
 import { toast } from 'sonner';
 import type { TaskSkills } from '@/components/projects/types';
 
 const DEFAULT_PLAN_SKILL = '/engy:planning';
 const DEFAULT_IMPLEMENT_SKILL = '/engy:implement-plan';
-
-function shellEscape(s: string): string {
-  return s.replace(/'/g, "'\\''");
-}
 
 interface TaskQuickActionsProps {
   taskId: number;
@@ -50,7 +47,7 @@ export function TaskQuickActions({
     ...(projectDir && projectDir !== workingDir ? [projectDir] : []),
     ...repos.slice(1),
   ];
-  const addDirFlags = additionalDirs.map((d) => ` --add-dir '${shellEscape(d)}'`).join('');
+  const addDirFlags = buildAddDirFlags(additionalDirs);
 
   const planSkill = skills?.plan || DEFAULT_PLAN_SKILL;
   const implementSkill = skills?.implement || DEFAULT_IMPLEMENT_SKILL;

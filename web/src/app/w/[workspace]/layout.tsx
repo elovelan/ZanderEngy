@@ -11,6 +11,7 @@ import { ThreePanelLayout, type ShortcutDef } from '@/components/layout/three-pa
 import { TerminalPanel } from '@/components/terminal/terminal-panel';
 import type { TerminalDropdownGroup } from '@/components/terminal/types';
 import { FileChangeProvider } from '@/contexts/file-change-context';
+import { buildAddDirFlags } from '@/lib/shell';
 
 const TERMINAL_CONFIG = {
   defaultWidth: 480,
@@ -27,10 +28,6 @@ const tabs = [
   { label: 'Docs', segment: 'docs' },
   { label: 'Memory', segment: 'memory' },
 ] as const;
-
-function shellEscape(s: string): string {
-  return s.replace(/'/g, "'\\''");
-}
 
 export default function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   const params = useParams<{ workspace: string; project?: string }>();
@@ -72,7 +69,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       projectSlug && workspace.resolvedDir
         ? `${workspace.resolvedDir}/projects/${projectSlug}`
         : undefined;
-    const addProjectDir = projectDir ? ` --add-dir '${shellEscape(projectDir)}'` : '';
+    const addProjectDir = projectDir ? buildAddDirFlags([projectDir]) : '';
 
     const entries: TerminalDropdownGroup['entries'] = repos.map((repoPath) => {
       const dirName = repoPath.split('/').filter(Boolean).pop() ?? repoPath;
@@ -91,10 +88,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     });
 
     if (repos.length > 1) {
-      const addDirFlags = [
-        addProjectDir,
-        ...repos.slice(1).map((d) => ` --add-dir '${shellEscape(d)}'`),
-      ].filter(Boolean).join('');
+      const addDirFlags = `${addProjectDir}${buildAddDirFlags(repos.slice(1))}`;
       entries.push({
         id: 'repo:all',
         label: 'All Repos',
@@ -110,7 +104,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     }
 
     return [{ label: 'Claude in Repos', entries }];
-  }, [isProjectRoute, workspace, params.project, pathname]);
+  }, [isProjectRoute, workspace, params.project]);
 
   if (isLoading) {
     return (
