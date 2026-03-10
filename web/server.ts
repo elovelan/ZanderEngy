@@ -44,6 +44,8 @@ app.prepare().then(() => {
       return;
     }
 
+    if (url.pathname === '/mcp') return;
+
     handle(req, res);
   });
 
