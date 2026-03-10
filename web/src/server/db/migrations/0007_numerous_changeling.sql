@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `needs_plan` integer DEFAULT true NOT NULL;

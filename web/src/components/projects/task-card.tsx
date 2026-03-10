@@ -10,7 +10,7 @@ import { RiCheckboxLine, RiCheckboxBlankLine } from '@remixicon/react';
 import type { TaskSkills } from '@/components/projects/types';
 
 interface TaskCardProps {
-  task: { id: number; title: string; status: string; type: string };
+  task: { id: number; title: string; status: string; type: string; needsPlan?: boolean };
   workspaceSlug: string;
   projectDir?: string | null;
   planSlugs?: string[];
@@ -79,6 +79,7 @@ export function TaskCard({
         planSlugs={planSlugs}
         repos={repos}
         skills={skills}
+        needsPlan={task.needsPlan}
       />
       <span className={cn('flex-1 truncate', showCheckbox && isDone && 'line-through')}>
         {task.title}

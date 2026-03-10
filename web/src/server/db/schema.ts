@@ -99,6 +99,7 @@ export const tasks = sqliteTable('tasks', {
     .default('human'),
   importance: text('importance', { enum: ['important', 'not_important'] }).default('not_important'),
   urgency: text('urgency', { enum: ['urgent', 'not_urgent'] }).default('not_urgent'),
+  needsPlan: integer('needs_plan', { mode: 'boolean' }).notNull().default(true),
   specId: text('spec_id'),
   createdAt: text('created_at')
     .notNull()

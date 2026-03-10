@@ -30,7 +30,17 @@ describe('task router', () => {
       });
       expect(task.status).toBe('todo');
       expect(task.type).toBe('human');
+      expect(task.needsPlan).toBe(true);
       expect(task.blockedBy).toEqual([]);
+    });
+
+    it('should create a task with needsPlan false', async () => {
+      const task = await caller.task.create({
+        projectId,
+        title: 'Quick fix',
+        needsPlan: false,
+      });
+      expect(task.needsPlan).toBe(false);
     });
 
     it('should create a task with blockedBy', async () => {
@@ -145,6 +155,26 @@ describe('task router', () => {
         status: 'in_progress',
       });
       expect(updated.status).toBe('in_progress');
+    });
+
+    it('should update needsPlan', async () => {
+      const task = await caller.task.create({
+        projectId,
+        title: 'Plan toggle',
+      });
+      expect(task.needsPlan).toBe(true);
+
+      const updated = await caller.task.update({
+        id: task.id,
+        needsPlan: false,
+      });
+      expect(updated.needsPlan).toBe(false);
+
+      const restored = await caller.task.update({
+        id: task.id,
+        needsPlan: true,
+      });
+      expect(restored.needsPlan).toBe(true);
     });
 
     it('should update blockedBy', async () => {

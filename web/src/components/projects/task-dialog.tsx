@@ -71,6 +71,7 @@ function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: Create
   const [type, setType] = useState<"ai" | "human">("human");
   const [importance, setImportance] = useState<"important" | "not_important">("not_important");
   const [urgency, setUrgency] = useState<"urgent" | "not_urgent">("not_urgent");
+  const [needsPlan, setNeedsPlan] = useState(true);
   const [blockedBy, setBlockedBy] = useState<number[]>([]);
   const [taskGroupId, setTaskGroupId] = useState<number | undefined>(undefined);
 
@@ -87,6 +88,7 @@ function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: Create
       setType("human");
       setImportance("not_important");
       setUrgency("not_urgent");
+      setNeedsPlan(true);
       setBlockedBy([]);
       setTaskGroupId(undefined);
       onCreated?.();
@@ -104,6 +106,7 @@ function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: Create
       type,
       importance,
       urgency,
+      needsPlan,
       blockedBy,
       taskGroupId,
     });
@@ -144,8 +147,9 @@ function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: Create
             </div>
 
             <div className="flex items-center gap-4">
-              <FieldRow type={type} importance={importance} urgency={urgency}
+              <FieldRow type={type} importance={importance} urgency={urgency} needsPlan={needsPlan}
                 onTypeChange={setType} onImportanceChange={setImportance} onUrgencyChange={setUrgency}
+                onNeedsPlanChange={setNeedsPlan}
               />
 
               {groups && groups.length > 0 && (
@@ -203,6 +207,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
   const [type, setType] = useState<"ai" | "human">((task?.type as "ai" | "human") ?? "human");
   const [importance, setImportance] = useState<"important" | "not_important">((task?.importance as "important" | "not_important") ?? "not_important");
   const [urgency, setUrgency] = useState<"urgent" | "not_urgent">((task?.urgency as "urgent" | "not_urgent") ?? "not_urgent");
+  const [needsPlan, setNeedsPlan] = useState(task?.needsPlan ?? true);
   const [description, setDescription] = useState(task?.description ?? "");
   const [blockedBy, setBlockedBy] = useState<number[]>(task?.blockedBy ?? []);
   const [taskGroupIdLocal, setTaskGroupIdLocal] = useState<number | null>(task?.taskGroupId ?? null);
@@ -216,6 +221,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
     setType(task.type as "ai" | "human");
     setImportance((task.importance ?? "not_important") as "important" | "not_important");
     setUrgency((task.urgency ?? "not_urgent") as "urgent" | "not_urgent");
+    setNeedsPlan(task.needsPlan ?? true);
     setDescription(task.description || "");
     setBlockedBy(task.blockedBy ?? []);
     setTaskGroupIdLocal(task.taskGroupId ?? null);
@@ -254,6 +260,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
       type,
       importance,
       urgency,
+      needsPlan,
       description,
       blockedBy,
       taskGroupId: taskGroupIdLocal,
@@ -313,9 +320,11 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
               type={type}
               importance={importance}
               urgency={urgency}
+              needsPlan={needsPlan}
               onTypeChange={(v) => { setType(v); setDirty(true); }}
               onImportanceChange={(v) => { setImportance(v); setDirty(true); }}
               onUrgencyChange={(v) => { setUrgency(v); setDirty(true); }}
+              onNeedsPlanChange={(v) => { setNeedsPlan(v); setDirty(true); }}
             />
 
             {groups && groups.length > 0 && (
@@ -382,15 +391,17 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
 // ── Shared ───────────────────────────────────────────────────────────
 
 function FieldRow({
-  type, importance, urgency,
-  onTypeChange, onImportanceChange, onUrgencyChange,
+  type, importance, urgency, needsPlan,
+  onTypeChange, onImportanceChange, onUrgencyChange, onNeedsPlanChange,
 }: {
   type: "ai" | "human";
   importance: "important" | "not_important";
   urgency: "urgent" | "not_urgent";
+  needsPlan: boolean;
   onTypeChange: (v: "ai" | "human") => void;
   onImportanceChange: (v: "important" | "not_important") => void;
   onUrgencyChange: (v: "urgent" | "not_urgent") => void;
+  onNeedsPlanChange: (v: boolean) => void;
 }) {
   return (
     <>
@@ -429,6 +440,19 @@ function FieldRow({
           <SelectContent>
             <SelectItem value="urgent">Urgent</SelectItem>
             <SelectItem value="not_urgent">Not Urgent</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label>Needs Plan</Label>
+        <Select value={needsPlan ? "yes" : "no"} onValueChange={(v) => onNeedsPlanChange(v === "yes")}>
+          <SelectTrigger className="h-7 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="yes">Yes</SelectItem>
+            <SelectItem value="no">No</SelectItem>
           </SelectContent>
         </Select>
       </div>
