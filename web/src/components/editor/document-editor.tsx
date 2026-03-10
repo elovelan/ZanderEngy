@@ -16,7 +16,19 @@ import type { User } from "@blocknote/core/comments";
 import "@blocknote/shadcn/style.css";
 import "@blocknote/react/style.css";
 import { Button } from "@/components/ui/button";
-import { RiFileCopyLine, RiCheckLine, RiChat3Line, RiCloseLine } from "@remixicon/react";
+import {
+  RiFileCopyLine,
+  RiCheckLine,
+  RiChat3Line,
+  RiCloseLine,
+  RiDownloadLine,
+} from "@remixicon/react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { InMemoryThreadStore, DefaultThreadStoreAuth } from "./thread-store";
 import type { CommentStore } from "./thread-store";
 import { snapshotAnchors } from "./comments/snapshot";
@@ -76,6 +88,7 @@ export function DocumentEditor({
   const [hasOpenThreads, setHasOpenThreads] = useState(false);
   const [commentsCollapsed, setCommentsCollapsed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedMarkdown, setCopiedMarkdown] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onSaveRef = useRef(onSave);
@@ -214,6 +227,29 @@ export function DocumentEditor({
     });
   }, [getFormattedComments]);
 
+  const getCurrentMarkdown = useCallback(() => {
+    return editor.blocksToMarkdownLossy(editor.document);
+  }, [editor]);
+
+  const handleCopyMarkdown = useCallback(() => {
+    navigator.clipboard.writeText(getCurrentMarkdown()).then(() => {
+      setCopiedMarkdown(true);
+      setTimeout(() => setCopiedMarkdown(false), 2000);
+    });
+  }, [getCurrentMarkdown]);
+
+  const handleDownloadMarkdown = useCallback(() => {
+    const markdown = getCurrentMarkdown();
+    const filename = filePath ? filePath.split('/').pop() ?? 'document.md' : 'document.md';
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.endsWith('.md') ? filename : `${filename}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [getCurrentMarkdown, filePath]);
+
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -249,6 +285,44 @@ export function DocumentEditor({
       <div className="relative flex w-full h-full overflow-hidden">
         <div className="relative flex-1 min-w-0 overflow-y-auto">
           <BlockNoteViewEditor />
+          <TooltipProvider delayDuration={300}>
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyMarkdown}
+                    className="h-6 w-6 p-0 text-muted-foreground"
+                  >
+                    {copiedMarkdown ? (
+                      <RiCheckLine className="size-3 text-green-500" />
+                    ) : (
+                      <RiFileCopyLine className="size-3" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>{copiedMarkdown ? 'Copied!' : 'Copy markdown'}</p>
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDownloadMarkdown}
+                    className="h-6 w-6 p-0 text-muted-foreground"
+                  >
+                    <RiDownloadLine className="size-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  <p>Download markdown</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          </TooltipProvider>
           {showSaved && (
             <span className="absolute bottom-3 right-3 text-xs text-muted-foreground/70 animate-in fade-in duration-200">
               Saved
