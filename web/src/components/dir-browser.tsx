@@ -17,7 +17,34 @@ export function DirFileTree({
   selectedFile: string | null;
   onSelectFile: (relPath: string) => void;
 }) {
+  const utils = trpc.useUtils();
   const { data, isLoading, error } = trpc.dir.listFiles.useQuery({ dirPath });
+
+  const writeMutation = trpc.dir.write.useMutation({
+    onSuccess: () => utils.dir.listFiles.invalidate({ dirPath }),
+  });
+
+  const mkdirMutation = trpc.dir.mkdir.useMutation({
+    onSuccess: () => utils.dir.listFiles.invalidate({ dirPath }),
+  });
+
+  const handleCreateFile = useCallback(
+    (relDir: string, fileName: string) => {
+      const filePath = relDir ? `${relDir}/${fileName}` : fileName;
+      writeMutation.mutate(
+        { dirPath, filePath, content: '' },
+        { onSuccess: () => onSelectFile(filePath) },
+      );
+    },
+    [writeMutation, dirPath, onSelectFile],
+  );
+
+  const handleCreateDir = useCallback(
+    (subDir: string) => {
+      mkdirMutation.mutate({ dirPath, subDir });
+    },
+    [mkdirMutation, dirPath],
+  );
 
   if (isLoading) {
     return (
@@ -39,8 +66,11 @@ export function DirFileTree({
   return (
     <FileTree
       files={data?.files ?? []}
+      dirs={data?.dirs ?? []}
       selectedFile={selectedFile}
       onSelectFile={onSelectFile}
+      onCreateFile={handleCreateFile}
+      onCreateDir={handleCreateDir}
       label={path.basename(dirPath) || dirPath}
     />
   );

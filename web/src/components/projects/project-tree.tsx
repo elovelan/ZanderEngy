@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { FileTree } from "@/components/file-tree";
 
@@ -16,10 +17,37 @@ export function ProjectTree({
   selectedFile,
   onSelectFile,
 }: ProjectTreeProps) {
+  const utils = trpc.useUtils();
   const { data, isLoading } = trpc.project.listFiles.useQuery({
     workspaceSlug,
     projectSlug,
   });
+
+  const writeMutation = trpc.project.writeFile.useMutation({
+    onSuccess: () => utils.project.listFiles.invalidate({ workspaceSlug, projectSlug }),
+  });
+
+  const mkdirMutation = trpc.project.mkdir.useMutation({
+    onSuccess: () => utils.project.listFiles.invalidate({ workspaceSlug, projectSlug }),
+  });
+
+  const handleCreateFile = useCallback(
+    (relDir: string, fileName: string) => {
+      const filePath = relDir ? `${relDir}/${fileName}` : fileName;
+      writeMutation.mutate(
+        { workspaceSlug, projectSlug, filePath, content: "" },
+        { onSuccess: () => onSelectFile(filePath) },
+      );
+    },
+    [writeMutation, workspaceSlug, projectSlug, onSelectFile],
+  );
+
+  const handleCreateDir = useCallback(
+    (subDir: string) => {
+      mkdirMutation.mutate({ workspaceSlug, projectSlug, subDir });
+    },
+    [mkdirMutation, workspaceSlug, projectSlug],
+  );
 
   if (isLoading) {
     return (
@@ -32,8 +60,11 @@ export function ProjectTree({
   return (
     <FileTree
       files={data?.files ?? []}
+      dirs={data?.dirs ?? []}
       selectedFile={selectedFile}
       onSelectFile={onSelectFile}
+      onCreateFile={handleCreateFile}
+      onCreateDir={handleCreateDir}
     />
   );
 }

@@ -289,6 +289,46 @@ const TreeNode = ({
         handleDrop?.(item)
     }
 
+    const triggerClassName = cn(
+        treeVariants(),
+        isSelected && selectedTreeVariants(),
+        isDragOver && dragOverVariants(),
+        item.className
+    )
+
+    const triggerProps = {
+        onClick: () => {
+            handleSelectChange(item)
+            item.onClick?.()
+        },
+        draggable: !!item.draggable,
+        onDragStart,
+        onDragOver,
+        onDragLeave,
+        onDrop,
+    }
+
+    const triggerContent = renderItem ? (
+        renderItem({
+            item,
+            level,
+            isLeaf: false,
+            isSelected,
+            isOpen,
+            hasChildren,
+        })
+    ) : (
+        <>
+            <TreeIcon
+                item={item}
+                isSelected={isSelected}
+                isOpen={isOpen}
+                default={defaultNodeIcon}
+            />
+            <span className="text-sm truncate">{item.name}</span>
+        </>
+    )
+
     return (
         <AccordionPrimitive.Root
             type="multiple"
@@ -296,47 +336,30 @@ const TreeNode = ({
             onValueChange={(s) => setValue(s)}
         >
             <AccordionPrimitive.Item value={item.id}>
-                <AccordionTrigger
-                    className={cn(
-                        treeVariants(),
-                        isSelected && selectedTreeVariants(),
-                        isDragOver && dragOverVariants(),
-                        item.className
-                    )}
-                    onClick={() => {
-                        handleSelectChange(item)
-                        item.onClick?.()
-                    }}
-                    draggable={!!item.draggable}
-                    onDragStart={onDragStart}
-                    onDragOver={onDragOver}
-                    onDragLeave={onDragLeave}
-                    onDrop={onDrop}
-                >
-                    {renderItem ? (
-                        renderItem({
-                            item,
-                            level,
-                            isLeaf: false,
-                            isSelected,
-                            isOpen,
-                            hasChildren,
-                        })
-                    ) : (
-                        <>
-                            <TreeIcon
-                                item={item}
-                                isSelected={isSelected}
-                                isOpen={isOpen}
-                                default={defaultNodeIcon}
-                            />
-                            <span className="text-sm truncate">{item.name}</span>
-                            <TreeActions isSelected={isSelected}>
-                                {item.actions}
-                            </TreeActions>
-                        </>
-                    )}
-                </AccordionTrigger>
+                {item.actions ? (
+                    <AccordionPrimitive.Header className="flex items-center">
+                        <AccordionPrimitive.Trigger
+                            className={cn(
+                                'flex flex-1 min-w-0 items-center py-2 transition-all first:[&[data-state=open]>svg]:first-of-type:rotate-90',
+                                triggerClassName
+                            )}
+                            {...triggerProps}
+                        >
+                            <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 text-accent-foreground/50 mr-1" />
+                            {triggerContent}
+                        </AccordionPrimitive.Trigger>
+                        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {item.actions}
+                        </div>
+                    </AccordionPrimitive.Header>
+                ) : (
+                    <AccordionTrigger
+                        className={triggerClassName}
+                        {...triggerProps}
+                    >
+                        {triggerContent}
+                    </AccordionTrigger>
+                )}
                 <AccordionContent className="ml-4 pl-1 border-l">
                     <TreeItem
                         data={item.children ? item.children : item}

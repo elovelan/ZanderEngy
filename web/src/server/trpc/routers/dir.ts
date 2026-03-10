@@ -34,20 +34,21 @@ function hasMdFiles(dirPath: string, depth: number): boolean {
   return false;
 }
 
-function collectMarkdownFiles(
+function collectMarkdownFilesAndDirs(
   rootDir: string,
   currentDir: string,
   depth: number,
-): { path: string; mtime: number }[] {
-  if (depth <= 0) return [];
+): { files: { path: string; mtime: number }[]; dirs: string[] } {
+  if (depth <= 0) return { files: [], dirs: [] };
   let entries: fs.Dirent[];
   try {
     entries = fs.readdirSync(currentDir, { withFileTypes: true });
   } catch {
-    return [];
+    return { files: [], dirs: [] };
   }
 
   const files: { path: string; mtime: number }[] = [];
+  const dirs: string[] = [];
   for (const entry of entries) {
     if (entry.name.startsWith('.')) continue;
     const fullPath = path.join(currentDir, entry.name);
@@ -59,10 +60,15 @@ function collectMarkdownFiles(
         // file may have been deleted between readdir and stat
       }
     } else if (entry.isDirectory()) {
-      files.push(...collectMarkdownFiles(rootDir, fullPath, depth - 1));
+      const sub = collectMarkdownFilesAndDirs(rootDir, fullPath, depth - 1);
+      files.push(...sub.files);
+      dirs.push(...sub.dirs);
+      if (sub.files.length === 0) {
+        dirs.push(path.relative(rootDir, fullPath));
+      }
     }
   }
-  return files;
+  return { files, dirs };
 }
 
 function listDir(dirPath: string): { dirs: string[]; files: string[] } {
@@ -116,8 +122,11 @@ export const dirRouter = router({
       if (!stat.isDirectory()) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: `Not a directory: ${input.dirPath}` });
       }
-      const files = collectMarkdownFiles(input.dirPath, input.dirPath, MAX_DEPTH);
-      return { files: files.sort((a, b) => a.path.localeCompare(b.path)) };
+      const result = collectMarkdownFilesAndDirs(input.dirPath, input.dirPath, MAX_DEPTH);
+      return {
+        files: result.files.sort((a, b) => a.path.localeCompare(b.path)),
+        dirs: result.dirs.sort(),
+      };
     }),
 
   list: publicProcedure
@@ -159,6 +168,14 @@ export const dirRouter = router({
       const resolved = validatePath(input.dirPath, input.filePath);
       fs.mkdirSync(path.dirname(resolved), { recursive: true });
       fs.writeFileSync(resolved, input.content, 'utf-8');
+      return { success: true };
+    }),
+
+  mkdir: publicProcedure
+    .input(z.object({ dirPath: z.string().min(1), subDir: z.string().min(1) }))
+    .mutation(({ input }) => {
+      const resolved = validatePath(input.dirPath, input.subDir);
+      fs.mkdirSync(resolved, { recursive: true });
       return { success: true };
     }),
 

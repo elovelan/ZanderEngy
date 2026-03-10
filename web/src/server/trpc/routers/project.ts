@@ -18,6 +18,7 @@ import {
   deleteProjectContextFile,
   readProjectFile,
   writeProjectFile,
+  mkdirProject,
   initProjectDir,
   removeProjectDir,
 } from '../../project/service';
@@ -238,7 +239,13 @@ export const projectRouter = router({
         .get();
       if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: 'Project not found' });
       if (!project.projectDir)
-        return { name: project.slug, type: null, status: null, files: [] as { path: string; mtime: number }[] };
+        return {
+          name: project.slug,
+          type: null,
+          status: null,
+          files: [] as { path: string; mtime: number }[],
+          dirs: [] as string[],
+        };
 
       return listProjectFiles(
         { slug: workspace.slug, docsDir: workspace.docsDir },
@@ -351,6 +358,27 @@ export const projectRouter = router({
 
       try {
         writeProjectFile({ slug: workspace.slug, docsDir: workspace.docsDir }, project.projectDir, input.filePath, input.content);
+        return { success: true };
+      } catch (e) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: errorMessage(e) });
+      }
+    }),
+
+  mkdir: publicProcedure
+    .input(z.object({ workspaceSlug: z.string(), projectSlug: z.string(), subDir: z.string().min(1) }))
+    .mutation(({ input }) => {
+      const db = getDb();
+      const workspace = getWorkspace(input.workspaceSlug);
+      const project = db
+        .select()
+        .from(projects)
+        .where(and(eq(projects.workspaceId, workspace.id), eq(projects.slug, input.projectSlug)))
+        .get();
+      if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: 'Project not found' });
+      if (!project.projectDir) throw new TRPCError({ code: 'NOT_FOUND', message: 'Project has no directory' });
+
+      try {
+        mkdirProject({ slug: workspace.slug, docsDir: workspace.docsDir }, project.projectDir, input.subDir);
         return { success: true };
       } catch (e) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: errorMessage(e) });

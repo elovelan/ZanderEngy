@@ -22,6 +22,7 @@ interface ProjectFileTreeNode {
   type: SpecType | null;
   status: SpecStatus | null;
   files: FileEntry[];
+  dirs: string[];
 }
 
 interface ProjectFileContent {
@@ -59,33 +60,51 @@ function validatePath(base: string, target: string): string {
   return resolved;
 }
 
-function collectMarkdownFiles(projectDir: string): FileEntry[] {
-  const entries = fs.readdirSync(projectDir, { withFileTypes: true });
-  const files: FileEntry[] = [];
+const MAX_PROJECT_DEPTH = 5;
 
-  for (const f of entries) {
-    if (f.isFile() && f.name.endsWith('.md')) {
-      const stat = fs.statSync(path.join(projectDir, f.name));
-      files.push({ path: f.name, mtime: stat.mtimeMs });
-    }
-    if (f.isDirectory()) {
-      const subEntries = fs.readdirSync(path.join(projectDir, f.name), { withFileTypes: true });
-      for (const sf of subEntries) {
-        if (sf.isFile() && sf.name.endsWith('.md')) {
-          const stat = fs.statSync(path.join(projectDir, f.name, sf.name));
-          files.push({ path: `${f.name}/${sf.name}`, mtime: stat.mtimeMs });
-        }
+function collectMarkdownFilesAndDirs(
+  rootDir: string,
+  currentDir: string,
+  depth: number,
+): { files: FileEntry[]; dirs: string[] } {
+  if (depth <= 0) return { files: [], dirs: [] };
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(currentDir, { withFileTypes: true });
+  } catch {
+    return { files: [], dirs: [] };
+  }
+
+  const files: FileEntry[] = [];
+  const dirs: string[] = [];
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) continue;
+    const fullPath = path.join(currentDir, entry.name);
+    if (entry.isFile() && entry.name.endsWith('.md')) {
+      try {
+        const stat = fs.statSync(fullPath);
+        files.push({ path: path.relative(rootDir, fullPath), mtime: stat.mtimeMs });
+      } catch {
+        // file may have been deleted between readdir and stat
+      }
+    } else if (entry.isDirectory()) {
+      const sub = collectMarkdownFilesAndDirs(rootDir, fullPath, depth - 1);
+      files.push(...sub.files);
+      dirs.push(...sub.dirs);
+      if (sub.files.length === 0) {
+        dirs.push(path.relative(rootDir, fullPath));
       }
     }
   }
-
-  return files.sort((a, b) => a.path.localeCompare(b.path));
+  return { files, dirs };
 }
 
 export function listProjectFiles(workspace: Workspace, projectDir: string): ProjectFileTreeNode {
   const dir = projectsDir(workspace);
   const projDir = validatePath(dir, projectDir);
-  const files = fs.existsSync(projDir) ? collectMarkdownFiles(projDir) : [];
+  const result = fs.existsSync(projDir)
+    ? collectMarkdownFilesAndDirs(projDir, projDir, MAX_PROJECT_DEPTH)
+    : { files: [], dirs: [] };
 
   let type: SpecType | null = null;
   let status: SpecStatus | null = null;
@@ -100,7 +119,13 @@ export function listProjectFiles(workspace: Workspace, projectDir: string): Proj
     }
   }
 
-  return { name: projectDir, type, status, files };
+  return {
+    name: projectDir,
+    type,
+    status,
+    files: result.files.sort((a, b) => a.path.localeCompare(b.path)),
+    dirs: result.dirs.sort(),
+  };
 }
 
 export function initProjectDir(workspace: Workspace, slug: string): void {
@@ -136,7 +161,8 @@ export function getProjectSpec(workspace: Workspace, projectSlug: string): Proje
   const content = fs.readFileSync(specMdPath, 'utf-8');
   const { frontmatter, body, raw } = parseFrontmatter(content);
 
-  const files = collectMarkdownFiles(projDir).map((f) => f.path);
+  const result = collectMarkdownFilesAndDirs(projDir, projDir, MAX_PROJECT_DEPTH);
+  const files = result.files.map((f) => f.path);
 
   return { frontmatter, body, files, raw };
 }
@@ -255,6 +281,13 @@ export function writeProjectFile(
 
   fs.mkdirSync(path.dirname(resolved), { recursive: true });
   fs.writeFileSync(resolved, content);
+}
+
+export function mkdirProject(workspace: Workspace, projectSlug: string, subDir: string): void {
+  const dir = projectsDir(workspace);
+  const projDir = validatePath(dir, projectSlug);
+  const resolved = validatePath(projDir, subDir);
+  fs.mkdirSync(resolved, { recursive: true });
 }
 
 export function checkProjectReadiness(projectSlug: string): boolean {
