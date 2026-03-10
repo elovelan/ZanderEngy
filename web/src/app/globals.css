@@ -141,3 +141,8 @@
   gap: 0.5rem;
 }
 
+/* BlockNote: improve link contrast in dark mode */
+.dark .bn-shadcn .bn-editor a {
+  color: oklch(0.7 0.15 250);
+}
+
