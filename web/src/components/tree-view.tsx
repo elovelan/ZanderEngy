@@ -337,7 +337,7 @@ const TreeNode = ({
         >
             <AccordionPrimitive.Item value={item.id}>
                 {item.actions ? (
-                    <AccordionPrimitive.Header className="flex items-center">
+                    <AccordionPrimitive.Header className="group flex items-center">
                         <AccordionPrimitive.Trigger
                             className={cn(
                                 'flex flex-1 min-w-0 items-center py-2 transition-all first:[&[data-state=open]>svg]:first-of-type:rotate-90',
@@ -348,7 +348,10 @@ const TreeNode = ({
                             <ChevronRight className="h-4 w-4 shrink-0 transition-transform duration-200 text-accent-foreground/50 mr-1" />
                             {triggerContent}
                         </AccordionPrimitive.Trigger>
-                        <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                        <div
+                            className="shrink-0 hidden group-hover:block has-[[data-state=open]]:block"
+                            onClick={(e) => e.stopPropagation()}
+                        >
                             {item.actions}
                         </div>
                     </AccordionPrimitive.Header>
@@ -568,7 +571,7 @@ const TreeActions = ({
         <div
             className={cn(
                 isSelected ? 'block' : 'hidden',
-                'absolute right-3 group-hover:block'
+                'absolute right-3 group-hover:block has-[[data-state=open]]:block'
             )}
         >
             {children}
