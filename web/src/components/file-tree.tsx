@@ -13,9 +13,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -27,10 +38,12 @@ import {
 } from "@/components/ui/select";
 import {
   RiAddLine,
+  RiDeleteBinLine,
   RiFileAddLine,
   RiFileTextLine,
   RiFolderAddLine,
   RiFolderLine,
+  RiMore2Line,
   RiSearchLine,
   RiSortAsc,
   RiSortDesc,
@@ -48,6 +61,8 @@ interface FileTreeProps {
   label?: string;
   onCreateFile?: (dirPath: string, fileName: string) => void;
   onCreateDir?: (dirPath: string) => void;
+  onDeleteFile?: (filePath: string) => void;
+  onDeleteDir?: (dirPath: string) => void;
 }
 
 interface DirNode {
@@ -71,6 +86,7 @@ function buildTrie(files: FileEntry[], dirs: string[]): DirNode {
       if (f.mtime > node.maxMtime) node.maxMtime = f.mtime;
     }
     node.files.push({ name: fileName, path: f.path, mtime: f.mtime });
+    if (f.mtime > root.maxMtime) root.maxMtime = f.mtime;
   }
 
   // Ensure empty directories are represented in the trie
@@ -94,6 +110,7 @@ function trieToTreeItems(
   sortMode: SortMode,
   sortDir: SortDir,
   dirActions?: (dirPath: string) => React.ReactNode,
+  fileActions?: (filePath: string) => React.ReactNode,
 ): TreeDataItem[] {
   const sortMul = sortDir === "asc" ? 1 : -1;
 
@@ -106,6 +123,7 @@ function trieToTreeItems(
     id: f.path,
     name: f.name,
     icon: RiFileTextLine,
+    actions: fileActions?.(f.path),
   }));
 
   const dirEntries = [...node.children.entries()];
@@ -121,7 +139,7 @@ function trieToTreeItems(
       id: `dir:${dirPath}`,
       name: dirName,
       icon: RiFolderLine,
-      children: trieToTreeItems(dirNode, dirPath, sortMode, sortDir, dirActions),
+      children: trieToTreeItems(dirNode, dirPath, sortMode, sortDir, dirActions, fileActions),
       actions: dirActions?.(dirPath),
     };
   });
@@ -136,6 +154,7 @@ function buildFileTree(
   sortDir: SortDir,
   filterText: string,
   dirActions?: (dirPath: string) => React.ReactNode,
+  fileActions?: (filePath: string) => React.ReactNode,
 ): TreeDataItem[] {
   const lowerFilter = filterText.toLowerCase();
   const filtered = lowerFilter
@@ -147,43 +166,52 @@ function buildFileTree(
     : dirs;
 
   const root = buildTrie(filtered, filteredDirs);
-  return trieToTreeItems(root, "", sortMode, sortDir, dirActions);
+  return trieToTreeItems(root, "", sortMode, sortDir, dirActions, fileActions);
 }
 
-function CreateButton({
-  dirPath,
+function ItemActions({
+  type,
+  itemPath,
+  itemName,
   onCreateFile,
   onCreateDir,
+  onDelete,
   size = "sm",
 }: {
-  dirPath: string;
+  type: "file" | "dir";
+  itemPath: string;
+  itemName: string;
   onCreateFile?: (dirPath: string, fileName: string) => void;
   onCreateDir?: (dirPath: string) => void;
+  onDelete?: () => void;
   size?: "sm" | "xs";
 }) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [mode, setMode] = useState<"file" | "folder">("file");
-  const [name, setName] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createMode, setCreateMode] = useState<"file" | "folder">("file");
+  const [createName, setCreateName] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
-  function handleSubmit() {
-    const trimmed = name.trim();
+  const hasCreateActions = type === "dir" && (!!onCreateFile || !!onCreateDir);
+
+  function handleCreateSubmit() {
+    const trimmed = createName.trim();
     if (!trimmed) return;
 
-    if (mode === "file") {
+    if (createMode === "file") {
       const finalName = trimmed.endsWith(".md") ? trimmed : `${trimmed}.md`;
-      onCreateFile?.(dirPath, finalName);
+      onCreateFile?.(itemPath, finalName);
     } else {
-      onCreateDir?.(dirPath ? `${dirPath}/${trimmed}` : trimmed);
+      onCreateDir?.(itemPath ? `${itemPath}/${trimmed}` : trimmed);
     }
 
-    setDialogOpen(false);
-    setName("");
+    setCreateOpen(false);
+    setCreateName("");
   }
 
-  function openMode(m: "file" | "folder") {
-    setMode(m);
-    setName("");
-    setDialogOpen(true);
+  function openCreate(m: "file" | "folder") {
+    setCreateMode(m);
+    setCreateName("");
+    setCreateOpen(true);
   }
 
   const iconSize = size === "xs" ? "size-3" : "size-3.5";
@@ -196,56 +224,109 @@ function CreateButton({
           <button
             type="button"
             className={`flex items-center justify-center ${btnSize} text-muted-foreground hover:text-foreground transition-colors`}
-            title="New..."
+            title="Actions"
             onClick={(e) => e.stopPropagation()}
           >
-            <RiAddLine className={iconSize} />
+            {hasCreateActions && !onDelete ? (
+              <RiAddLine className={iconSize} />
+            ) : (
+              <RiMore2Line className={iconSize} />
+            )}
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          {onCreateFile && (
-            <DropdownMenuItem onClick={() => openMode("file")}>
+          {type === "dir" && onCreateFile && (
+            <DropdownMenuItem onClick={() => openCreate("file")}>
               <RiFileAddLine className="size-4" />
               New File
             </DropdownMenuItem>
           )}
-          {onCreateDir && (
-            <DropdownMenuItem onClick={() => openMode("folder")}>
+          {type === "dir" && onCreateDir && (
+            <DropdownMenuItem onClick={() => openCreate("folder")}>
               <RiFolderAddLine className="size-4" />
               New Folder
             </DropdownMenuItem>
           )}
+          {hasCreateActions && onDelete && <DropdownMenuSeparator />}
+          {onDelete && (
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <RiDeleteBinLine className="size-4" />
+              Delete {type === "file" ? "File" : "Folder"}
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-xs" onClick={(e) => e.stopPropagation()}>
-          <DialogHeader>
-            <DialogTitle>{mode === "file" ? "New File" : "New Folder"}</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSubmit();
-            }}
-          >
-            <Input
-              autoFocus
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={mode === "folder" ? "folder-name" : "filename.md"}
-              className="h-8 text-sm"
-            />
-            <DialogFooter className="mt-3">
-              <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={!name.trim()}>
-                Create
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+
+      {hasCreateActions && (
+        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <DialogContent className="max-w-xs" onClick={(e) => e.stopPropagation()}>
+            <DialogHeader>
+              <DialogTitle>{createMode === "file" ? "New File" : "New Folder"}</DialogTitle>
+            </DialogHeader>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleCreateSubmit();
+              }}
+            >
+              <Input
+                autoFocus
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder={createMode === "folder" ? "folder-name" : "filename.md"}
+                className="h-8 text-sm"
+              />
+              <DialogFooter className="mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCreateOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" size="sm" disabled={!createName.trim()}>
+                  Create
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {onDelete && (
+        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+          <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Delete &ldquo;{itemName}&rdquo;?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {type === "dir"
+                  ? "This will permanently delete this folder and all its contents."
+                  : "This will permanently delete this file."}{" "}
+                This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onDelete();
+                  setDeleteOpen(false);
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </>
   );
 }
@@ -258,6 +339,8 @@ export function FileTree({
   label = "Files",
   onCreateFile,
   onCreateDir,
+  onDeleteFile,
+  onDeleteDir,
 }: FileTreeProps) {
   const [sortMode, setSortMode] = useState<SortMode>("modified");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -267,22 +350,41 @@ export function FileTree({
 
   const dirActions = useMemo(
     () =>
-      hasCreateActions
+      hasCreateActions || onDeleteDir
         ? (dirPath: string) => (
-            <CreateButton
-              dirPath={dirPath}
+            <ItemActions
+              type="dir"
+              itemPath={dirPath}
+              itemName={dirPath.split("/").pop() ?? dirPath}
               onCreateFile={onCreateFile}
               onCreateDir={onCreateDir}
+              onDelete={onDeleteDir ? () => onDeleteDir(dirPath) : undefined}
               size="xs"
             />
           )
         : undefined,
-    [hasCreateActions, onCreateFile, onCreateDir],
+    [hasCreateActions, onCreateFile, onCreateDir, onDeleteDir],
+  );
+
+  const fileActions = useMemo(
+    () =>
+      onDeleteFile
+        ? (filePath: string) => (
+            <ItemActions
+              type="file"
+              itemPath={filePath}
+              itemName={filePath.split("/").pop() ?? filePath}
+              onDelete={() => onDeleteFile(filePath)}
+              size="xs"
+            />
+          )
+        : undefined,
+    [onDeleteFile],
   );
 
   const treeData: TreeDataItem[] = useMemo(
-    () => buildFileTree(files, dirs, sortMode, sortDir, filterText, dirActions),
-    [files, dirs, sortMode, sortDir, filterText, dirActions],
+    () => buildFileTree(files, dirs, sortMode, sortDir, filterText, dirActions, fileActions),
+    [files, dirs, sortMode, sortDir, filterText, dirActions, fileActions],
   );
 
   return (
@@ -314,8 +416,10 @@ export function FileTree({
             )}
           </button>
           {hasCreateActions && (
-            <CreateButton
-              dirPath=""
+            <ItemActions
+              type="dir"
+              itemPath=""
+              itemName=""
               onCreateFile={onCreateFile}
               onCreateDir={onCreateDir}
             />

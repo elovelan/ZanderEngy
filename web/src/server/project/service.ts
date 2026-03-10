@@ -290,6 +290,38 @@ export function mkdirProject(workspace: Workspace, projectSlug: string, subDir: 
   fs.mkdirSync(resolved, { recursive: true });
 }
 
+export function deleteProjectFile(workspace: Workspace, projectSlug: string, filePath: string): void {
+  const dir = projectsDir(workspace);
+  const projDir = validatePath(dir, projectSlug);
+  const resolved = validatePath(projDir, filePath);
+
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`File "${filePath}" not found in project "${projectSlug}"`);
+  }
+  const stat = fs.statSync(resolved);
+  if (!stat.isFile()) {
+    throw new Error(`Not a file: "${filePath}"`);
+  }
+
+  fs.unlinkSync(resolved);
+}
+
+export function deleteProjectSubDir(workspace: Workspace, projectSlug: string, subDir: string): void {
+  const dir = projectsDir(workspace);
+  const projDir = validatePath(dir, projectSlug);
+  const resolved = validatePath(projDir, subDir);
+
+  if (!fs.existsSync(resolved)) {
+    throw new Error(`Directory "${subDir}" not found in project "${projectSlug}"`);
+  }
+  const stat = fs.statSync(resolved);
+  if (!stat.isDirectory()) {
+    throw new Error(`Not a directory: "${subDir}"`);
+  }
+
+  fs.rmSync(resolved, { recursive: true, force: true });
+}
+
 export function checkProjectReadiness(projectSlug: string): boolean {
   const db = getDb();
   const projectTasks = db.select().from(tasks).where(eq(tasks.specId, projectSlug)).all();

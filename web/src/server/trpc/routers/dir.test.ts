@@ -183,4 +183,66 @@ describe('dir router', () => {
       expect(result.content).toBe(content);
     });
   });
+
+  describe('deleteFile', () => {
+    it('should delete an existing md file', async () => {
+      expect(fs.existsSync(path.join(testDir, 'readme.md'))).toBe(true);
+      const result = await caller.dir.deleteFile({ dirPath: testDir, filePath: 'readme.md' });
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(path.join(testDir, 'readme.md'))).toBe(false);
+    });
+
+    it('should delete a file in a subdirectory', async () => {
+      const result = await caller.dir.deleteFile({ dirPath: testDir, filePath: 'sub/sub-note.md' });
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(path.join(testDir, 'sub', 'sub-note.md'))).toBe(false);
+    });
+
+    it('should throw NOT_FOUND for missing file', async () => {
+      await expect(
+        caller.dir.deleteFile({ dirPath: testDir, filePath: 'missing.md' }),
+      ).rejects.toThrow('not found');
+    });
+
+    it('should reject non-md files', async () => {
+      await expect(
+        caller.dir.deleteFile({ dirPath: testDir, filePath: 'evil.sh' }),
+      ).rejects.toThrow('Only .md files');
+    });
+
+    it('should reject path traversal', async () => {
+      await expect(
+        caller.dir.deleteFile({ dirPath: testDir, filePath: '../../etc/secret.md' }),
+      ).rejects.toThrow('traversal');
+    });
+  });
+
+  describe('deleteDir', () => {
+    it('should delete an existing directory recursively', async () => {
+      expect(fs.existsSync(path.join(testDir, 'deep', 'nested', 'deep.md'))).toBe(true);
+      const result = await caller.dir.deleteDir({ dirPath: testDir, subDir: 'deep' });
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(path.join(testDir, 'deep'))).toBe(false);
+    });
+
+    it('should delete an empty directory', async () => {
+      const emptyDir = path.join(testDir, 'brand-new');
+      fs.mkdirSync(emptyDir);
+      const result = await caller.dir.deleteDir({ dirPath: testDir, subDir: 'brand-new' });
+      expect(result.success).toBe(true);
+      expect(fs.existsSync(emptyDir)).toBe(false);
+    });
+
+    it('should throw NOT_FOUND for missing directory', async () => {
+      await expect(
+        caller.dir.deleteDir({ dirPath: testDir, subDir: 'does-not-exist' }),
+      ).rejects.toThrow('not found');
+    });
+
+    it('should reject path traversal', async () => {
+      await expect(
+        caller.dir.deleteDir({ dirPath: testDir, subDir: '../../tmp' }),
+      ).rejects.toThrow('traversal');
+    });
+  });
 });

@@ -19,6 +19,8 @@ import {
   readProjectFile,
   writeProjectFile,
   mkdirProject,
+  deleteProjectFile,
+  deleteProjectSubDir,
   initProjectDir,
   removeProjectDir,
 } from '../../project/service';
@@ -382,6 +384,60 @@ export const projectRouter = router({
         return { success: true };
       } catch (e) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: errorMessage(e) });
+      }
+    }),
+
+  deleteFile: publicProcedure
+    .input(
+      z.object({
+        workspaceSlug: z.string(),
+        projectSlug: z.string(),
+        filePath: z.string().min(1)
+          .refine((p) => p.endsWith('.md'), { message: 'Only .md files are supported' })
+          .refine((p) => p !== 'spec.md', { message: 'Cannot delete spec.md' }),
+      }),
+    )
+    .mutation(({ input }) => {
+      const db = getDb();
+      const workspace = getWorkspace(input.workspaceSlug);
+      const project = db
+        .select()
+        .from(projects)
+        .where(and(eq(projects.workspaceId, workspace.id), eq(projects.slug, input.projectSlug)))
+        .get();
+      if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: 'Project not found' });
+      if (!project.projectDir) throw new TRPCError({ code: 'NOT_FOUND', message: 'Project has no directory' });
+
+      try {
+        deleteProjectFile({ slug: workspace.slug, docsDir: workspace.docsDir }, project.projectDir, input.filePath);
+        return { success: true };
+      } catch (e) {
+        const msg = errorMessage(e);
+        if (msg.includes('not found')) throw new TRPCError({ code: 'NOT_FOUND', message: msg });
+        throw new TRPCError({ code: 'BAD_REQUEST', message: msg });
+      }
+    }),
+
+  deleteDir: publicProcedure
+    .input(z.object({ workspaceSlug: z.string(), projectSlug: z.string(), subDir: z.string().min(1) }))
+    .mutation(({ input }) => {
+      const db = getDb();
+      const workspace = getWorkspace(input.workspaceSlug);
+      const project = db
+        .select()
+        .from(projects)
+        .where(and(eq(projects.workspaceId, workspace.id), eq(projects.slug, input.projectSlug)))
+        .get();
+      if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: 'Project not found' });
+      if (!project.projectDir) throw new TRPCError({ code: 'NOT_FOUND', message: 'Project has no directory' });
+
+      try {
+        deleteProjectSubDir({ slug: workspace.slug, docsDir: workspace.docsDir }, project.projectDir, input.subDir);
+        return { success: true };
+      } catch (e) {
+        const msg = errorMessage(e);
+        if (msg.includes('not found')) throw new TRPCError({ code: 'NOT_FOUND', message: msg });
+        throw new TRPCError({ code: 'BAD_REQUEST', message: msg });
       }
     }),
 

@@ -179,6 +179,39 @@ export const dirRouter = router({
       return { success: true };
     }),
 
+  deleteFile: publicProcedure
+    .input(z.object({ dirPath: z.string().min(1), filePath: z.string().min(1) }))
+    .mutation(({ input }) => {
+      if (!input.filePath.endsWith('.md')) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Only .md files are supported' });
+      }
+      const resolved = validatePath(input.dirPath, input.filePath);
+      if (!fs.existsSync(resolved)) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `File not found: ${input.filePath}` });
+      }
+      const stat = fs.statSync(resolved);
+      if (!stat.isFile()) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Not a file: ${input.filePath}` });
+      }
+      fs.unlinkSync(resolved);
+      return { success: true };
+    }),
+
+  deleteDir: publicProcedure
+    .input(z.object({ dirPath: z.string().min(1), subDir: z.string().min(1) }))
+    .mutation(({ input }) => {
+      const resolved = validatePath(input.dirPath, input.subDir);
+      if (!fs.existsSync(resolved)) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: `Directory not found: ${input.subDir}` });
+      }
+      const stat = fs.statSync(resolved);
+      if (!stat.isDirectory()) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: `Not a directory: ${input.subDir}` });
+      }
+      fs.rmSync(resolved, { recursive: true, force: true });
+      return { success: true };
+    }),
+
   searchRepoFiles: publicProcedure
     .input(
       z.object({

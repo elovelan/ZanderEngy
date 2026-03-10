@@ -22,6 +22,14 @@ export function WorkspaceTree({ dirPath, selectedFile, onSelectFile }: Workspace
     onSuccess: () => utils.dir.listFiles.invalidate({ dirPath }),
   });
 
+  const deleteFileMutation = trpc.dir.deleteFile.useMutation({
+    onSuccess: () => utils.dir.listFiles.invalidate({ dirPath }),
+  });
+
+  const deleteDirMutation = trpc.dir.deleteDir.useMutation({
+    onSuccess: () => utils.dir.listFiles.invalidate({ dirPath }),
+  });
+
   const handleCreateFile = useCallback(
     (relDir: string, fileName: string) => {
       const filePath = relDir ? `${relDir}/${fileName}` : fileName;
@@ -40,6 +48,23 @@ export function WorkspaceTree({ dirPath, selectedFile, onSelectFile }: Workspace
     [mkdirMutation, dirPath],
   );
 
+  const handleDeleteFile = useCallback(
+    (filePath: string) => {
+      deleteFileMutation.mutate(
+        { dirPath, filePath },
+        { onSuccess: () => { if (selectedFile === filePath) onSelectFile(''); } },
+      );
+    },
+    [deleteFileMutation, dirPath, selectedFile, onSelectFile],
+  );
+
+  const handleDeleteDir = useCallback(
+    (subDir: string) => {
+      deleteDirMutation.mutate({ dirPath, subDir });
+    },
+    [deleteDirMutation, dirPath],
+  );
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-10">
@@ -56,6 +81,8 @@ export function WorkspaceTree({ dirPath, selectedFile, onSelectFile }: Workspace
       onSelectFile={onSelectFile}
       onCreateFile={handleCreateFile}
       onCreateDir={handleCreateDir}
+      onDeleteFile={handleDeleteFile}
+      onDeleteDir={handleDeleteDir}
     />
   );
 }

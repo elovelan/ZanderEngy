@@ -28,6 +28,14 @@ export function DirFileTree({
     onSuccess: () => utils.dir.listFiles.invalidate({ dirPath }),
   });
 
+  const deleteFileMutation = trpc.dir.deleteFile.useMutation({
+    onSuccess: () => utils.dir.listFiles.invalidate({ dirPath }),
+  });
+
+  const deleteDirMutation = trpc.dir.deleteDir.useMutation({
+    onSuccess: () => utils.dir.listFiles.invalidate({ dirPath }),
+  });
+
   const handleCreateFile = useCallback(
     (relDir: string, fileName: string) => {
       const filePath = relDir ? `${relDir}/${fileName}` : fileName;
@@ -44,6 +52,23 @@ export function DirFileTree({
       mkdirMutation.mutate({ dirPath, subDir });
     },
     [mkdirMutation, dirPath],
+  );
+
+  const handleDeleteFile = useCallback(
+    (filePath: string) => {
+      deleteFileMutation.mutate(
+        { dirPath, filePath },
+        { onSuccess: () => { if (selectedFile === filePath) onSelectFile(''); } },
+      );
+    },
+    [deleteFileMutation, dirPath, selectedFile, onSelectFile],
+  );
+
+  const handleDeleteDir = useCallback(
+    (subDir: string) => {
+      deleteDirMutation.mutate({ dirPath, subDir });
+    },
+    [deleteDirMutation, dirPath],
   );
 
   if (isLoading) {
@@ -71,6 +96,8 @@ export function DirFileTree({
       onSelectFile={onSelectFile}
       onCreateFile={handleCreateFile}
       onCreateDir={handleCreateDir}
+      onDeleteFile={handleDeleteFile}
+      onDeleteDir={handleDeleteDir}
       label={path.basename(dirPath) || dirPath}
     />
   );
