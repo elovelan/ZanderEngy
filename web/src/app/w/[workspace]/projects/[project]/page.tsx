@@ -15,5 +15,5 @@ export default function ProjectOverviewPage() {
 
   if (!workspace || !project) return null;
 
-  return <ProjectOverview project={project} workspaceSlug={params.workspace} />;
+  return <ProjectOverview project={project} />;
 }

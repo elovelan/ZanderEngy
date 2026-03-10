@@ -48,43 +48,41 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-stretch border-b border-border">
-        <div className="flex items-center gap-3 py-2">
-          <h1 className="text-sm font-semibold">{project.name}</h1>
-          <Badge variant="secondary" className="text-[10px]">
-            {project.status}
-          </Badge>
-        </div>
-
-        <nav className="ml-auto flex" aria-label="Project sections">
-          <TooltipProvider>
-            {tabs.map((tab) =>
-              tab.disabled ? (
-                <Tooltip key={tab.segment}>
-                  <TooltipTrigger asChild>
-                    <span className="cursor-not-allowed px-3 py-2.5 text-xs font-medium text-muted-foreground/50">
-                      {tab.label}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent>{tab.hint}</TooltipContent>
-                </Tooltip>
-              ) : (
-                <Link
-                  key={tab.segment}
-                  href={tabHref(tab.segment)}
-                  className={cn(
-                    "relative px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
-                    isActive(tab.segment) &&
-                      "text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-foreground",
-                  )}
-                >
-                  {tab.label}
-                </Link>
-              ),
-            )}
-          </TooltipProvider>
-        </nav>
+      <div className="flex items-center gap-3 py-2">
+        <h1 className="text-sm font-semibold">{project.name}</h1>
+        <Badge variant="secondary" className="text-[10px]">
+          {project.status}
+        </Badge>
       </div>
+
+      <nav className="flex border-b border-border" aria-label="Project sections">
+        <TooltipProvider>
+          {tabs.map((tab) =>
+            tab.disabled ? (
+              <Tooltip key={tab.segment}>
+                <TooltipTrigger asChild>
+                  <span className="cursor-not-allowed px-3 py-2.5 text-xs font-medium text-muted-foreground/50">
+                    {tab.label}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{tab.hint}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Link
+                key={tab.segment}
+                href={tabHref(tab.segment)}
+                className={cn(
+                  "relative px-3 py-2.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
+                  isActive(tab.segment) &&
+                    "text-foreground after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:bg-foreground",
+                )}
+              >
+                {tab.label}
+              </Link>
+            ),
+          )}
+        </TooltipProvider>
+      </nav>
 
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
