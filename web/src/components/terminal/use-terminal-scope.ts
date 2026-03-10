@@ -5,7 +5,13 @@ import { trpc } from "@/lib/trpc";
 import { buildAddDirFlags } from "@/lib/shell";
 import type { TerminalScope } from "./types";
 
-function deriveScope(
+// ── Default terminal scope logic — DO NOT CHANGE ──────────────────────
+// When starting Claude from the terminal panel (not task quick actions):
+//   - Working dir = projectDir (so Claude has project context)
+//   - Additional dirs = ALL repos via --add-dir flags
+// This is DIFFERENT from task quick actions which start in the 1st repo.
+// See shell.ts buildQuickActionDirs() for the quick-action logic.
+export function deriveScope(
   workspaceSlug: string,
   workspaceDir: string,
   repos: string[],

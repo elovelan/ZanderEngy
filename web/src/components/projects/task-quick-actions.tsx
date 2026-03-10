@@ -12,7 +12,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSendToTerminal } from '@/components/terminal/use-send-to-terminal';
 import { trpc } from '@/lib/trpc';
-import { shellEscape, buildAddDirFlags } from '@/lib/shell';
+import { shellEscape, buildAddDirFlags, buildQuickActionDirs } from '@/lib/shell';
 import { toast } from 'sonner';
 import type { TaskSkills } from '@/components/projects/types';
 
@@ -42,11 +42,7 @@ export function TaskQuickActions({
   const taskSlug = `${workspaceSlug}-T${taskId}`;
   const hasPlan = planSlugs?.includes(taskSlug) ?? false;
 
-  const workingDir = repos[0] ?? projectDir ?? undefined;
-  const additionalDirs = [
-    ...(projectDir && projectDir !== workingDir ? [projectDir] : []),
-    ...repos.slice(1),
-  ];
+  const { workingDir, additionalDirs } = buildQuickActionDirs(repos, projectDir);
   const addDirFlags = buildAddDirFlags(additionalDirs);
 
   const planSkill = skills?.plan || DEFAULT_PLAN_SKILL;
