@@ -1,6 +1,12 @@
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { watch, type FSWatcher, type ChokidarOptions } from 'chokidar';
 import type { WsClient } from './ws/client.js';
+
+interface WatchedWorkspace {
+  slug: string;
+  docsDir?: string | null;
+}
 
 interface SpecWatcherOptions {
   usePolling?: boolean;
@@ -18,8 +24,8 @@ export class SpecWatcher {
     this.options = options;
   }
 
-  sync(workspaceSlugs: string[]): void {
-    const desired = new Set(workspaceSlugs);
+  sync(workspaces: WatchedWorkspace[]): void {
+    const desired = new Set(workspaces.map((w) => w.slug));
 
     for (const [slug, watcher] of this.watchers) {
       if (!desired.has(slug)) {
@@ -28,9 +34,9 @@ export class SpecWatcher {
       }
     }
 
-    for (const slug of workspaceSlugs) {
-      if (!this.watchers.has(slug)) {
-        this.startWatching(slug);
+    for (const ws of workspaces) {
+      if (!this.watchers.has(ws.slug)) {
+        this.startWatching(ws);
       }
     }
   }
@@ -43,8 +49,7 @@ export class SpecWatcher {
     });
   }
 
-  private startWatching(slug: string): void {
-    const specsDir = path.join(this.engyDir, slug, 'specs');
+  private startWatching(ws: WatchedWorkspace): void {
     const watchOptions: ChokidarOptions = {
       ignoreInitial: true,
       depth: 10,
@@ -53,7 +58,20 @@ export class SpecWatcher {
       watchOptions.usePolling = true;
       watchOptions.interval = 100;
     }
-    const watcher = watch(specsDir, watchOptions);
+
+    // Use docsDir if set, otherwise default to ENGY_DIR/slug
+    const workspaceDir = ws.docsDir ?? path.join(this.engyDir, ws.slug);
+    const watchPaths: string[] = [];
+    for (const subdir of ['specs', 'projects']) {
+      const dir = path.join(workspaceDir, subdir);
+      if (existsSync(dir)) {
+        watchPaths.push(dir);
+      }
+    }
+
+    if (watchPaths.length === 0) return;
+
+    const watcher = watch(watchPaths, watchOptions);
 
     watcher.on('all', (eventType: string, filePath: string) => {
       const mapped = mapEventType(eventType);
@@ -62,14 +80,14 @@ export class SpecWatcher {
       this.wsClient.send({
         type: 'FILE_CHANGE',
         payload: {
-          workspaceSlug: slug,
+          workspaceSlug: ws.slug,
           path: filePath,
           eventType: mapped,
         },
       });
     });
 
-    this.watchers.set(slug, watcher);
+    this.watchers.set(ws.slug, watcher);
   }
 
   async closeAll(): Promise<void> {

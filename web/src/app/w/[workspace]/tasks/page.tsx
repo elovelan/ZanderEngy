@@ -18,6 +18,11 @@ export default function TasksPage() {
 
   const defaultProject = allProjects?.find((p) => p.isDefault);
 
+  const { data: projectDetails } = trpc.project.getBySlug.useQuery(
+    { workspaceId: workspace?.id ?? 0, slug: defaultProject?.slug ?? '' },
+    { enabled: !!workspace && !!defaultProject },
+  );
+
   const { data: tasks } = trpc.task.list.useQuery(
     { projectId: defaultProject?.id ?? 0 },
     { enabled: !!defaultProject },
@@ -40,7 +45,14 @@ export default function TasksPage() {
         </Button>
       </div>
 
-      <EisenhowerMatrix tasks={tasks ?? []} workspaceSlug={params.workspace} onTaskClick={setSelectedTaskId} />
+      <EisenhowerMatrix
+        tasks={tasks ?? []}
+        workspaceSlug={params.workspace}
+        projectDir={projectDetails?.projectDir}
+        planSlugs={projectDetails?.planSlugs}
+        repos={workspace.repos ?? undefined}
+        onTaskClick={setSelectedTaskId}
+      />
 
       {selectedTaskId !== null && (
         <TaskDialog

@@ -211,6 +211,7 @@ function ProjectDetail({ workspaceSlug, projectSlug, selectedFile }: ProjectDeta
           workspaceSlug={workspaceSlug}
           projectDir={projectData?.projectDir}
           planSlugs={projectData?.planSlugs}
+          repos={workspace?.repos ?? undefined}
         />
       </TabsContent>
     </Tabs>

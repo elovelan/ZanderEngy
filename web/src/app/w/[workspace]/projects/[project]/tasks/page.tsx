@@ -76,6 +76,7 @@ export default function ProjectTasksPage() {
           workspaceSlug={params.workspace}
           projectDir={project?.projectDir}
           planSlugs={project?.planSlugs}
+          repos={workspace?.repos ?? undefined}
           onTaskClick={setSelectedTaskId}
         />
       )}
@@ -90,6 +91,7 @@ export default function ProjectTasksPage() {
           workspaceSlug={params.workspace}
           projectDir={project?.projectDir}
           planSlugs={project?.planSlugs}
+          repos={workspace?.repos ?? undefined}
           onTaskClick={setSelectedTaskId}
         />
       )}

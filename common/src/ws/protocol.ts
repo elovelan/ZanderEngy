@@ -9,6 +9,7 @@ export interface WorkspacesSyncMessage {
     workspaces: Array<{
       slug: string;
       repos: string[];
+      docsDir?: string | null;
     }>;
   };
 }

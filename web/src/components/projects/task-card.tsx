@@ -13,6 +13,7 @@ interface TaskCardProps {
   workspaceSlug: string;
   projectDir?: string | null;
   planSlugs?: string[];
+  repos?: string[];
   onClick?: () => void;
   showCheckbox?: boolean;
   onCheckboxChange?: (done: boolean) => void;
@@ -25,6 +26,7 @@ export function TaskCard({
   workspaceSlug,
   projectDir,
   planSlugs,
+  repos,
   onClick,
   showCheckbox = false,
   onCheckboxChange,
@@ -72,6 +74,7 @@ export function TaskCard({
         workspaceSlug={workspaceSlug}
         projectDir={projectDir}
         planSlugs={planSlugs}
+        repos={repos}
       />
       <span className={cn('flex-1 truncate', showCheckbox && isDone && 'line-through')}>
         {task.title}

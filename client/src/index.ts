@@ -18,7 +18,7 @@ function main(): void {
   const wsClient = new WsClient({
     serverUrl: SERVER_URL,
     onWorkspacesSync: (msg) => {
-      specWatcher.sync(msg.payload.workspaces.map((w) => w.slug));
+      specWatcher.sync(msg.payload.workspaces);
     },
     terminalManager,
   });

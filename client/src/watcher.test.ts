@@ -43,7 +43,7 @@ describe('SpecWatcher', () => {
     fs.mkdirSync(specsDir, { recursive: true });
 
     const watcher = new SpecWatcher(tmpDir, wsClient, { usePolling: true });
-    watcher.sync(['test-ws']);
+    watcher.sync([{ slug: 'test-ws' }]);
     await watcher.waitForReady('test-ws');
 
     fs.writeFileSync(path.join(specsDir, 'test.md'), 'hello');
@@ -64,7 +64,7 @@ describe('SpecWatcher', () => {
     fs.mkdirSync(specsDir, { recursive: true });
 
     const watcher = new SpecWatcher(tmpDir, wsClient, { usePolling: true });
-    watcher.sync(['ws-a']);
+    watcher.sync([{ slug: 'ws-a' }]);
     await watcher.waitForReady('ws-a');
 
     watcher.sync([]);
@@ -85,10 +85,10 @@ describe('SpecWatcher', () => {
     fs.mkdirSync(specsDirB, { recursive: true });
 
     const watcher = new SpecWatcher(tmpDir, wsClient, { usePolling: true });
-    watcher.sync(['ws-a']);
+    watcher.sync([{ slug: 'ws-a' }]);
     await watcher.waitForReady('ws-a');
 
-    watcher.sync(['ws-a', 'ws-b']);
+    watcher.sync([{ slug: 'ws-a' }, { slug: 'ws-b' }]);
     await watcher.waitForReady('ws-b');
 
     fs.writeFileSync(path.join(specsDirB, 'new.md'), 'data');

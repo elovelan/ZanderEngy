@@ -13,9 +13,10 @@ interface SpecTasksProps {
   workspaceSlug: string;
   projectDir?: string | null;
   planSlugs?: string[];
+  repos?: string[];
 }
 
-export function SpecTasks({ specSlug: specId, workspaceSlug, projectDir, planSlugs }: SpecTasksProps) {
+export function SpecTasks({ specSlug: specId, workspaceSlug, projectDir, planSlugs, repos }: SpecTasksProps) {
   const utils = trpc.useUtils();
   const [showNewTask, setShowNewTask] = useState(false);
 
@@ -62,6 +63,7 @@ export function SpecTasks({ specSlug: specId, workspaceSlug, projectDir, planSlu
               workspaceSlug={workspaceSlug}
               projectDir={projectDir}
               planSlugs={planSlugs}
+              repos={repos}
               showCheckbox
               onCheckboxChange={(done) =>
                 updateMutation.mutate({

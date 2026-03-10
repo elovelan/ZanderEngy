@@ -64,6 +64,7 @@ function handleRegister(ws: WebSocket, state: AppState): void {
     const syncPayload = allWorkspaces.map((w) => ({
       slug: w.slug,
       repos: (w.repos as string[]) ?? [],
+      docsDir: w.docsDir,
     }));
 
     ws.send(

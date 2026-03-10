@@ -33,12 +33,14 @@ export function EisenhowerMatrix({
   workspaceSlug,
   projectDir,
   planSlugs,
+  repos,
   onTaskClick,
 }: {
   tasks: Task[];
   workspaceSlug: string;
   projectDir?: string | null;
   planSlugs?: string[];
+  repos?: string[];
   onTaskClick?: (taskId: number) => void;
 }) {
   function tasksForQuadrant(q: Quadrant) {
@@ -67,6 +69,7 @@ export function EisenhowerMatrix({
                   workspaceSlug={workspaceSlug}
                   projectDir={projectDir}
                   planSlugs={planSlugs}
+                  repos={repos}
                   onClick={() => onTaskClick?.(task.id)}
                   className="rounded-none border border-border"
                 />
