@@ -153,7 +153,9 @@ const TreeView = React.forwardRef<HTMLDivElement, TreeProps>(
 )
 TreeView.displayName = 'TreeView'
 
-type TreeItemProps = TreeProps & {
+type TreeItemProps = React.HTMLAttributes<HTMLDivElement> & {
+    data: TreeDataItem[] | TreeDataItem
+    renderItem?: (params: TreeRenderItemParams) => React.ReactNode
     selectedItemId?: string
     handleSelectChange: (item: TreeDataItem | undefined) => void
     expandedItemIds: string[]
@@ -180,10 +182,6 @@ const TreeItem = React.forwardRef<HTMLDivElement, TreeItemProps>(
             draggedItem,
             renderItem,
             level,
-            onSelectChange: _onSelectChange,
-            expandAll: _expandAll,
-            initialSelectedItemId: _initialSelectedItemId,
-            onDocumentDrag: _onDocumentDrag,
             ...props
         },
         ref

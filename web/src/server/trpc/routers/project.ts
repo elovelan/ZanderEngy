@@ -273,12 +273,11 @@ export const projectRouter = router({
       if (!project) throw new TRPCError({ code: 'NOT_FOUND', message: 'Project not found' });
       if (!project.projectDir) throw new TRPCError({ code: 'NOT_FOUND', message: 'Project has no directory' });
 
-      const { workspaceSlug: _, projectSlug: __, ...updates } = input;
       try {
         return updateProjectSpec(
           { slug: workspace.slug, docsDir: workspace.docsDir },
           project.projectDir,
-          updates,
+          { title: input.title, status: input.status, body: input.body },
         );
       } catch (e) {
         const msg = errorMessage(e);
