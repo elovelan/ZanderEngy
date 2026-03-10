@@ -58,6 +58,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
 
   const basePath = `/w/${params.workspace}`;
   const isProjectRoute = pathname.startsWith(`${basePath}/projects/`);
+  const isDocsRoute = pathname.startsWith(`${basePath}/docs`);
 
   const extraDropdownGroups = useMemo<TerminalDropdownGroup[] | undefined>(() => {
     if (!isProjectRoute || !workspace) return undefined;
@@ -169,7 +170,14 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           onRightCollapsedChange={setTerminalCollapsed}
           rightShortcut={TERMINAL_SHORTCUT}
           centerContent={
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6">{children}</div>
+            <div
+              className={cn(
+                'flex min-h-0 flex-1 flex-col overflow-hidden',
+                !isDocsRoute && 'px-6',
+              )}
+            >
+              {children}
+            </div>
           }
           rightContent={
             <TerminalPanel onCollapse={handleCollapse} extraDropdownGroups={extraDropdownGroups} />
