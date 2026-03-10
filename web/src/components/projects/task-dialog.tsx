@@ -133,7 +133,7 @@ function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: Create
 
             <div className="flex flex-col gap-1.5">
               <Label>Description</Label>
-              <div className="min-h-[200px] border border-border">
+              <div className="min-h-[200px] max-h-[50vh] overflow-y-auto border border-border">
                 {open && (
                   <DynamicDocumentEditor
                     initialMarkdown=""
@@ -344,7 +344,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium">Description</label>
-            <div className="min-h-[200px] border border-border">
+            <div className="min-h-[200px] max-h-[50vh] overflow-y-auto border border-border">
               <DynamicDocumentEditor
                 initialMarkdown={task.description || ""}
                 onSave={(md: string) => { setDescription(md); setDirty(true); }}
