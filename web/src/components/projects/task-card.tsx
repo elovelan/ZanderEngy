@@ -7,6 +7,7 @@ import { CopyTaskSlug } from '@/components/projects/copy-task-slug';
 import { TaskQuickActions } from '@/components/projects/task-quick-actions';
 import { cn } from '@/lib/utils';
 import { RiCheckboxLine, RiCheckboxBlankLine } from '@remixicon/react';
+import type { TaskSkills } from '@/components/projects/types';
 
 interface TaskCardProps {
   task: { id: number; title: string; status: string; type: string };
@@ -14,6 +15,7 @@ interface TaskCardProps {
   projectDir?: string | null;
   planSlugs?: string[];
   repos?: string[];
+  skills?: TaskSkills;
   onClick?: () => void;
   showCheckbox?: boolean;
   onCheckboxChange?: (done: boolean) => void;
@@ -27,6 +29,7 @@ export function TaskCard({
   projectDir,
   planSlugs,
   repos,
+  skills,
   onClick,
   showCheckbox = false,
   onCheckboxChange,
@@ -75,6 +78,7 @@ export function TaskCard({
         projectDir={projectDir}
         planSlugs={planSlugs}
         repos={repos}
+        skills={skills}
       />
       <span className={cn('flex-1 truncate', showCheckbox && isDone && 'line-through')}>
         {task.title}

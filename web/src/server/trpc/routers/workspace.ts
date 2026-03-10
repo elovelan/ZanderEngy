@@ -15,6 +15,9 @@ import {
 import { dispatchValidation } from '../../ws/server';
 import type { AppState } from '../context';
 
+const DEFAULT_PLAN_SKILL = '/engy:planning';
+const DEFAULT_IMPLEMENT_SKILL = '/engy:implement-plan';
+
 function broadcastWorkspacesSync(state: AppState): void {
   if (!state.daemon || state.daemon.readyState !== 1) return;
 
@@ -41,6 +44,8 @@ export const workspaceRouter = router({
         name: z.string().min(1, 'Name is required'),
         repos: z.array(z.string()).default([]),
         docsDir: z.string().optional(),
+        planSkill: z.string().optional(),
+        implementSkill: z.string().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -79,12 +84,17 @@ export const workspaceRouter = router({
           slug,
           repos: input.repos,
           docsDir: input.docsDir ?? null,
+          planSkill: input.planSkill || DEFAULT_PLAN_SKILL,
+          implementSkill: input.implementSkill || DEFAULT_IMPLEMENT_SKILL,
         })
         .returning()
         .get();
 
       try {
-        initWorkspaceDir(input.name, slug, input.repos, input.docsDir);
+        initWorkspaceDir(input.name, slug, input.repos, input.docsDir, {
+          planSkill: workspace.planSkill,
+          implementSkill: workspace.implementSkill,
+        });
       } catch (err) {
         db.delete(workspaces).where(eq(workspaces.id, workspace.id)).run();
         throw new TRPCError({
@@ -124,6 +134,8 @@ export const workspaceRouter = router({
         slug: z.string().min(1).optional(),
         repos: z.array(z.string()).optional(),
         docsDir: z.string().nullable().optional(),
+        planSkill: z.string().nullable().optional(),
+        implementSkill: z.string().nullable().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -135,6 +147,9 @@ export const workspaceRouter = router({
 
       const newRepos = input.repos ?? (existing.repos as string[]) ?? [];
       const newDocsDir = input.docsDir !== undefined ? input.docsDir : existing.docsDir;
+      const newPlanSkill = input.planSkill !== undefined ? input.planSkill : existing.planSkill;
+      const newImplementSkill =
+        input.implementSkill !== undefined ? input.implementSkill : existing.implementSkill;
       const newName = input.name ?? existing.name;
       const newSlug = input.slug ?? existing.slug;
 
@@ -179,7 +194,14 @@ export const workspaceRouter = router({
 
       const updated = db
         .update(workspaces)
-        .set({ name: newName, slug: newSlug, repos: newRepos, docsDir: newDocsDir })
+        .set({
+          name: newName,
+          slug: newSlug,
+          repos: newRepos,
+          docsDir: newDocsDir,
+          planSkill: newPlanSkill,
+          implementSkill: newImplementSkill,
+        })
         .where(eq(workspaces.id, input.id))
         .returning()
         .get();
@@ -201,7 +223,10 @@ export const workspaceRouter = router({
       }
 
       const dir = getWorkspaceDir(updated);
-      writeWorkspaceYaml(dir, updated.name, updated.slug, newRepos, updated.docsDir);
+      writeWorkspaceYaml(dir, updated.name, updated.slug, newRepos, updated.docsDir, {
+        planSkill: updated.planSkill,
+        implementSkill: updated.implementSkill,
+      });
 
       broadcastWorkspacesSync(ctx.state);
 

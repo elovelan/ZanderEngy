@@ -22,6 +22,8 @@ interface EditWorkspaceDialogProps {
     slug: string;
     repos: string[] | null;
     docsDir: string | null;
+    planSkill: string | null;
+    implementSkill: string | null;
   };
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -43,6 +45,8 @@ export function EditWorkspaceDialog({
   const [slugTouched, setSlugTouched] = useState(false);
   const [docsDir, setDocsDir] = useState(workspace.docsDir ?? "");
   const [repos, setRepos] = useState<string[]>(initialRepos(workspace.repos));
+  const [planSkill, setPlanSkill] = useState(workspace.planSkill ?? "");
+  const [implementSkill, setImplementSkill] = useState(workspace.implementSkill ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const updateMutation = trpc.workspace.update.useMutation({
@@ -81,6 +85,8 @@ export function EditWorkspaceDialog({
       slug: slug !== workspace.slug ? slug : undefined,
       repos: filteredRepos,
       docsDir: trimmedDocsDir || null,
+      planSkill: planSkill.trim() || null,
+      implementSkill: implementSkill.trim() || null,
     });
   }
 
@@ -106,6 +112,8 @@ export function EditWorkspaceDialog({
       setSlugTouched(false);
       setDocsDir(workspace.docsDir ?? "");
       setRepos(initialRepos(workspace.repos));
+      setPlanSkill(workspace.planSkill ?? "");
+      setImplementSkill(workspace.implementSkill ?? "");
       setError(null);
     }
     onOpenChange(val);
@@ -190,6 +198,24 @@ export function EditWorkspaceDialog({
                 <RiAddLine data-icon="inline-start" />
                 Add path
               </Button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>Task skills</Label>
+              <p className="text-xs text-muted-foreground">
+                Slash commands invoked by the Plan/Implement buttons.
+              </p>
+              <Input
+                aria-label="Plan skill"
+                value={planSkill}
+                onChange={(e) => setPlanSkill(e.target.value)}
+                placeholder="/engy:planning (plan)"
+              />
+              <Input
+                aria-label="Implement skill"
+                value={implementSkill}
+                onChange={(e) => setImplementSkill(e.target.value)}
+                placeholder="/engy:implement-plan (implement)"
+              />
             </div>
             {error && <p className="text-xs text-destructive">{error}</p>}
           </div>

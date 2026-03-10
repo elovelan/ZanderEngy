@@ -2,6 +2,7 @@
 
 import { TaskCard } from "@/components/projects/task-card";
 import { taskStatusOptions } from "@/components/projects/task-status-badge";
+import type { TaskSkills } from "@/components/projects/types";
 
 type Task = {
   id: number;
@@ -29,12 +30,14 @@ export function KanbanBoard({
   workspaceSlug,
   projectDir,
   planSlugs,
+  skills,
   onTaskClick,
 }: {
   tasks: Task[];
   workspaceSlug: string;
   projectDir?: string | null;
   planSlugs?: string[];
+  skills?: TaskSkills;
   onTaskClick?: (taskId: number) => void;
 }) {
   return (
@@ -61,6 +64,7 @@ export function KanbanBoard({
                   workspaceSlug={workspaceSlug}
                   projectDir={projectDir}
                   planSlugs={planSlugs}
+                  skills={skills}
                   onClick={() => onTaskClick?.(task.id)}
                   className="rounded-none border border-border"
                 />

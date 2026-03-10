@@ -10,6 +10,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSendToTerminal } from '@/components/terminal/use-send-to-terminal';
+import type { TaskSkills } from '@/components/projects/types';
+
+const DEFAULT_PLAN_SKILL = '/engy:planning';
+const DEFAULT_IMPLEMENT_SKILL = '/engy:implement-plan';
 
 function shellEscape(s: string): string {
   return s.replace(/'/g, "'\\''");
@@ -21,6 +25,7 @@ interface TaskQuickActionsProps {
   projectDir?: string | null;
   planSlugs?: string[];
   repos?: string[];
+  skills?: TaskSkills;
 }
 
 export function TaskQuickActions({
@@ -29,6 +34,7 @@ export function TaskQuickActions({
   projectDir,
   planSlugs,
   repos = [],
+  skills,
 }: TaskQuickActionsProps) {
   const { openNewTerminal } = useSendToTerminal();
   const taskSlug = `${workspaceSlug}-T${taskId}`;
@@ -41,10 +47,13 @@ export function TaskQuickActions({
   ];
   const addDirFlags = additionalDirs.map((d) => ` --add-dir '${shellEscape(d)}'`).join('');
 
+  const planSkill = skills?.plan || DEFAULT_PLAN_SKILL;
+  const implementSkill = skills?.implement || DEFAULT_IMPLEMENT_SKILL;
+
   function handlePlan() {
     if (!workingDir || !projectDir) return;
     const escapedDir = shellEscape(projectDir);
-    const prompt = `Use /engy:planning to plan ${taskSlug}, output plan to ${escapedDir}/plans/${taskSlug}.plan.md`;
+    const prompt = `Use ${planSkill} to plan ${taskSlug}, output plan to ${escapedDir}/plans/${taskSlug}.plan.md`;
     openNewTerminal({
       scopeType: 'project',
       scopeLabel: `plan: ${taskSlug}`,
@@ -56,7 +65,7 @@ export function TaskQuickActions({
   function handleImplement() {
     if (!workingDir || !projectDir) return;
     const escapedDir = shellEscape(projectDir);
-    const prompt = `Use /engy:implement-plan for ${taskSlug}, plan at ${escapedDir}/plans/${taskSlug}.plan.md`;
+    const prompt = `Use ${implementSkill} for ${taskSlug}, plan at ${escapedDir}/plans/${taskSlug}.plan.md`;
     openNewTerminal({
       scopeType: 'project',
       scopeLabel: `impl: ${taskSlug}`,

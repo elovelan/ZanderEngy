@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { TaskCard } from "@/components/projects/task-card";
+import type { TaskSkills } from "@/components/projects/types";
 
 type Task = {
   id: number;
@@ -75,6 +76,7 @@ export function DependencyGraph({
   projectDir,
   planSlugs,
   repos,
+  skills,
   onTaskClick,
 }: {
   tasks: Task[];
@@ -82,6 +84,7 @@ export function DependencyGraph({
   projectDir?: string | null;
   planSlugs?: string[];
   repos?: string[];
+  skills?: TaskSkills;
   onTaskClick?: (taskId: number) => void;
 }) {
   const { layers, taskMap } = useMemo(() => topoSort(tasks), [tasks]);
@@ -177,6 +180,7 @@ export function DependencyGraph({
                   projectDir={projectDir}
                   planSlugs={planSlugs}
                   repos={repos}
+                  skills={skills}
                   onClick={() => onTaskClick?.(taskId)}
                   borderClass={statusNodeColors[task.status]}
                   className={groupColorMap.get(task.taskGroupId)}

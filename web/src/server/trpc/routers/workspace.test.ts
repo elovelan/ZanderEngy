@@ -76,6 +76,20 @@ describe('workspace router', () => {
       expect(ws.docsDir).toBeNull();
     });
 
+    it('should populate default skills on creation', async () => {
+      const ws = await caller.workspace.create({ name: 'Default Skills' });
+      expect(ws.planSkill).toBe('/engy:planning');
+      expect(ws.implementSkill).toBe('/engy:implement-plan');
+    });
+
+    it('should include skills in workspace.yaml on creation', async () => {
+      const ws = await caller.workspace.create({ name: 'Skills Yaml' });
+      const yamlPath = path.join(ctx.tmpDir, ws.slug, 'workspace.yaml');
+      const parsed = yaml.load(fs.readFileSync(yamlPath, 'utf-8')) as Record<string, unknown>;
+      expect(parsed.planSkill).toBe('/engy:planning');
+      expect(parsed.implementSkill).toBe('/engy:implement-plan');
+    });
+
     it('should write workspace.yaml using js-yaml', async () => {
       const ws = await caller.workspace.create({ name: 'YAML Check' });
       const yamlPath = path.join(ctx.tmpDir, ws.slug, 'workspace.yaml');
@@ -240,6 +254,41 @@ describe('workspace router', () => {
       const ws = await caller.workspace.create({ name: 'Same Slug' });
       const updated = await caller.workspace.update({ id: ws.id, slug: ws.slug });
       expect(updated.slug).toBe(ws.slug);
+    });
+
+    it('should update planSkill and implementSkill', async () => {
+      const ws = await caller.workspace.create({ name: 'Skill Update' });
+      const updated = await caller.workspace.update({
+        id: ws.id,
+        planSkill: '/custom:plan',
+        implementSkill: '/custom:implement',
+      });
+      expect(updated.planSkill).toBe('/custom:plan');
+      expect(updated.implementSkill).toBe('/custom:implement');
+    });
+
+    it('should clear skills when set to null', async () => {
+      const ws = await caller.workspace.create({ name: 'Skill Clear' });
+      await caller.workspace.update({
+        id: ws.id,
+        planSkill: '/custom:plan',
+        implementSkill: '/custom:implement',
+      });
+      const cleared = await caller.workspace.update({
+        id: ws.id,
+        planSkill: null,
+        implementSkill: null,
+      });
+      expect(cleared.planSkill).toBeNull();
+      expect(cleared.implementSkill).toBeNull();
+    });
+
+    it('should preserve skills when not included in update', async () => {
+      const ws = await caller.workspace.create({ name: 'Skill Preserve' });
+      expect(ws.planSkill).toBe('/engy:planning');
+      const updated = await caller.workspace.update({ id: ws.id, name: 'Renamed' });
+      expect(updated.planSkill).toBe('/engy:planning');
+      expect(updated.implementSkill).toBe('/engy:implement-plan');
     });
 
     it('should rollback slug in DB if directory rename fails', async () => {
