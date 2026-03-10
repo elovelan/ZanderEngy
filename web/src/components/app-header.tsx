@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -59,6 +59,11 @@ function useBreadcrumbs(): BreadcrumbEntry[] {
 
 export function AppHeader() {
   const crumbs = useBreadcrumbs();
+
+  useEffect(() => {
+    document.title =
+      crumbs.length > 0 ? `engy:${crumbs.map((c) => c.label).join(':')}` : 'engy';
+  }, [crumbs]);
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
