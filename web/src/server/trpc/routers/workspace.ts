@@ -12,6 +12,7 @@ import {
   writeWorkspaceYaml,
   getWorkspaceDir,
 } from '../../engy-dir/init';
+import { ensureGitRepo } from '../../engy-dir/git';
 import { initProjectDir } from '../../project/service';
 import { dispatchValidation } from '../../ws/server';
 import type { AppState } from '../context';
@@ -122,6 +123,13 @@ export const workspaceRouter = router({
           code: 'INTERNAL_SERVER_ERROR',
           message: `Failed to create default project: ${(err as Error).message}`,
         });
+      }
+
+      try {
+        const wsDir = getWorkspaceDir(workspace);
+        await ensureGitRepo(wsDir);
+      } catch (err) {
+        console.warn(`[workspace] Git init failed for ${slug}:`, err);
       }
 
       broadcastWorkspacesSync(ctx.state);
