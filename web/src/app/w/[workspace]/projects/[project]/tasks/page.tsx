@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -11,6 +11,7 @@ import { EisenhowerMatrix } from "@/components/projects/task-views/eisenhower-ma
 import { useOnFileChange } from "@/contexts/file-change-context";
 import { TaskDialog } from "@/components/projects/task-dialog";
 import { TaskGroupForm } from "@/components/projects/task-group-form";
+import { TaskFilter, applyTaskFilters, type TaskFilters } from "@/components/projects/task-filter";
 import { Button } from "@/components/ui/button";
 import { RiAddLine } from "@remixicon/react";
 
@@ -36,6 +37,25 @@ export default function ProjectTasksPage() {
   const { data: milestones } = trpc.milestone.list.useQuery(
     { projectId: project?.id ?? 0 },
     { enabled: !!project },
+  );
+  const { data: taskGroups } = trpc.taskGroup.list.useQuery({});
+
+  const filters: TaskFilters = useMemo(() => {
+    const status = searchParams.get("status")?.split(",").filter(Boolean) ?? [];
+    const type = searchParams.get("type")?.split(",").filter(Boolean) ?? [];
+    const groupId =
+      searchParams
+        .get("group")
+        ?.split(",")
+        .filter(Boolean)
+        .map(Number)
+        .filter(Number.isFinite) ?? [];
+    return { status, type, groupId };
+  }, [searchParams]);
+
+  const filteredTasks = useMemo(
+    () => applyTaskFilters(tasks ?? [], filters),
+    [tasks, filters],
   );
 
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
@@ -88,13 +108,27 @@ export default function ProjectTasksPage() {
     ),
   );
 
-  function handleViewChange(view: TaskView) {
+  const basePath = `/w/${params.workspace}/projects/${params.project}/tasks`;
+
+  function replaceParams(updater: (p: URLSearchParams) => void) {
     const p = new URLSearchParams(searchParams.toString());
-    p.set("view", view);
-    router.replace(
-      `/w/${params.workspace}/projects/${params.project}/tasks?${p.toString()}`,
-      { scroll: false },
-    );
+    updater(p);
+    router.replace(`${basePath}?${p.toString()}`, { scroll: false });
+  }
+
+  function handleViewChange(view: TaskView) {
+    replaceParams((p) => p.set("view", view));
+  }
+
+  function handleFilterChange(next: TaskFilters) {
+    replaceParams((p) => {
+      if (next.status.length > 0) p.set("status", next.status.join(","));
+      else p.delete("status");
+      if (next.type.length > 0) p.set("type", next.type.join(","));
+      else p.delete("type");
+      if (next.groupId.length > 0) p.set("group", next.groupId.join(","));
+      else p.delete("group");
+    });
   }
 
   if (!workspace || !project) return null;
@@ -102,7 +136,14 @@ export default function ProjectTasksPage() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 py-6">
       <div className="flex items-center justify-between">
-        <ViewToggle value={currentView} onChange={handleViewChange} />
+        <div className="flex items-center gap-2">
+          <ViewToggle value={currentView} onChange={handleViewChange} />
+          <TaskFilter
+            value={filters}
+            onChange={handleFilterChange}
+            groups={taskGroups ?? []}
+          />
+        </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setShowNewGroup(true)}>
             <RiAddLine data-icon="inline-start" />
@@ -116,15 +157,15 @@ export default function ProjectTasksPage() {
       </div>
 
       {currentView === "graph" && (
-        <DependencyGraph tasks={tasks ?? []} onTaskClick={setSelectedTaskId} />
+        <DependencyGraph tasks={filteredTasks} onTaskClick={setSelectedTaskId} />
       )}
 
       {currentView === "kanban" && (
-        <KanbanBoard tasks={tasks ?? []} onTaskClick={setSelectedTaskId} />
+        <KanbanBoard tasks={filteredTasks} onTaskClick={setSelectedTaskId} />
       )}
 
       {currentView === "eisenhower" && (
-        <EisenhowerMatrix tasks={tasks ?? []} onTaskClick={setSelectedTaskId} />
+        <EisenhowerMatrix tasks={filteredTasks} onTaskClick={setSelectedTaskId} />
       )}
 
       {selectedTaskId !== null && (
