@@ -1,4 +1,5 @@
 import type WebSocket from 'ws';
+import type { GitFileStatus } from '@engy/common';
 
 export interface FileChangeEvent {
   workspaceSlug: string;
@@ -12,6 +13,24 @@ export interface TerminalSessionMeta {
   scopeLabel: string;
   workingDir: string;
   command?: string;
+}
+
+export interface GitStatusResult {
+  files: Array<{ path: string; status: GitFileStatus; staged: boolean }>;
+  branch: string;
+}
+
+export interface GitLogResult {
+  commits: Array<{ hash: string; message: string; author: string; date: string }>;
+}
+
+export interface GitShowResult {
+  diff: string;
+  files: Array<{ path: string; status: GitFileStatus }>;
+}
+
+export interface GitBranchFilesResult {
+  files: Array<{ path: string; status: GitFileStatus }>;
 }
 
 export interface AppState {
@@ -28,6 +47,41 @@ export interface AppState {
     string,
     {
       resolve: (results: Array<{ label: string; path: string }>) => void;
+      reject: (reason: Error) => void;
+    }
+  >;
+  pendingGitStatus: Map<
+    string,
+    {
+      resolve: (result: GitStatusResult) => void;
+      reject: (reason: Error) => void;
+    }
+  >;
+  pendingGitDiff: Map<
+    string,
+    {
+      resolve: (result: string) => void;
+      reject: (reason: Error) => void;
+    }
+  >;
+  pendingGitLog: Map<
+    string,
+    {
+      resolve: (result: GitLogResult) => void;
+      reject: (reason: Error) => void;
+    }
+  >;
+  pendingGitShow: Map<
+    string,
+    {
+      resolve: (result: GitShowResult) => void;
+      reject: (reason: Error) => void;
+    }
+  >;
+  pendingGitBranchFiles: Map<
+    string,
+    {
+      resolve: (result: GitBranchFilesResult) => void;
       reject: (reason: Error) => void;
     }
   >;
@@ -53,6 +107,11 @@ export function getAppState(): AppState {
       fileChanges: new Map(),
       pendingValidations: new Map(),
       pendingFileSearches: new Map(),
+      pendingGitStatus: new Map(),
+      pendingGitDiff: new Map(),
+      pendingGitLog: new Map(),
+      pendingGitShow: new Map(),
+      pendingGitBranchFiles: new Map(),
       specLastChanged: new Map(),
       specDebounceTimers: new Map(),
       terminalSessions: new Map(),

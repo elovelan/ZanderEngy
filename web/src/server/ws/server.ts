@@ -5,7 +5,7 @@ import type {
   ValidatePathsRequestMessage,
   SearchFilesRequestMessage,
 } from '@engy/common';
-import type { AppState, FileChangeEvent } from '../trpc/context';
+import type { AppState, FileChangeEvent, GitStatusResult, GitLogResult, GitShowResult, GitBranchFilesResult } from '../trpc/context';
 import { getDb } from '../db/client';
 import { workspaces } from '../db/schema';
 import { handleSpecFileChange } from '../spec/watcher';
@@ -13,6 +13,7 @@ import { handleSpecFileChange } from '../spec/watcher';
 const MAX_EVENTS_PER_WORKSPACE = 100;
 const VALIDATION_TIMEOUT_MS = 5_000;
 const FILE_SEARCH_TIMEOUT_MS = 10_000;
+const GIT_TIMEOUT_MS = 15_000;
 
 export function createWebSocketServer(state: AppState): WebSocketServer {
   const wss = new WebSocketServer({ noServer: true });
@@ -32,19 +33,32 @@ export function createWebSocketServer(state: AppState): WebSocketServer {
     ws.on('close', () => {
       if (state.daemon === ws) {
         state.daemon = null;
-        for (const [id, pending] of state.pendingValidations) {
-          state.pendingValidations.delete(id);
-          pending.reject(new Error('Daemon disconnected'));
-        }
-        for (const [id, pending] of state.pendingFileSearches) {
-          state.pendingFileSearches.delete(id);
-          pending.reject(new Error('Daemon disconnected'));
-        }
+        rejectAllPending(state);
       }
     });
   });
 
   return wss;
+}
+
+function rejectAllPending(state: AppState): void {
+  const pendingMaps = [
+    state.pendingValidations,
+    state.pendingFileSearches,
+    state.pendingGitStatus,
+    state.pendingGitDiff,
+    state.pendingGitLog,
+    state.pendingGitShow,
+    state.pendingGitBranchFiles,
+  ] as const;
+
+  const error = new Error('Daemon disconnected');
+  for (const map of pendingMaps) {
+    for (const [id, pending] of map) {
+      map.delete(id);
+      pending.reject(error);
+    }
+  }
 }
 
 function handleMessage(ws: WebSocket, msg: ClientToServerMessage, state: AppState): void {
@@ -60,6 +74,31 @@ function handleMessage(ws: WebSocket, msg: ClientToServerMessage, state: AppStat
       break;
     case 'FILE_CHANGE':
       handleFileChange(msg, state);
+      break;
+    case 'GIT_STATUS_RESPONSE':
+      resolveGitResponse(msg.payload, state.pendingGitStatus, (p) => ({
+        files: p.files,
+        branch: p.branch,
+      }));
+      break;
+    case 'GIT_DIFF_RESPONSE':
+      resolveGitResponse(msg.payload, state.pendingGitDiff, (p) => p.diff);
+      break;
+    case 'GIT_LOG_RESPONSE':
+      resolveGitResponse(msg.payload, state.pendingGitLog, (p) => ({
+        commits: p.commits,
+      }));
+      break;
+    case 'GIT_SHOW_RESPONSE':
+      resolveGitResponse(msg.payload, state.pendingGitShow, (p) => ({
+        diff: p.diff,
+        files: p.files,
+      }));
+      break;
+    case 'GIT_BRANCH_FILES_RESPONSE':
+      resolveGitResponse(msg.payload, state.pendingGitBranchFiles, (p) => ({
+        files: p.files,
+      }));
       break;
   }
 }
@@ -220,4 +259,100 @@ export function dispatchValidation(
 
     state.daemon.send(JSON.stringify(message));
   });
+}
+
+// ── Git response handler ────────────────────────────────────────────────────
+
+function resolveGitResponse<T>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  payload: any,
+  pendingMap: Map<string, { resolve: (result: T) => void; reject: (reason: Error) => void }>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extract: (payload: any) => T,
+): void {
+  const pending = pendingMap.get(payload.requestId);
+  if (!pending) return;
+  pendingMap.delete(payload.requestId);
+  if (payload.error) {
+    pending.reject(new Error(payload.error));
+  } else {
+    pending.resolve(extract(payload));
+  }
+}
+
+// ── Git dispatch functions ──────────────────────────────────────────────────
+
+function dispatchGitOp<T>(
+  state: AppState,
+  pendingMap: Map<string, { resolve: (result: T) => void; reject: (reason: Error) => void }>,
+  messageType: string,
+  payload: Record<string, unknown>,
+  timeoutMs: number = GIT_TIMEOUT_MS,
+): Promise<T> {
+  return new Promise((resolve, reject) => {
+    if (!state.daemon || state.daemon.readyState !== state.daemon.OPEN) {
+      reject(new Error('No daemon connected'));
+      return;
+    }
+
+    const requestId = randomUUID();
+
+    const timeout = setTimeout(() => {
+      pendingMap.delete(requestId);
+      reject(new Error(`Git operation timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    pendingMap.set(requestId, {
+      resolve: (result) => {
+        clearTimeout(timeout);
+        resolve(result);
+      },
+      reject: (reason) => {
+        clearTimeout(timeout);
+        reject(reason);
+      },
+    });
+
+    state.daemon.send(JSON.stringify({ type: messageType, payload: { requestId, ...payload } }));
+  });
+}
+
+export function dispatchGitStatus(
+  repoDir: string,
+  state: AppState,
+): Promise<GitStatusResult> {
+  return dispatchGitOp(state, state.pendingGitStatus, 'GIT_STATUS_REQUEST', { repoDir });
+}
+
+export function dispatchGitDiff(
+  repoDir: string,
+  filePath: string,
+  state: AppState,
+  base?: string,
+): Promise<string> {
+  return dispatchGitOp(state, state.pendingGitDiff, 'GIT_DIFF_REQUEST', { repoDir, filePath, base });
+}
+
+export function dispatchGitLog(
+  repoDir: string,
+  state: AppState,
+  maxCount?: number,
+): Promise<GitLogResult> {
+  return dispatchGitOp(state, state.pendingGitLog, 'GIT_LOG_REQUEST', { repoDir, maxCount });
+}
+
+export function dispatchGitShow(
+  repoDir: string,
+  commitHash: string,
+  state: AppState,
+): Promise<GitShowResult> {
+  return dispatchGitOp(state, state.pendingGitShow, 'GIT_SHOW_REQUEST', { repoDir, commitHash });
+}
+
+export function dispatchGitBranchFiles(
+  repoDir: string,
+  base: string,
+  state: AppState,
+): Promise<GitBranchFilesResult> {
+  return dispatchGitOp(state, state.pendingGitBranchFiles, 'GIT_BRANCH_FILES_REQUEST', { repoDir, base });
 }

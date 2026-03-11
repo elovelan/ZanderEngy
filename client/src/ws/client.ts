@@ -8,8 +8,14 @@ import type {
   WorkspacesSyncMessage,
   ValidatePathsRequestMessage,
   SearchFilesRequestMessage,
+  GitStatusRequestMessage,
+  GitDiffRequestMessage,
+  GitLogRequestMessage,
+  GitShowRequestMessage,
+  GitBranchFilesRequestMessage,
   TerminalRelayCommand,
 } from '@engy/common';
+import { getStatusDetailed, getDiff, getLog, getShow, getBranchFiles } from '../git/index.js';
 import type { TerminalManager } from '../terminal/manager.js';
 
 const execFileAsync = promisify(execFile);
@@ -302,6 +308,21 @@ export class WsClient {
       case 'SEARCH_FILES_REQUEST':
         this.handleSearchFilesRequest(message as SearchFilesRequestMessage);
         break;
+      case 'GIT_STATUS_REQUEST':
+        this.handleGitStatusRequest(message as GitStatusRequestMessage);
+        break;
+      case 'GIT_DIFF_REQUEST':
+        this.handleGitDiffRequest(message as GitDiffRequestMessage);
+        break;
+      case 'GIT_LOG_REQUEST':
+        this.handleGitLogRequest(message as GitLogRequestMessage);
+        break;
+      case 'GIT_SHOW_REQUEST':
+        this.handleGitShowRequest(message as GitShowRequestMessage);
+        break;
+      case 'GIT_BRANCH_FILES_REQUEST':
+        this.handleGitBranchFilesRequest(message as GitBranchFilesRequestMessage);
+        break;
     }
   }
 
@@ -356,6 +377,86 @@ export class WsClient {
       type: 'SEARCH_FILES_RESPONSE',
       payload: { requestId, results },
     });
+  }
+
+  private async handleGitStatusRequest(message: GitStatusRequestMessage): Promise<void> {
+    const { requestId, repoDir } = message.payload;
+    try {
+      const result = await getStatusDetailed(repoDir);
+      this.send({
+        type: 'GIT_STATUS_RESPONSE',
+        payload: { requestId, files: result.files, branch: result.branch },
+      });
+    } catch (err) {
+      this.send({
+        type: 'GIT_STATUS_RESPONSE',
+        payload: { requestId, error: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  }
+
+  private async handleGitDiffRequest(message: GitDiffRequestMessage): Promise<void> {
+    const { requestId, repoDir, filePath, base } = message.payload;
+    try {
+      const diff = await getDiff(repoDir, filePath, base);
+      this.send({
+        type: 'GIT_DIFF_RESPONSE',
+        payload: { requestId, diff },
+      });
+    } catch (err) {
+      this.send({
+        type: 'GIT_DIFF_RESPONSE',
+        payload: { requestId, error: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  }
+
+  private async handleGitLogRequest(message: GitLogRequestMessage): Promise<void> {
+    const { requestId, repoDir, maxCount } = message.payload;
+    try {
+      const commits = await getLog(repoDir, maxCount);
+      this.send({
+        type: 'GIT_LOG_RESPONSE',
+        payload: { requestId, commits },
+      });
+    } catch (err) {
+      this.send({
+        type: 'GIT_LOG_RESPONSE',
+        payload: { requestId, error: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  }
+
+  private async handleGitShowRequest(message: GitShowRequestMessage): Promise<void> {
+    const { requestId, repoDir, commitHash } = message.payload;
+    try {
+      const result = await getShow(repoDir, commitHash);
+      this.send({
+        type: 'GIT_SHOW_RESPONSE',
+        payload: { requestId, diff: result.diff, files: result.files },
+      });
+    } catch (err) {
+      this.send({
+        type: 'GIT_SHOW_RESPONSE',
+        payload: { requestId, error: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  }
+
+  private async handleGitBranchFilesRequest(message: GitBranchFilesRequestMessage): Promise<void> {
+    const { requestId, repoDir, base } = message.payload;
+    try {
+      const files = await getBranchFiles(repoDir, base);
+      this.send({
+        type: 'GIT_BRANCH_FILES_RESPONSE',
+        payload: { requestId, files },
+      });
+    } catch (err) {
+      this.send({
+        type: 'GIT_BRANCH_FILES_RESPONSE',
+        payload: { requestId, error: err instanceof Error ? err.message : String(err) },
+      });
+    }
   }
 
   private scheduleReconnect(): void {

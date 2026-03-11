@@ -12,7 +12,7 @@ const tabs = [
   { label: "Docs", segment: "docs", disabled: false },
   { label: "Tasks", segment: "tasks", disabled: false },
   { label: "Claude Plans", segment: "claude-plans", disabled: false },
-  { label: "Diffs", segment: "diffs", disabled: true, hint: "Available in M6" },
+  { label: "Diffs", segment: "diffs", disabled: false },
   { label: "PRs", segment: "prs", disabled: true, hint: "Available in M12" },
 ] as const;
 

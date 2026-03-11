@@ -63,6 +63,112 @@ export interface FileChangeMessage {
   };
 }
 
+// ── Git operations (server ↔ daemon) ────────────────────────────────────────
+
+export type GitFileStatus = 'added' | 'modified' | 'deleted' | 'renamed';
+
+export interface GitStatusRequestMessage {
+  type: 'GIT_STATUS_REQUEST';
+  payload: {
+    requestId: string;
+    repoDir: string;
+  };
+}
+
+export interface GitStatusResponseMessage {
+  type: 'GIT_STATUS_RESPONSE';
+  payload: {
+    requestId: string;
+    files: Array<{ path: string; status: GitFileStatus; staged: boolean }>;
+    branch: string;
+  } | {
+    requestId: string;
+    error: string;
+  };
+}
+
+export interface GitDiffRequestMessage {
+  type: 'GIT_DIFF_REQUEST';
+  payload: {
+    requestId: string;
+    repoDir: string;
+    filePath: string;
+    base?: string;
+  };
+}
+
+export interface GitDiffResponseMessage {
+  type: 'GIT_DIFF_RESPONSE';
+  payload: {
+    requestId: string;
+    diff: string;
+  } | {
+    requestId: string;
+    error: string;
+  };
+}
+
+export interface GitLogRequestMessage {
+  type: 'GIT_LOG_REQUEST';
+  payload: {
+    requestId: string;
+    repoDir: string;
+    maxCount?: number;
+  };
+}
+
+export interface GitLogResponseMessage {
+  type: 'GIT_LOG_RESPONSE';
+  payload: {
+    requestId: string;
+    commits: Array<{ hash: string; message: string; author: string; date: string }>;
+  } | {
+    requestId: string;
+    error: string;
+  };
+}
+
+export interface GitShowRequestMessage {
+  type: 'GIT_SHOW_REQUEST';
+  payload: {
+    requestId: string;
+    repoDir: string;
+    commitHash: string;
+  };
+}
+
+export interface GitShowResponseMessage {
+  type: 'GIT_SHOW_RESPONSE';
+  payload: {
+    requestId: string;
+    diff: string;
+    files: Array<{ path: string; status: GitFileStatus }>;
+  } | {
+    requestId: string;
+    error: string;
+  };
+}
+
+export interface GitBranchFilesRequestMessage {
+  type: 'GIT_BRANCH_FILES_REQUEST';
+  payload: {
+    requestId: string;
+    repoDir: string;
+    base: string;
+  };
+}
+
+export interface GitBranchFilesResponseMessage {
+  type: 'GIT_BRANCH_FILES_RESPONSE';
+  payload: {
+    requestId: string;
+    files: Array<{ path: string; status: GitFileStatus }>;
+  } | {
+    requestId: string;
+    error: string;
+  };
+}
+
 export type WsMessage =
   | RegisterMessage
   | WorkspacesSyncMessage
@@ -70,18 +176,38 @@ export type WsMessage =
   | ValidatePathsResponseMessage
   | SearchFilesRequestMessage
   | SearchFilesResponseMessage
-  | FileChangeMessage;
+  | FileChangeMessage
+  | GitStatusRequestMessage
+  | GitStatusResponseMessage
+  | GitDiffRequestMessage
+  | GitDiffResponseMessage
+  | GitLogRequestMessage
+  | GitLogResponseMessage
+  | GitShowRequestMessage
+  | GitShowResponseMessage
+  | GitBranchFilesRequestMessage
+  | GitBranchFilesResponseMessage;
 
 export type ClientToServerMessage =
   | RegisterMessage
   | ValidatePathsResponseMessage
   | SearchFilesResponseMessage
-  | FileChangeMessage;
+  | FileChangeMessage
+  | GitStatusResponseMessage
+  | GitDiffResponseMessage
+  | GitLogResponseMessage
+  | GitShowResponseMessage
+  | GitBranchFilesResponseMessage;
 
 export type ServerToClientMessage =
   | WorkspacesSyncMessage
   | ValidatePathsRequestMessage
-  | SearchFilesRequestMessage;
+  | SearchFilesRequestMessage
+  | GitStatusRequestMessage
+  | GitDiffRequestMessage
+  | GitLogRequestMessage
+  | GitShowRequestMessage
+  | GitBranchFilesRequestMessage;
 
 // ── Compact terminal relay types (server ↔ daemon) ──────────────────────────
 

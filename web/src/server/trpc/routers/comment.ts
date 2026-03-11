@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { eq, and, asc, isNull } from 'drizzle-orm';
+import { eq, and, asc, isNull, like } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import { getDb } from '../../db/client';
@@ -27,6 +27,21 @@ function getThreadWithComments(threadId: string) {
     .orderBy(asc(threadComments.createdAt))
     .all();
   return { ...thread, comments };
+}
+
+function loadThreadsWithComments<T extends { id: string }>(threads: T[]) {
+  const db = getDb();
+  return threads
+    .map((thread) => {
+      const cmts = db
+        .select()
+        .from(threadComments)
+        .where(eq(threadComments.threadId, thread.id))
+        .orderBy(asc(threadComments.createdAt))
+        .all();
+      return { ...thread, comments: cmts };
+    })
+    .filter((thread) => thread.comments.length > 0);
 }
 
 const workspaceSlugField = z.string().optional();
@@ -274,16 +289,30 @@ export const commentRouter = router({
         .orderBy(asc(commentThreads.createdAt))
         .all();
 
-      return threads
-        .map((thread) => {
-          const cmts = db
-            .select()
-            .from(threadComments)
-            .where(eq(threadComments.threadId, thread.id))
-            .orderBy(asc(threadComments.createdAt))
-            .all();
-          return { ...thread, comments: cmts };
-        })
-        .filter((thread) => thread.comments.length > 0);
+      return loadThreadsWithComments(threads);
+    }),
+
+  listThreadsByPrefix: publicProcedure
+    .input(
+      z.object({
+        workspaceSlug: workspaceSlugField,
+        documentPathPrefix: z.string().min(1),
+      }),
+    )
+    .query(({ input }) => {
+      const db = getDb();
+
+      const workspaceCondition = input.workspaceSlug
+        ? eq(commentThreads.workspaceId, resolveWorkspace(input.workspaceSlug).id)
+        : isNull(commentThreads.workspaceId);
+
+      const threads = db
+        .select()
+        .from(commentThreads)
+        .where(and(workspaceCondition, like(commentThreads.documentPath, `${input.documentPathPrefix}%`)))
+        .orderBy(asc(commentThreads.createdAt))
+        .all();
+
+      return loadThreadsWithComments(threads);
     }),
 });
