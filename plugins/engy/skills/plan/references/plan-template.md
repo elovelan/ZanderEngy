@@ -25,6 +25,20 @@ accessibility, compatibility, data handling, error recovery.
 Step-by-step happy path. Include what the user sees/does at each step.
 Note where error/edge case handling branches off (don't detail every branch).
 
+## Test Scenarios
+
+Gherkin-format scenarios grouped by feature area. Each scenario references
+the FR(s) it validates.
+
+### {Feature Area}
+
+```gherkin
+Scenario: {descriptive name} (FR #{N})
+  Given {precondition}
+  When {action}
+  Then {expected outcome}
+```
+
 ## Out of Scope
 Explicit list of what this work does NOT include, to prevent scope creep.
 

@@ -138,6 +138,6 @@ Structure the output as:
 
 ## Flow Position
 
-**Previous:** `planner` | **Next:** `implement-plan`
+**Previous:** `plan` | **Next:** `implement` or `implement-milestone`
 
-When the plan passes validation (no high-severity issues remaining), proceed with `/engy:implement` to execute the plan with TDD and agent teams.
+When the plan passes validation (no high-severity issues remaining), proceed with `/engy:implement` for single-task work or `/engy:implement-milestone` for milestone-level implementation.

@@ -24,7 +24,7 @@ Use MCP to discover paths, then Read/Glob/Grep for spec content.
 2. Read `{specDir}/spec.md` and extract the existing milestone list.
 3. **Determine which milestone to plan:**
    - If the user specified a milestone, use that one.
-   - Otherwise, check for existing milestone plan docs (e.g., `{specDir}/../projects/*/m*-plan.md` or task groups via `listTaskGroups`). Find the **next unplanned milestone** in sequence.
+   - Otherwise, check for existing milestone plan docs via `Glob("{specPath}/m*-*.plan.md")` or task groups via `listTaskGroups`. Find the **next unplanned milestone** in sequence.
 4. Present the selected milestone and its scope to the user for confirmation before proceeding.
 
 **Do NOT create task groups or tasks yet.** Level 1 is purely about selecting and confirming which milestone to plan.
@@ -41,6 +41,8 @@ For the selected milestone:
 3. Within each group, define 1 or more tasks that together produce that deliverable. Follow the vertical slicing and granularity guidelines below.
 4. For each task, specify:
    - Title and description
+   - **Acceptance criteria in Gherkin format** (`Given/When/Then`) — derived from the plan's test scenarios or functional requirements. These are what the implementer tests against.
+   - **Feature references** — which FRs or plan scenarios this task implements (e.g., "Implements FR #5, #6" or "Covers Scenario: Get file diff")
    - Type (`ai` or `human`)
    - Importance and urgency (using the Eisenhower matrix)
    - Dependencies on other tasks (`blockedBy`)
@@ -83,8 +85,9 @@ Within each vertical slice, order subtasks as:
 Each task should be:
 - **Session-independent**: An agent starting fresh with only the codebase and task description should be able to complete it
 - **Explicit**: Reference specific files, functions, and patterns from the existing codebase
+- **Acceptance-tested**: Include Gherkin scenarios (Given/When/Then) that define done. These come from the plan doc's test scenarios or are derived from the FRs the task implements.
+- **Feature-traced**: Reference which FRs or plan scenarios this task covers, so nothing is missed and nothing is invented
 - **Verifiable**: Include what shell commands prove the task is done (e.g., `pnpm test`, `pnpm lint`)
-- **Clear on done state**: Describe what the codebase looks like when the task is complete
 
 ## Anti-Patterns to Flag
 
@@ -111,7 +114,7 @@ Use importance and urgency to classify tasks:
 
 ## Milestone Plan Document Template
 
-After the task breakdown is approved and created, produce a `m{N}-{slug}.plan.md` document in the project's docs directory following this structure:
+After the task breakdown is approved and created, produce a `m{N}-{slug}.plan.md` document at `{specPath}/m{N}-{slug}.plan.md` (where `specPath` is resolved from `getProjectDetails`). This is the canonical location where `/engy:implement` and `/engy:implement-milestone` look for plan docs.
 
 ```markdown
 ---
@@ -171,6 +174,6 @@ status: draft
 
 ## Flow Position
 
-**Previous:** `spec-author` | **Next:** `planner`
+**Previous:** `write-spec` | **Next:** `plan`
 
 When milestones and tasks are created and approved, proceed with `/engy:plan` to write a detailed implementation plan for the first milestone.

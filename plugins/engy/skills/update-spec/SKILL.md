@@ -127,6 +127,6 @@ After updating, provide:
 
 ## Flow Position
 
-**Previous:** `review` | **Next:** Back to `spec-author` for next milestone, or done
+**Previous:** `review` | **Next:** Back to `write-spec` for next milestone, or done
 
-When spec documents are updated, the cycle for this milestone is complete. For the next milestone, return to `/engy:spec-author` to update the SRS, or proceed to `/engy:milestone-planner` if the spec is already current.
+When spec documents are updated, the cycle for this milestone is complete. For the next milestone, return to `/engy:write-spec` to update the SRS, or proceed to `/engy:milestone-plan` if the spec is already current.

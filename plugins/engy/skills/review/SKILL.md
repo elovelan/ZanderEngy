@@ -93,6 +93,6 @@ Format the agent's output into the report below. Number all findings, sorted Cri
 
 ## Flow Position
 
-**Previous:** `implement-plan` | **Next:** `update-spec`
+**Previous:** `implement` | **Next:** `update-spec`
 
 When the code review is complete and all critical/high issues are resolved, proceed with `/engy:update-spec` to update the master spec with implementation status.

@@ -1,11 +1,11 @@
 ---
 name: engy:implement
-description: "Implements tasks, plans, or milestones with TDD, code review, and agent teams. Use when asked to 'implement', 'implement a task', 'implement a plan', 'execute a plan', 'work on task', 'start implementation', or 'implement milestone'."
+description: "Implements a single task or plan with TDD, code review, and optional agent teams. Use when asked to 'implement', 'implement a task', 'implement a plan', 'execute a plan', 'work on task', or 'start implementation'. For milestone-level work across multiple task groups, use /engy:implement-milestone instead."
 ---
 
 # Implementation Orchestrator
 
-Implement work from any entry point — a single task, a plan document, or an entire milestone. Gathers all relevant context (task details, plan docs, spec, milestone docs) before writing any code.
+Implement a single task or plan document. Gathers all relevant context (task details, plan docs, spec) before writing any code. For milestone-level orchestration across multiple task groups, use `/engy:implement-milestone`.
 
 ## MCP Tools
 
@@ -13,23 +13,21 @@ Implement work from any entry point — a single task, a plan document, or an en
 - `listTasks(projectId, milestoneRef, taskGroupId)` — find related tasks
 - `updateTask(id, status)` — mark tasks `in_progress` / `done`
 - `getProjectDetails(projectId)` — project paths (`specDir`, `projectDir`)
-- `listTaskGroups(milestoneRef)` — task groups for a milestone
-
 Use MCP to discover paths and task relationships, then Read/Glob/Grep for content.
-
-## Entry Points
-
-Determine what the user wants to implement:
 
 ### A. Single Task
 
 1. `getTask(id)` — read the task's title, description, `milestoneRef`, `specId`, `taskGroupId`, `specPath`.
-2. **Read all attached documents** (MANDATORY before writing any code):
-   - If `specPath` exists, read the spec/plan docs at that path. `specPath` may point to a directory — list its contents and read relevant files (e.g., `spec.md`, feature slices, plan docs).
-   - If `milestoneRef` exists, look for a milestone plan doc: `Glob("{specPath}/**/m{N}-*.plan.md")` or `Glob("{docsDir}/**/m{N}-*.plan.md")`. Read it in full — it contains phase breakdowns, requirements, and acceptance criteria that govern implementation.
+2. **Check for existing work** — If task status is `in_progress`:
+   - Run `git status` and `git diff` to identify uncommitted changes related to this task.
+   - Review changed files to understand what's already done vs. what remains.
+   - Adjust implementation scope to only cover remaining work.
+3. **Read plan and context documents** (MANDATORY before writing any code):
+   - If `milestoneRef` exists and `specPath` is set, look for a milestone plan doc: `Glob("{specPath}/m{N}-*.plan.md")` (e.g., `{specPath}/m5-diff-viewer.plan.md`). Read it in full — it contains phase breakdowns, requirements, and acceptance criteria. **If a plan doc is found, it is the primary requirements source — skip reading the full spec.**
+   - If no plan doc exists and `specPath` is set, read `{specPath}/spec.md` as the requirements source.
    - Read any related tasks in the same task group via `listTasks(taskGroupId)` for context on what comes before/after.
-3. `updateTask(id, status: "in_progress")`.
-4. Proceed to **Implementation**.
+4. `updateTask(id, status: "in_progress")`.
+5. Proceed to **Implementation**.
 
 ### B. Plan Document
 
@@ -37,13 +35,6 @@ Determine what the user wants to implement:
 2. Extract **phases** (requirements + deliverables), **test scenarios** (acceptance criteria), and **dependencies** between phases.
 3. Find associated tasks via `listTasks(milestoneRef)` if the plan maps to a milestone.
 4. Proceed to **Implementation** using plan phases.
-
-### C. Milestone
-
-1. `listTaskGroups(milestoneRef)` + `listTasks(milestoneRef)` — get the full task breakdown.
-2. Look for the milestone plan doc: `Glob("{docsDir}/**/m{N}-*.plan.md")`. Read it if found.
-3. Read the spec for overall context.
-4. Work through tasks in dependency order (respect `blockedBy`). For each task, follow the **Single Task** flow.
 
 ## Implementation
 
@@ -55,14 +46,18 @@ Scan project config to find **all explicit validation the project asks for**. Ch
 
 ### Phase 0b: Create Session Tasks
 
-Create task pairs using Claude's built-in `TaskCreate` tool (session-level tracking):
+Create session tasks to track the **implementation workflow**, not to mirror Engy tasks.
 
-- **Phase N#a** (implement) — includes requirements, test scenarios, and the **tests-only** command for fast feedback
-- **Phase N#b** (validate/fix/commit) — includes the **full validation** command and any mandatory skill invocations
+**When working from a single Engy task:** Create one task pair:
+- **#a** (implement) — requirements, test scenarios, tests-only command
+- **#b** (validate/fix/commit) — full validation command, skill invocations
+
+**When working from a plan with multiple phases:** Create task pairs per *plan phase* (not per Engy task):
+- **Phase N#a** / **Phase N#b** — one pair per plan phase
 
 Chain dependencies with `TaskUpdate` (addBlockedBy): N#a → N#b → (N+1)#a.
 
-Add a **Final Validation** task after all phases that includes any manual checks (Chrome testing, etc.) discovered from project config.
+Add a **Final Validation** task after all pairs that includes any manual checks (Chrome testing, etc.) discovered from project config.
 
 ### Phase N#a: Implement via TDD
 
@@ -74,7 +69,7 @@ Add a **Final Validation** task after all phases that includes any manual checks
 
 ### Phase N#b: Validate, Fix & Commit
 
-1. Rim `/engy:review`
+1. Run `/engy:review`
 2. Run the **full validation command** discovered in Phase 0, read complete output, verify explicitly — never assume success
 3. Triage feedback by severity (Critical → High → Medium). Address all Critical and High items, re-run validation. If significant rework needed, return to #a.
 4. **Circuit breaker:** after 3 failed validation/review cycles, stop and report to user with diagnostics

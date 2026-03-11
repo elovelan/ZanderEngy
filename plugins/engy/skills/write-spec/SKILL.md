@@ -155,6 +155,6 @@ When reporting findings:
 
 ## Flow Position
 
-**Previous:** Entry point | **Next:** `milestone-planner`
+**Previous:** Entry point | **Next:** `milestone-plan`
 
-When the SRS is complete and approved, ask the user if we should proceed with `/engy:milestone-planner` to decompose the spec into milestones, task groups, and tasks. DO NOT AUTOMATICALLY DISPATCH THE PLANNER — the user must explicitly approve it after reviewing the final SRS.
+When the SRS is complete and approved, ask the user if we should proceed with `/engy:milestone-plan` to decompose the spec into milestones, task groups, and tasks. DO NOT AUTOMATICALLY DISPATCH THE PLANNER — the user must explicitly approve it after reviewing the final SRS.

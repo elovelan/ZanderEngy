@@ -5,7 +5,7 @@ description: "Write a validated implementation plan for a milestone using codeba
 
 # Requirements-First Planning
 
-Write a validated implementation plan for a milestone (or standalone task) using a codebase-aware requirements engineering process. This skill is typically used after `milestone-planner` has created milestones and tasks — you are now planning the detailed implementation approach for a specific milestone.
+Write a validated implementation plan for a milestone (or standalone task) using a codebase-aware requirements engineering process. This skill is typically used after `/engy:milestone-plan` has created milestones and tasks — you are now planning the detailed implementation approach for a specific milestone.
 
 ## MCP Tools
 
@@ -66,7 +66,9 @@ This is an internal reasoning step. If conflicts are found, present them to the 
 
 ## Step 3: Specify
 
-Synthesize everything into a structured plan following the template at `references/plan-template.md`. The template covers: Overview, Codebase Context, Affected Components, Functional Requirements, Non-Functional Requirements, Workflow, Out of Scope, Implementation Sequence, and Open Questions.
+Synthesize everything into a structured plan following the template at `references/plan-template.md`. The template covers: Overview, Codebase Context, Affected Components, Functional Requirements, Non-Functional Requirements, Workflow, **Test Scenarios**, Out of Scope, Implementation Sequence, and Open Questions.
+
+**Test Scenarios are mandatory.** Write Gherkin-format scenarios (Given/When/Then) that cover each feature area. Group by functional area. Reference the FR numbers each scenario validates (e.g., "Scenario: Get file diff (FR #2, #6)").
 
 ## Step 4: Validate
 
@@ -90,6 +92,6 @@ If issues are found, fix them inline. Note any tradeoffs or judgment calls at th
 
 ## Flow Position
 
-**Previous:** `milestone-planner` | **Next:** `validate-plan`
+**Previous:** `milestone-plan` | **Next:** `validate-plan`
 
 When the plan is approved by the user, proceed with `/engy:validate-plan` to validate it against the parent spec before implementation.
