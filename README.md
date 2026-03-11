@@ -17,6 +17,8 @@ The core loop: **Specify → Plan → Execute → Complete.** You write specs in
 
 Everything is accessible to AI agents via a built-in MCP server, so Claude Code CLI running in your terminal can read and write Engy data directly.
 
+![Project overview with milestones](docs/screenshots/project-overview-milestones.png)
+
 ## Features
 
 - **Workspaces** — permanent homes for ongoing concerns, tied to one or more repositories where Claude Code runs implementations. Additional repos can be added as extra directories. Organize projects, tasks, docs, and memory under one roof.
@@ -84,9 +86,13 @@ Inside a workspace, click **+ New Project**. A project is an ephemeral scope for
 
 Navigate to your project's **Docs** tab. Select or create a `spec.md` file to open the rich text editor. Write your Software Requirements Specification with headings, tables, lists, and code blocks. Use **@ mentions** to reference other files. Specs can be marked as `buildable` and tracked through `active` → `complete` status.
 
+![Docs tab showing plan context and file tree](docs/screenshots/docs-tab-plan-context.png)
+
 ### Plan Milestones
 
 On the project **Overview** tab, click **+ Add** to create milestones. Each milestone has a name, status (`planned` / `in_progress` / `complete`), and progress tracking.
+
+![Plan document with implementation phases and task board](docs/screenshots/plan-phases-with-task-board.png)
 
 ### Manage Tasks
 
@@ -97,6 +103,14 @@ Use the project **Tasks** tab to create and organize tasks. Switch between three
 - **Graph** — see task dependencies visualized as a layered DAG
 
 Tasks have IDs (T-1, T-2...), types (`human` / `ai`), and status badges. Use **+ Group** to organize tasks into task groups within milestones.
+
+![Task kanban board with Claude Code running implementation](docs/screenshots/task-kanban-with-implement-terminal.png)
+
+### Review Diffs
+
+The **Diffs** tab shows uncommitted changes and branch diffs with line-level commenting. Leave inline comments on specific lines, and send feedback directly to a running Claude Code terminal session.
+
+![Diffs tab with inline line-level commenting](docs/screenshots/diffs-tab-line-commenting.png)
 
 ### Connect Claude Code (MCP)
 
@@ -114,6 +128,12 @@ Engy exposes an MCP server at `/mcp` on the same port. To connect Claude Code CL
 ```
 
 Add this to your `.mcp.json` (adjust the port if needed). Claude Code can then read specs, create tasks, update milestones, and manage project state.
+
+### Send Feedback to Claude Code
+
+The **Claude Plans** tab lets you review AI-generated plans and send structured feedback directly to a running Claude Code session.
+
+![Claude Plans page with skill improvement feedback](docs/screenshots/claude-plans-skill-feedback.png)
 
 ## Architecture
 
