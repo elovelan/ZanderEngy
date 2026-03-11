@@ -140,4 +140,4 @@ Structure the output as:
 
 **Previous:** `planner` | **Next:** `implement-plan`
 
-When the plan passes validation (no high-severity issues remaining), proceed with `/engy:implement-plan` to execute the plan with TDD and agent teams.
+When the plan passes validation (no high-severity issues remaining), proceed with `/engy:implement` to execute the plan with TDD and agent teams.

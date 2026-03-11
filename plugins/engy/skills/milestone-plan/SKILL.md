@@ -173,4 +173,4 @@ status: draft
 
 **Previous:** `spec-author` | **Next:** `planner`
 
-When milestones and tasks are created and approved, proceed with `/engy:planner` to write a detailed implementation plan for the first milestone.
+When milestones and tasks are created and approved, proceed with `/engy:plan` to write a detailed implementation plan for the first milestone.

@@ -16,8 +16,8 @@ import { trpc } from '@/lib/trpc';
 import { shellEscape, buildAddDirFlags, buildQuickActionDirs } from '@/lib/shell';
 import { toast } from 'sonner';
 
-const DEFAULT_PLAN_SKILL = '/engy:planning';
-const DEFAULT_IMPLEMENT_SKILL = '/engy:implement-plan';
+const DEFAULT_PLAN_SKILL = '/engy:plan';
+const DEFAULT_IMPLEMENT_SKILL = '/engy:implement';
 
 interface TaskQuickActionsProps {
   taskId: number;

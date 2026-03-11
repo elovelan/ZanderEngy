@@ -17,8 +17,8 @@ import { initProjectDir } from '../../project/service';
 import { dispatchValidation } from '../../ws/server';
 import type { AppState } from '../context';
 
-const DEFAULT_PLAN_SKILL = '/engy:planning';
-const DEFAULT_IMPLEMENT_SKILL = '/engy:implement-plan';
+const DEFAULT_PLAN_SKILL = '/engy:plan';
+const DEFAULT_IMPLEMENT_SKILL = '/engy:implement';
 
 function broadcastWorkspacesSync(state: AppState): void {
   if (!state.daemon || state.daemon.readyState !== 1) return;

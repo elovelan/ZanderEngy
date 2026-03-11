@@ -1,8 +1,9 @@
 ---
-
 title: Diff Viewer + Review\
-status: draft
--------------
+status: active
+---
+
+----------
 
 # Plan: M5 Diff Viewer + Review
 

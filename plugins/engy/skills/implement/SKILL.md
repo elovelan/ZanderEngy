@@ -23,10 +23,10 @@ Determine what the user wants to implement:
 
 ### A. Single Task
 
-1. `getTask(id)` — read the task's title, description, `milestoneRef`, `specId`, `taskGroupId`.
-2. Gather context:
-   - If `specPath` exists, read the spec/plan doc at that path.
-   - If `milestoneRef` exists, look for a milestone plan doc: `Glob("{docsDir}/**/m{N}-*.plan.md")`.
+1. `getTask(id)` — read the task's title, description, `milestoneRef`, `specId`, `taskGroupId`, `specPath`.
+2. **Read all attached documents** (MANDATORY before writing any code):
+   - If `specPath` exists, read the spec/plan docs at that path. `specPath` may point to a directory — list its contents and read relevant files (e.g., `spec.md`, feature slices, plan docs).
+   - If `milestoneRef` exists, look for a milestone plan doc: `Glob("{specPath}/**/m{N}-*.plan.md")` or `Glob("{docsDir}/**/m{N}-*.plan.md")`. Read it in full — it contains phase breakdowns, requirements, and acceptance criteria that govern implementation.
    - Read any related tasks in the same task group via `listTasks(taskGroupId)` for context on what comes before/after.
 3. `updateTask(id, status: "in_progress")`.
 4. Proceed to **Implementation**.

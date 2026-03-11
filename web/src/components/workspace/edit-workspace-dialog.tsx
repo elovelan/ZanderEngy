@@ -234,13 +234,13 @@ export function EditWorkspaceDialog({
                 aria-label="Plan skill"
                 value={planSkill}
                 onChange={(e) => setPlanSkill(e.target.value)}
-                placeholder="/engy:planning (plan)"
+                placeholder="/engy:plan (plan)"
               />
               <Input
                 aria-label="Implement skill"
                 value={implementSkill}
                 onChange={(e) => setImplementSkill(e.target.value)}
-                placeholder="/engy:implement-plan (implement)"
+                placeholder="/engy:implement (implement)"
               />
             </div>
             {error && <p className="text-xs text-destructive">{error}</p>}
