@@ -2,7 +2,6 @@
 
 import { TaskCard } from "@/components/projects/task-card";
 import { taskStatusOptions } from "@/components/projects/task-status-badge";
-import type { TaskSkills } from "@/components/projects/types";
 
 type Task = {
   id: number;
@@ -27,17 +26,9 @@ const statusDotColors: Record<string, string> = {
 
 export function KanbanBoard({
   tasks,
-  workspaceSlug,
-  projectDir,
-  planSlugs,
-  skills,
   onTaskClick,
 }: {
   tasks: Task[];
-  workspaceSlug: string;
-  projectDir?: string | null;
-  planSlugs?: string[];
-  skills?: TaskSkills;
   onTaskClick?: (taskId: number) => void;
 }) {
   return (
@@ -61,10 +52,6 @@ export function KanbanBoard({
                 <TaskCard
                   key={task.id}
                   task={task}
-                  workspaceSlug={workspaceSlug}
-                  projectDir={projectDir}
-                  planSlugs={planSlugs}
-                  skills={skills}
                   onClick={() => onTaskClick?.(task.id)}
                   className="rounded-none border border-border"
                 />

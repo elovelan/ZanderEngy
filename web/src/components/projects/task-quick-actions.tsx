@@ -1,5 +1,6 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { RiMore2Line, RiDraftLine, RiHammerLine } from '@remixicon/react';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,39 +15,43 @@ import { useSendToTerminal } from '@/components/terminal/use-send-to-terminal';
 import { trpc } from '@/lib/trpc';
 import { shellEscape, buildAddDirFlags, buildQuickActionDirs } from '@/lib/shell';
 import { toast } from 'sonner';
-import type { TaskSkills } from '@/components/projects/types';
 
 const DEFAULT_PLAN_SKILL = '/engy:planning';
 const DEFAULT_IMPLEMENT_SKILL = '/engy:implement-plan';
 
 interface TaskQuickActionsProps {
   taskId: number;
-  workspaceSlug: string;
-  projectDir?: string | null;
-  planSlugs?: string[];
-  repos?: string[];
-  skills?: TaskSkills;
   needsPlan?: boolean;
+  projectSlug?: string;
 }
 
-export function TaskQuickActions({
-  taskId,
-  workspaceSlug,
-  projectDir,
-  planSlugs,
-  repos = [],
-  skills,
-  needsPlan = true,
-}: TaskQuickActionsProps) {
+export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projectSlugProp }: TaskQuickActionsProps) {
+  const params = useParams<{ workspace: string; project: string }>();
+  const workspaceSlug = params.workspace ?? '';
+  const projectSlug = projectSlugProp ?? params.project;
+
+  const { data: workspace } = trpc.workspace.get.useQuery(
+    { slug: workspaceSlug },
+    { enabled: !!workspaceSlug },
+  );
+  const { data: project } = trpc.project.getBySlug.useQuery(
+    { workspaceId: workspace?.id ?? 0, slug: projectSlug ?? '' },
+    { enabled: !!workspace && !!projectSlug },
+  );
+
   const { openNewTerminal } = useSendToTerminal();
+
+  const repos = Array.isArray(workspace?.repos) ? (workspace.repos as string[]) : [];
+  const projectDir = project?.projectDir;
+  const planSlugs = project?.planSlugs ?? [];
+  const planSkill = workspace?.planSkill || DEFAULT_PLAN_SKILL;
+  const implementSkill = workspace?.implementSkill || DEFAULT_IMPLEMENT_SKILL;
+
   const taskSlug = `${workspaceSlug}-T${taskId}`;
-  const hasPlan = planSlugs?.includes(taskSlug) ?? false;
+  const hasPlan = planSlugs.includes(taskSlug);
 
   const { workingDir, additionalDirs } = buildQuickActionDirs(repos, projectDir);
   const addDirFlags = buildAddDirFlags(additionalDirs);
-
-  const planSkill = skills?.plan || DEFAULT_PLAN_SKILL;
-  const implementSkill = skills?.implement || DEFAULT_IMPLEMENT_SKILL;
 
   const utils = trpc.useUtils();
   const updateTask = trpc.task.update.useMutation({

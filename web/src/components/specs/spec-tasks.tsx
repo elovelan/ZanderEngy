@@ -10,13 +10,9 @@ import { TaskCard } from "@/components/projects/task-card";
 
 interface SpecTasksProps {
   specSlug: string;
-  workspaceSlug: string;
-  projectDir?: string | null;
-  planSlugs?: string[];
-  repos?: string[];
 }
 
-export function SpecTasks({ specSlug: specId, workspaceSlug, projectDir, planSlugs, repos }: SpecTasksProps) {
+export function SpecTasks({ specSlug: specId }: SpecTasksProps) {
   const utils = trpc.useUtils();
   const [showNewTask, setShowNewTask] = useState(false);
 
@@ -60,10 +56,6 @@ export function SpecTasks({ specSlug: specId, workspaceSlug, projectDir, planSlu
             <TaskCard
               key={task.id}
               task={task}
-              workspaceSlug={workspaceSlug}
-              projectDir={projectDir}
-              planSlugs={planSlugs}
-              repos={repos}
               showCheckbox
               onCheckboxChange={(done) =>
                 updateMutation.mutate({

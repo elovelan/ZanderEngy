@@ -99,8 +99,6 @@ export default function ProjectTasksPage() {
 
   if (!workspace || !project) return null;
 
-  const skills = { plan: workspace.planSkill, implement: workspace.implementSkill };
-
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 py-6">
       <div className="flex items-center justify-between">
@@ -118,38 +116,15 @@ export default function ProjectTasksPage() {
       </div>
 
       {currentView === "graph" && (
-        <DependencyGraph
-          tasks={tasks ?? []}
-          workspaceSlug={params.workspace}
-          projectDir={project?.projectDir}
-          planSlugs={project?.planSlugs}
-          repos={workspace?.repos ?? undefined}
-          skills={skills}
-          onTaskClick={setSelectedTaskId}
-        />
+        <DependencyGraph tasks={tasks ?? []} onTaskClick={setSelectedTaskId} />
       )}
 
       {currentView === "kanban" && (
-        <KanbanBoard
-          tasks={tasks ?? []}
-          workspaceSlug={params.workspace}
-          projectDir={project?.projectDir}
-          planSlugs={project?.planSlugs}
-          skills={skills}
-          onTaskClick={setSelectedTaskId}
-        />
+        <KanbanBoard tasks={tasks ?? []} onTaskClick={setSelectedTaskId} />
       )}
 
       {currentView === "eisenhower" && (
-        <EisenhowerMatrix
-          tasks={tasks ?? []}
-          workspaceSlug={params.workspace}
-          projectDir={project?.projectDir}
-          planSlugs={project?.planSlugs}
-          repos={workspace?.repos ?? undefined}
-          skills={skills}
-          onTaskClick={setSelectedTaskId}
-        />
+        <EisenhowerMatrix tasks={tasks ?? []} onTaskClick={setSelectedTaskId} />
       )}
 
       {selectedTaskId !== null && (

@@ -7,15 +7,10 @@ import { CopyTaskSlug } from '@/components/projects/copy-task-slug';
 import { TaskQuickActions } from '@/components/projects/task-quick-actions';
 import { cn } from '@/lib/utils';
 import { RiCheckboxLine, RiCheckboxBlankLine } from '@remixicon/react';
-import type { TaskSkills } from '@/components/projects/types';
 
 interface TaskCardProps {
   task: { id: number; title: string; status: string; type: string; needsPlan?: boolean };
-  workspaceSlug: string;
-  projectDir?: string | null;
-  planSlugs?: string[];
-  repos?: string[];
-  skills?: TaskSkills;
+  projectSlug?: string;
   onClick?: () => void;
   showCheckbox?: boolean;
   onCheckboxChange?: (done: boolean) => void;
@@ -25,11 +20,7 @@ interface TaskCardProps {
 
 export function TaskCard({
   task,
-  workspaceSlug,
-  projectDir,
-  planSlugs,
-  repos,
-  skills,
+  projectSlug,
   onClick,
   showCheckbox = false,
   onCheckboxChange,
@@ -71,16 +62,8 @@ export function TaskCard({
           )}
         </Button>
       )}
-      <CopyTaskSlug taskId={task.id} workspaceSlug={workspaceSlug} />
-      <TaskQuickActions
-        taskId={task.id}
-        workspaceSlug={workspaceSlug}
-        projectDir={projectDir}
-        planSlugs={planSlugs}
-        repos={repos}
-        skills={skills}
-        needsPlan={task.needsPlan}
-      />
+      <CopyTaskSlug taskId={task.id} />
+      <TaskQuickActions taskId={task.id} needsPlan={task.needsPlan} projectSlug={projectSlug} />
       <span className={cn('flex-1 truncate', showCheckbox && isDone && 'line-through')}>
         {task.title}
       </span>

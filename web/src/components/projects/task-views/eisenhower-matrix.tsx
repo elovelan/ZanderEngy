@@ -1,7 +1,6 @@
 "use client";
 
 import { TaskCard } from "@/components/projects/task-card";
-import type { TaskSkills } from "@/components/projects/types";
 
 type Task = {
   id: number;
@@ -31,19 +30,11 @@ const quadrants: Quadrant[] = [
 
 export function EisenhowerMatrix({
   tasks,
-  workspaceSlug,
-  projectDir,
-  planSlugs,
-  repos,
-  skills,
+  projectSlug,
   onTaskClick,
 }: {
   tasks: Task[];
-  workspaceSlug: string;
-  projectDir?: string | null;
-  planSlugs?: string[];
-  repos?: string[];
-  skills?: TaskSkills;
+  projectSlug?: string;
   onTaskClick?: (taskId: number) => void;
 }) {
   function tasksForQuadrant(q: Quadrant) {
@@ -69,11 +60,7 @@ export function EisenhowerMatrix({
                 <TaskCard
                   key={task.id}
                   task={task}
-                  workspaceSlug={workspaceSlug}
-                  projectDir={projectDir}
-                  planSlugs={planSlugs}
-                  repos={repos}
-                  skills={skills}
+                  projectSlug={projectSlug}
                   onClick={() => onTaskClick?.(task.id)}
                   className="rounded-none border border-border"
                 />
