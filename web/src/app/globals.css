@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import "dockview/dist/styles/dockview.css";
 @import "../components/terminal/dockview-theme.css";
 @import "./cyberpunk-theme.css";
