@@ -13,6 +13,7 @@ export interface TerminalSessionMeta {
   scopeLabel: string;
   workingDir: string;
   command?: string;
+  groupKey?: string;
 }
 
 export interface GitStatusResult {

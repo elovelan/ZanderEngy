@@ -97,6 +97,7 @@ function OpenPageInner({ dirPath }: { dirPath: string }) {
       scopeType: 'dir',
       scopeLabel: dirPath,
       workingDir: dirPath,
+      groupKey: `dir:${dirPath}`,
     }),
     [dirPath],
   );

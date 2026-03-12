@@ -35,6 +35,7 @@ function buildWsUrl(tab: TerminalTab): string {
     workingDir: scope.workingDir,
     scopeType: scope.scopeType,
     scopeLabel: scope.scopeLabel,
+    groupKey: scope.groupKey,
     cols: '80',
     rows: '24',
   });

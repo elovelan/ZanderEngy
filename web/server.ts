@@ -26,17 +26,23 @@ app.prepare().then(() => {
 
     // Terminal session list endpoint — returns persisted sessions filtered by scope
     if (req.method === 'GET' && url.pathname === '/api/terminal/sessions') {
+      const groupKeyParam = url.searchParams.get('groupKey');
       const scopeType = url.searchParams.get('scopeType') ?? '';
       const scopeLabel = url.searchParams.get('scopeLabel') ?? '';
 
       const sessions = Array.from(state.terminalSessionMeta.entries())
-        .filter(([, m]) => m.scopeType === scopeType && m.scopeLabel === scopeLabel)
+        .filter(([, m]) =>
+          groupKeyParam != null
+            ? m.groupKey === groupKeyParam
+            : m.scopeType === scopeType && m.scopeLabel === scopeLabel,
+        )
         .map(([sessionId, m]) => ({
           sessionId,
           scopeType: m.scopeType,
           scopeLabel: m.scopeLabel,
           workingDir: m.workingDir,
           command: m.command,
+          groupKey: m.groupKey,
         }));
 
       res.writeHead(200, { 'Content-Type': 'application/json' });

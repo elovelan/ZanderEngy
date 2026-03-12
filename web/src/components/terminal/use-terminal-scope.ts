@@ -25,6 +25,7 @@ export function deriveScope(
       scopeLabel: `project: ${projectSlug}`,
       workingDir: `${workspaceDir}/projects/${projectSlug}`,
       command: `claude${addDirFlags}`,
+      groupKey: `project:${workspaceSlug}:${projectSlug}`,
     };
   }
 
@@ -33,6 +34,7 @@ export function deriveScope(
     scopeLabel: workspaceSlug,
     workingDir: workspaceDir,
     command: `claude${addDirFlags}`,
+    groupKey: `workspace:${workspaceSlug}`,
   };
 }
 

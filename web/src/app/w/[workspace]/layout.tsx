@@ -71,6 +71,8 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
         : undefined;
     const addProjectDir = projectDir ? buildAddDirFlags([projectDir]) : '';
 
+    const groupKey = `project:${params.workspace}:${projectSlug}`;
+
     const entries: TerminalDropdownGroup['entries'] = repos.map((repoPath) => {
       const dirName = repoPath.split('/').filter(Boolean).pop() ?? repoPath;
       return {
@@ -82,6 +84,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           scopeLabel: `claude: ${dirName}`,
           workingDir: repoPath,
           command: `claude${addProjectDir}`,
+          groupKey,
         },
         icon: RiGitRepositoryLine,
       };
@@ -98,13 +101,14 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           scopeLabel: 'claude: all repos',
           workingDir: repos[0],
           command: `claude${addDirFlags}`,
+          groupKey,
         },
         icon: RiGitRepositoryFill,
       });
     }
 
     return [{ label: 'Claude in Repos', entries }];
-  }, [isProjectRoute, workspace, params.project]);
+  }, [isProjectRoute, workspace, params.project, params.workspace]);
 
   if (isLoading) {
     return (

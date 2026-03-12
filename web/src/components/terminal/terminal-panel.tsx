@@ -13,7 +13,7 @@ const noop = () => {};
 
 export function TerminalPanel({ onCollapse, extraDropdownGroups }: TerminalPanelProps) {
   const scope = useTerminalScope();
-  const scopeKey = `${scope.scopeType}:${scope.scopeLabel}`;
+  const scopeKey = scope.groupKey;
 
   return (
     <div className="flex flex-1 min-h-0 flex-col bg-[#0a0a0a]">

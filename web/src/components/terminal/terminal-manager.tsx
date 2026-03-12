@@ -31,6 +31,7 @@ interface SessionListItem {
   scopeLabel: string;
   workingDir: string;
   command?: string;
+  groupKey?: string;
 }
 
 const ENGY_THEME = {
@@ -42,7 +43,7 @@ const COMPONENTS = { terminal: TerminalDockPanel };
 const TAB_COMPONENTS = { 'terminal-tab': TerminalDockTab };
 
 function getLayoutKey(scope: TerminalScope): string {
-  return `terminal-layout:${scope.scopeType}:${scope.scopeLabel}`;
+  return `terminal-layout:${scope.groupKey}`;
 }
 
 function saveLayout(api: DockviewApi, scope: TerminalScope): void {
@@ -72,7 +73,7 @@ function clearLayout(scope: TerminalScope): void {
   }
 }
 
-function sessionToTab(s: SessionListItem): TerminalTab {
+function sessionToTab(s: SessionListItem, fallbackGroupKey: string): TerminalTab {
   return {
     sessionId: s.sessionId,
     scope: {
@@ -80,6 +81,7 @@ function sessionToTab(s: SessionListItem): TerminalTab {
       scopeLabel: s.scopeLabel,
       workingDir: s.workingDir,
       command: s.command,
+      groupKey: s.groupKey ?? fallbackGroupKey,
     },
     status: 'connecting',
   };
@@ -238,6 +240,7 @@ export function TerminalManager({ onCollapse, defaultScope, extraDropdownGroups 
       }
 
       const params = new URLSearchParams({
+        groupKey: defaultScopeRef.current.groupKey,
         scopeType: defaultScopeRef.current.scopeType,
         scopeLabel: defaultScopeRef.current.scopeLabel,
       });
@@ -248,6 +251,7 @@ export function TerminalManager({ onCollapse, defaultScope, extraDropdownGroups 
           return res.json();
         })
         .then((data: { sessions: SessionListItem[] }) => {
+          const fallbackGroupKey = defaultScopeRef.current!.groupKey;
           const activeSessions = new Set(data.sessions.map((s) => s.sessionId));
           const sessionMap = new Map(data.sessions.map((s) => [s.sessionId, s]));
 
@@ -259,7 +263,7 @@ export function TerminalManager({ onCollapse, defaultScope, extraDropdownGroups 
 
             if (allAlive) {
               for (const [id, panel] of Object.entries(savedLayout.panels)) {
-                const tab = sessionToTab(sessionMap.get(id)!);
+                const tab = sessionToTab(sessionMap.get(id)!, fallbackGroupKey);
                 tabsRef.current.set(id, tab);
                 panel.params = { tab } satisfies TerminalPanelParams;
               }
@@ -272,7 +276,7 @@ export function TerminalManager({ onCollapse, defaultScope, extraDropdownGroups 
                 const restoredIds = new Set(savedPanelIds);
                 for (const s of data.sessions) {
                   if (!restoredIds.has(s.sessionId)) {
-                    const tab = sessionToTab(s);
+                    const tab = sessionToTab(s, fallbackGroupKey);
                     tabsRef.current.set(s.sessionId, tab);
                     api.addPanel({
                       id: s.sessionId,
@@ -298,7 +302,7 @@ export function TerminalManager({ onCollapse, defaultScope, extraDropdownGroups 
           }
 
           for (const s of data.sessions) {
-            const tab = sessionToTab(s);
+            const tab = sessionToTab(s, fallbackGroupKey);
             tabsRef.current.set(s.sessionId, tab);
             api.addPanel({
               id: s.sessionId,

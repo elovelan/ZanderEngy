@@ -37,6 +37,7 @@ export function createTerminalWebSocketServer(state: AppState): WebSocketServer 
     const rows = parseInt(params.get('rows') ?? '24', 10);
     const scopeType = params.get('scopeType') ?? 'workspace';
     const scopeLabel = params.get('scopeLabel') ?? '';
+    const groupKey = params.get('groupKey') ?? undefined;
 
     if (!sessionId || !workingDir) {
       ws.close(1008, 'Missing sessionId or workingDir');
@@ -52,8 +53,11 @@ export function createTerminalWebSocketServer(state: AppState): WebSocketServer 
     state.terminalSessions.set(sessionId, ws);
 
     // Persist session metadata for restoration across page refreshes
-    if (!state.terminalSessionMeta.has(sessionId)) {
-      state.terminalSessionMeta.set(sessionId, { scopeType, scopeLabel, workingDir, command });
+    const existingMeta = state.terminalSessionMeta.get(sessionId);
+    if (!existingMeta) {
+      state.terminalSessionMeta.set(sessionId, { scopeType, scopeLabel, workingDir, command, groupKey });
+    } else if (!existingMeta.groupKey && groupKey) {
+      existingMeta.groupKey = groupKey;
     }
 
     const daemon = state.terminalDaemon;

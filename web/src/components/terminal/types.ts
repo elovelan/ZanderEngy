@@ -9,6 +9,7 @@ export interface TerminalScope {
   scopeLabel: string;
   workingDir: string;
   command?: string;
+  groupKey: string;
 }
 
 export interface TerminalTab {

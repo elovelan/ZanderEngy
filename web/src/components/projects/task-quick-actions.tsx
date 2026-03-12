@@ -74,6 +74,7 @@ export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projec
       scopeLabel: `plan: ${taskSlug}`,
       workingDir,
       command: `claude '${shellEscape(prompt)}'${addDirFlags}`,
+      groupKey: `project:${workspaceSlug}:${projectSlug}`,
     });
   }
 
@@ -88,6 +89,7 @@ export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projec
       scopeLabel: `impl: ${taskSlug}`,
       workingDir,
       command: `claude '${shellEscape(prompt)}'${addDirFlags}`,
+      groupKey: `project:${workspaceSlug}:${projectSlug}`,
     });
   }
 
