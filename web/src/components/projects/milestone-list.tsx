@@ -3,6 +3,7 @@
 import { trpc } from "@/lib/trpc";
 import { Progress } from "@/components/ui/progress";
 import { MilestoneStatusBadge } from "./milestone-status-badge";
+import { MilestoneQuickActions } from "./milestone-quick-actions";
 
 type Milestone = {
   ref: string;
@@ -61,6 +62,7 @@ function MilestoneRow({
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">M{milestone.num}</span>
           <span className="text-xs font-medium">{milestone.title}</span>
+          {done < total && <MilestoneQuickActions milestoneRef={milestone.ref} />}
           <MilestoneStatusBadge
             projectId={projectId}
             filename={milestone.filename}
