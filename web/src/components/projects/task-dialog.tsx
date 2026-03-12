@@ -116,7 +116,7 @@ function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: Create
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-[60vw] max-w-4xl [&>*]:min-w-0">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>New Task</DialogTitle>
@@ -136,7 +136,7 @@ function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: Create
 
             <div className="flex flex-col gap-1.5">
               <Label>Description</Label>
-              <div className="min-h-[200px] max-h-[50vh] overflow-y-auto border border-border">
+              <div className="min-h-[200px] max-h-[50vh] overflow-auto border border-border">
                 {open && (
                   <DynamicDocumentEditor
                     initialMarkdown=""
@@ -270,7 +270,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
   if (!task) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-[60vw] max-w-4xl [&>*]:min-w-0">
           <DialogHeader>
             <DialogTitle>Loading...</DialogTitle>
           </DialogHeader>
@@ -285,7 +285,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-[60vw] max-w-4xl [&>*]:min-w-0">
         <DialogHeader>
           <DialogTitle className="sr-only">Edit Task</DialogTitle>
           <Input
@@ -353,7 +353,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium">Description</label>
-            <div className="min-h-[200px] max-h-[50vh] overflow-y-auto border border-border">
+            <div className="min-h-[200px] max-h-[50vh] overflow-auto border border-border">
               <DynamicDocumentEditor
                 initialMarkdown={task.description || ""}
                 onSave={(md: string) => { setDescription(md); setDirty(true); }}

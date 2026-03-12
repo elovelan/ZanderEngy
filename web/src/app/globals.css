@@ -173,6 +173,21 @@
   overflow: hidden;
 }
 
+/* BlockNote: constrain all block content to container width */
+.bn-editor .bn-block-content {
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* BlockNote: code blocks use horizontal scroll, not word-break */
+.bn-editor .bn-block-content[data-content-type="codeBlock"] {
+  overflow-x: auto;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 /* BlockNote comment composer: tighten shadcn Card padding */
 .bn-container .bg-card.py-6 {
   padding: 0.75rem;
