@@ -202,6 +202,7 @@ export function DocumentEditor({
       const contentHash = simpleHash(markdown);
       if (contentHash === lastContentHashRef.current) return;
       lastContentHashRef.current = contentHash;
+      lastLoadedHashRef.current = contentHash;
       onSaveRef.current(markdown);
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       setShowSaved(true);
