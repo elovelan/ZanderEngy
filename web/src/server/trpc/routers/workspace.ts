@@ -17,6 +17,15 @@ import { initProjectDir } from '../../project/service';
 import { dispatchValidation } from '../../ws/server';
 import type { AppState } from '../context';
 
+const containerConfigSchema = z
+  .object({
+    allowedDomains: z.array(z.string()).optional(),
+    extraPackages: z.array(z.string()).optional(),
+    envVars: z.record(z.string(), z.string()).optional(),
+    idleTimeout: z.number().optional(),
+  })
+  .optional();
+
 const DEFAULT_PLAN_SKILL = '/engy:plan';
 const DEFAULT_IMPLEMENT_SKILL = '/engy:implement';
 
@@ -48,6 +57,10 @@ export const workspaceRouter = router({
         docsDir: z.string().optional(),
         planSkill: z.string().optional(),
         implementSkill: z.string().optional(),
+        containerEnabled: z.boolean().optional(),
+        containerConfig: containerConfigSchema,
+        maxConcurrency: z.number().min(1).optional(),
+        autoStart: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -88,6 +101,10 @@ export const workspaceRouter = router({
           docsDir: input.docsDir ?? null,
           planSkill: input.planSkill || DEFAULT_PLAN_SKILL,
           implementSkill: input.implementSkill || DEFAULT_IMPLEMENT_SKILL,
+          containerEnabled: input.containerEnabled,
+          containerConfig: input.containerConfig,
+          maxConcurrency: input.maxConcurrency,
+          autoStart: input.autoStart,
         })
         .returning()
         .get();
@@ -147,6 +164,10 @@ export const workspaceRouter = router({
         docsDir: z.string().nullable().optional(),
         planSkill: z.string().nullable().optional(),
         implementSkill: z.string().nullable().optional(),
+        containerEnabled: z.boolean().nullable().optional(),
+        containerConfig: containerConfigSchema.nullable().optional(),
+        maxConcurrency: z.number().min(1).nullable().optional(),
+        autoStart: z.boolean().nullable().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -161,6 +182,14 @@ export const workspaceRouter = router({
       const newPlanSkill = input.planSkill !== undefined ? input.planSkill : existing.planSkill;
       const newImplementSkill =
         input.implementSkill !== undefined ? input.implementSkill : existing.implementSkill;
+      const newContainerEnabled =
+        input.containerEnabled !== undefined ? input.containerEnabled : existing.containerEnabled;
+      const newContainerConfig =
+        input.containerConfig !== undefined ? input.containerConfig : existing.containerConfig;
+      const newMaxConcurrency =
+        input.maxConcurrency !== undefined ? input.maxConcurrency : existing.maxConcurrency;
+      const newAutoStart =
+        input.autoStart !== undefined ? input.autoStart : existing.autoStart;
       const newName = input.name ?? existing.name;
       const newSlug = input.slug ?? existing.slug;
 
@@ -212,6 +241,10 @@ export const workspaceRouter = router({
           docsDir: newDocsDir,
           planSkill: newPlanSkill,
           implementSkill: newImplementSkill,
+          containerEnabled: newContainerEnabled,
+          containerConfig: newContainerConfig,
+          maxConcurrency: newMaxConcurrency,
+          autoStart: newAutoStart,
         })
         .where(eq(workspaces.id, input.id))
         .returning()

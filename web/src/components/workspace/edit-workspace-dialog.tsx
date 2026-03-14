@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { RiAddLine, RiCloseLine, RiDeleteBinLine } from "@remixicon/react";
 import { trpc } from "@/lib/trpc";
 import {
@@ -24,6 +24,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import {
+  ContainerSettings,
+  type ContainerSettingsData,
+} from "@/components/workspace/container-settings";
+import type { ContainerConfig } from "@/server/db/schema";
 
 interface EditWorkspaceDialogProps {
   workspace: {
@@ -34,6 +39,10 @@ interface EditWorkspaceDialogProps {
     docsDir: string | null;
     planSkill: string | null;
     implementSkill: string | null;
+    containerEnabled: boolean | null;
+    containerConfig: ContainerConfig | null;
+    maxConcurrency: number | null;
+    autoStart: boolean | null;
   };
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -61,6 +70,12 @@ export function EditWorkspaceDialog({
   const [implementSkill, setImplementSkill] = useState(workspace.implementSkill ?? "");
   const [error, setError] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const containerDataRef = useRef<ContainerSettingsData>({
+    containerEnabled: workspace.containerEnabled ?? false,
+    containerConfig: workspace.containerConfig ?? {},
+    maxConcurrency: workspace.maxConcurrency ?? 1,
+    autoStart: workspace.autoStart ?? false,
+  });
 
   const utils = trpc.useUtils();
   const deleteMutation = trpc.workspace.delete.useMutation({
@@ -104,6 +119,7 @@ export function EditWorkspaceDialog({
 
     const filteredRepos = repos.map((r) => r.trim()).filter((r) => r !== "");
     const trimmedDocsDir = docsDir.trim();
+    const container = containerDataRef.current;
     updateMutation.mutate({
       id: workspace.id,
       name,
@@ -112,6 +128,10 @@ export function EditWorkspaceDialog({
       docsDir: trimmedDocsDir || null,
       planSkill: planSkill.trim() || null,
       implementSkill: implementSkill.trim() || null,
+      containerEnabled: container.containerEnabled,
+      containerConfig: container.containerConfig,
+      maxConcurrency: container.maxConcurrency,
+      autoStart: container.autoStart,
     });
   }
 
@@ -141,13 +161,19 @@ export function EditWorkspaceDialog({
       setImplementSkill(workspace.implementSkill ?? "");
       setError(null);
       setDeleteConfirmOpen(false);
+      containerDataRef.current = {
+        containerEnabled: workspace.containerEnabled ?? false,
+        containerConfig: workspace.containerConfig ?? {},
+        maxConcurrency: workspace.maxConcurrency ?? 1,
+        autoStart: workspace.autoStart ?? false,
+      };
     }
     onOpenChange(val);
   }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Edit Workspace</DialogTitle>
@@ -243,6 +269,23 @@ export function EditWorkspaceDialog({
                 placeholder="/engy:implement (implement)"
               />
             </div>
+            <Separator />
+
+            <div className="flex flex-col gap-4">
+              <Label className="text-sm font-medium">Container Settings</Label>
+              <ContainerSettings
+                initialData={{
+                  containerEnabled: workspace.containerEnabled ?? false,
+                  containerConfig: workspace.containerConfig ?? {},
+                  maxConcurrency: workspace.maxConcurrency ?? 1,
+                  autoStart: workspace.autoStart ?? false,
+                }}
+                onChange={(data) => {
+                  containerDataRef.current = data;
+                }}
+              />
+            </div>
+
             {error && <p className="text-xs text-destructive">{error}</p>}
           </div>
           <Separator />

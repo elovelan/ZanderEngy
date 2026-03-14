@@ -34,6 +34,19 @@ export interface GitBranchFilesResult {
   files: Array<{ path: string; status: GitFileStatus }>;
 }
 
+export interface ContainerUpResult {
+  containerId: string;
+}
+
+export interface ContainerDownResult {
+  success: boolean;
+}
+
+export interface ContainerStatusResult {
+  running: boolean;
+  containerId?: string;
+}
+
 export interface AppState {
   daemon: WebSocket | null;
   fileChanges: Map<string, FileChangeEvent[]>;
@@ -86,6 +99,27 @@ export interface AppState {
       reject: (reason: Error) => void;
     }
   >;
+  pendingContainerUp: Map<
+    string,
+    {
+      resolve: (result: ContainerUpResult) => void;
+      reject: (reason: Error) => void;
+    }
+  >;
+  pendingContainerDown: Map<
+    string,
+    {
+      resolve: (result: ContainerDownResult) => void;
+      reject: (reason: Error) => void;
+    }
+  >;
+  pendingContainerStatus: Map<
+    string,
+    {
+      resolve: (result: ContainerStatusResult) => void;
+      reject: (reason: Error) => void;
+    }
+  >;
   specLastChanged: Map<string, number>;
   specDebounceTimers: Map<string, ReturnType<typeof setTimeout>>;
   /** Maps sessionId → browser WebSocket for terminal I/O relay */
@@ -113,6 +147,9 @@ export function getAppState(): AppState {
       pendingGitLog: new Map(),
       pendingGitShow: new Map(),
       pendingGitBranchFiles: new Map(),
+      pendingContainerUp: new Map(),
+      pendingContainerDown: new Map(),
+      pendingContainerStatus: new Map(),
       specLastChanged: new Map(),
       specDebounceTimers: new Map(),
       terminalSessions: new Map(),

@@ -3,6 +3,13 @@ import { relations } from 'drizzle-orm';
 
 // ── Workspaces ──────────────────────────────────────────────────────
 
+export interface ContainerConfig {
+  allowedDomains?: string[];
+  extraPackages?: string[];
+  envVars?: Record<string, string>;
+  idleTimeout?: number;
+}
+
 export const workspaces = sqliteTable('workspaces', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
@@ -11,6 +18,10 @@ export const workspaces = sqliteTable('workspaces', {
   docsDir: text('docs_dir'),
   planSkill: text('plan_skill'),
   implementSkill: text('implement_skill'),
+  containerEnabled: integer('container_enabled', { mode: 'boolean' }).default(false),
+  containerConfig: text('container_config', { mode: 'json' }).$type<ContainerConfig>(),
+  maxConcurrency: integer('max_concurrency').default(1),
+  autoStart: integer('auto_start', { mode: 'boolean' }).default(false),
   createdAt: text('created_at')
     .notNull()
     .$defaultFn(() => new Date().toISOString()),

@@ -23,6 +23,9 @@ function makeState(): AppState {
     terminalSessionMeta: new Map(),
     terminalDaemon: null,
     fileChangeListeners: new Set(),
+    pendingContainerUp: new Map(),
+    pendingContainerDown: new Map(),
+    pendingContainerStatus: new Map(),
   };
 }
 

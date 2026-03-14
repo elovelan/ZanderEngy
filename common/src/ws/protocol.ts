@@ -170,6 +170,60 @@ export interface GitBranchFilesResponseMessage {
   };
 }
 
+// ── Container operations (server ↔ daemon) ──────────────────────────────────
+
+export interface ContainerUpRequestMessage {
+  type: 'CONTAINER_UP_REQUEST';
+  payload: {
+    requestId: string;
+    workspaceFolder: string;
+    repos?: string[];
+    config?: {
+      allowedDomains?: string[];
+      extraPackages?: string[];
+      envVars?: Record<string, string>;
+      idleTimeout?: number;
+    };
+  };
+}
+
+export interface ContainerUpResponseMessage {
+  type: 'CONTAINER_UP_RESPONSE';
+  payload:
+    | { requestId: string; containerId: string }
+    | { requestId: string; error: string };
+}
+
+export interface ContainerDownRequestMessage {
+  type: 'CONTAINER_DOWN_REQUEST';
+  payload: {
+    requestId: string;
+    workspaceFolder: string;
+  };
+}
+
+export interface ContainerDownResponseMessage {
+  type: 'CONTAINER_DOWN_RESPONSE';
+  payload:
+    | { requestId: string; success: boolean }
+    | { requestId: string; error: string };
+}
+
+export interface ContainerStatusRequestMessage {
+  type: 'CONTAINER_STATUS_REQUEST';
+  payload: {
+    requestId: string;
+    workspaceFolder: string;
+  };
+}
+
+export interface ContainerStatusResponseMessage {
+  type: 'CONTAINER_STATUS_RESPONSE';
+  payload:
+    | { requestId: string; running: boolean; containerId?: string }
+    | { requestId: string; error: string };
+}
+
 export type WsMessage =
   | RegisterMessage
   | WorkspacesSyncMessage
@@ -187,7 +241,13 @@ export type WsMessage =
   | GitShowRequestMessage
   | GitShowResponseMessage
   | GitBranchFilesRequestMessage
-  | GitBranchFilesResponseMessage;
+  | GitBranchFilesResponseMessage
+  | ContainerUpRequestMessage
+  | ContainerUpResponseMessage
+  | ContainerDownRequestMessage
+  | ContainerDownResponseMessage
+  | ContainerStatusRequestMessage
+  | ContainerStatusResponseMessage;
 
 export type ClientToServerMessage =
   | RegisterMessage
@@ -198,7 +258,10 @@ export type ClientToServerMessage =
   | GitDiffResponseMessage
   | GitLogResponseMessage
   | GitShowResponseMessage
-  | GitBranchFilesResponseMessage;
+  | GitBranchFilesResponseMessage
+  | ContainerUpResponseMessage
+  | ContainerDownResponseMessage
+  | ContainerStatusResponseMessage;
 
 export type ServerToClientMessage =
   | WorkspacesSyncMessage
@@ -208,7 +271,10 @@ export type ServerToClientMessage =
   | GitDiffRequestMessage
   | GitLogRequestMessage
   | GitShowRequestMessage
-  | GitBranchFilesRequestMessage;
+  | GitBranchFilesRequestMessage
+  | ContainerUpRequestMessage
+  | ContainerDownRequestMessage
+  | ContainerStatusRequestMessage;
 
 // ── Compact terminal relay types (server ↔ daemon) ──────────────────────────
 

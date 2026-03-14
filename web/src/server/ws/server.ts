@@ -4,8 +4,11 @@ import type {
   ClientToServerMessage,
   ValidatePathsRequestMessage,
   SearchFilesRequestMessage,
+  ContainerUpRequestMessage,
+  ContainerDownRequestMessage,
+  ContainerStatusRequestMessage,
 } from '@engy/common';
-import type { AppState, FileChangeEvent, GitStatusResult, GitLogResult, GitShowResult, GitBranchFilesResult } from '../trpc/context';
+import type { AppState, FileChangeEvent, GitStatusResult, GitLogResult, GitShowResult, GitBranchFilesResult, ContainerUpResult, ContainerDownResult, ContainerStatusResult } from '../trpc/context';
 import { getDb } from '../db/client';
 import { workspaces } from '../db/schema';
 import { handleSpecFileChange } from '../spec/watcher';
@@ -14,6 +17,7 @@ const MAX_EVENTS_PER_WORKSPACE = 100;
 const VALIDATION_TIMEOUT_MS = 5_000;
 const FILE_SEARCH_TIMEOUT_MS = 10_000;
 const GIT_TIMEOUT_MS = 15_000;
+const CONTAINER_TIMEOUT_MS = 60_000;
 
 export function createWebSocketServer(state: AppState): WebSocketServer {
   const wss = new WebSocketServer({ noServer: true });
@@ -50,6 +54,9 @@ function rejectAllPending(state: AppState): void {
     state.pendingGitLog,
     state.pendingGitShow,
     state.pendingGitBranchFiles,
+    state.pendingContainerUp,
+    state.pendingContainerDown,
+    state.pendingContainerStatus,
   ] as const;
 
   const error = new Error('Daemon disconnected');
@@ -98,6 +105,22 @@ function handleMessage(ws: WebSocket, msg: ClientToServerMessage, state: AppStat
     case 'GIT_BRANCH_FILES_RESPONSE':
       resolveGitResponse(msg.payload, state.pendingGitBranchFiles, (p) => ({
         files: p.files,
+      }));
+      break;
+    case 'CONTAINER_UP_RESPONSE':
+      resolveGitResponse(msg.payload, state.pendingContainerUp, (p) => ({
+        containerId: p.containerId,
+      }));
+      break;
+    case 'CONTAINER_DOWN_RESPONSE':
+      resolveGitResponse(msg.payload, state.pendingContainerDown, (p) => ({
+        success: p.success,
+      }));
+      break;
+    case 'CONTAINER_STATUS_RESPONSE':
+      resolveGitResponse(msg.payload, state.pendingContainerStatus, (p) => ({
+        running: p.running,
+        containerId: p.containerId,
       }));
       break;
   }
@@ -356,4 +379,46 @@ export function dispatchGitBranchFiles(
   state: AppState,
 ): Promise<GitBranchFilesResult> {
   return dispatchGitOp(state, state.pendingGitBranchFiles, 'GIT_BRANCH_FILES_REQUEST', { repoDir, base });
+}
+
+// ── Container dispatch functions ─────────────────────────────────────────────
+
+export function dispatchContainerUp(
+  state: AppState,
+  workspaceFolder: string,
+  config?: ContainerUpRequestMessage['payload']['config'],
+): Promise<ContainerUpResult> {
+  return dispatchGitOp(
+    state,
+    state.pendingContainerUp,
+    'CONTAINER_UP_REQUEST',
+    { workspaceFolder, config },
+    CONTAINER_TIMEOUT_MS,
+  );
+}
+
+export function dispatchContainerDown(
+  state: AppState,
+  workspaceFolder: string,
+): Promise<ContainerDownResult> {
+  return dispatchGitOp(
+    state,
+    state.pendingContainerDown,
+    'CONTAINER_DOWN_REQUEST',
+    { workspaceFolder },
+    CONTAINER_TIMEOUT_MS,
+  );
+}
+
+export function dispatchContainerStatus(
+  state: AppState,
+  workspaceFolder: string,
+): Promise<ContainerStatusResult> {
+  return dispatchGitOp(
+    state,
+    state.pendingContainerStatus,
+    'CONTAINER_STATUS_REQUEST',
+    { workspaceFolder },
+    CONTAINER_TIMEOUT_MS,
+  );
 }
