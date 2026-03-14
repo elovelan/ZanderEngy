@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { trpc } from "@/lib/trpc";
-import { buildAddDirFlags } from "@/lib/shell";
+import { buildClaudeCommand } from '@/lib/shell';
 import type { TerminalScope } from "./types";
 
 // ── Default terminal scope logic — DO NOT CHANGE ──────────────────────
@@ -17,14 +17,12 @@ export function deriveScope(
   repos: string[],
   projectSlug?: string,
 ): TerminalScope {
-  const addDirFlags = buildAddDirFlags(repos);
-
   if (projectSlug) {
     return {
       scopeType: 'project',
       scopeLabel: `project: ${projectSlug}`,
       workingDir: `${workspaceDir}/projects/${projectSlug}`,
-      command: `claude${addDirFlags}`,
+      command: buildClaudeCommand({ additionalDirs: repos }),
       groupKey: `project:${workspaceSlug}:${projectSlug}`,
     };
   }
@@ -33,7 +31,7 @@ export function deriveScope(
     scopeType: 'workspace',
     scopeLabel: workspaceSlug,
     workingDir: workspaceDir,
-    command: `claude${addDirFlags}`,
+    command: buildClaudeCommand({ additionalDirs: repos }),
     groupKey: `workspace:${workspaceSlug}`,
   };
 }

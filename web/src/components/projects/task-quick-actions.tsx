@@ -13,7 +13,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSendToTerminal } from '@/components/terminal/use-send-to-terminal';
 import { trpc } from '@/lib/trpc';
-import { shellEscape, buildAddDirFlags, buildQuickActionDirs } from '@/lib/shell';
+import { shellEscape, buildQuickActionDirs, buildRepoContext, buildClaudeCommand } from '@/lib/shell';
 import { toast } from 'sonner';
 
 const DEFAULT_PLAN_SKILL = '/engy:plan';
@@ -51,7 +51,6 @@ export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projec
   const hasPlan = planSlugs.includes(taskSlug);
 
   const { workingDir, additionalDirs } = buildQuickActionDirs(repos, projectDir);
-  const addDirFlags = buildAddDirFlags(additionalDirs);
 
   const utils = trpc.useUtils();
   const updateTask = trpc.task.update.useMutation({
@@ -68,12 +67,13 @@ export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projec
   function handlePlan() {
     if (!workingDir || !projectDir) return;
     const escapedDir = shellEscape(projectDir);
-    const prompt = `Use ${planSkill} to plan ${taskSlug}, output plan to ${escapedDir}/plans/${taskSlug}.plan.md`;
+    const repoCtx = buildRepoContext(repos);
+    const prompt = `Use ${planSkill} to plan ${taskSlug}, output plan to ${escapedDir}/plans/${taskSlug}.plan.md${repoCtx}`;
     openNewTerminal({
       scopeType: 'project',
       scopeLabel: `plan: ${taskSlug}`,
       workingDir,
-      command: `claude '${shellEscape(prompt)}'${addDirFlags}`,
+      command: buildClaudeCommand({ prompt, additionalDirs }),
       groupKey: `project:${workspaceSlug}:${projectSlug}`,
     });
   }
@@ -81,14 +81,15 @@ export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projec
   function handleImplement() {
     if (!workingDir || !projectDir) return;
     const escapedDir = shellEscape(projectDir);
+    const repoCtx = buildRepoContext(repos);
     const prompt = needsPlan
-      ? `Use ${implementSkill} for ${taskSlug}, plan at ${escapedDir}/plans/${taskSlug}.plan.md`
-      : `Use ${implementSkill} for ${taskSlug}`;
+      ? `Use ${implementSkill} for ${taskSlug}, plan at ${escapedDir}/plans/${taskSlug}.plan.md${repoCtx}`
+      : `Use ${implementSkill} for ${taskSlug}${repoCtx}`;
     openNewTerminal({
       scopeType: 'project',
       scopeLabel: `impl: ${taskSlug}`,
       workingDir,
-      command: `claude '${shellEscape(prompt)}'${addDirFlags}`,
+      command: buildClaudeCommand({ prompt, additionalDirs }),
       groupKey: `project:${workspaceSlug}:${projectSlug}`,
     });
   }

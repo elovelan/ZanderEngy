@@ -13,6 +13,25 @@ export function buildAddDirFlags(dirs: string[]): string {
 //   - Additional dirs = projectDir (if different) + remaining repos
 // This is DIFFERENT from the default terminal which starts in projectDir.
 // See use-terminal-scope.ts for the default terminal logic.
+export function buildRepoContext(repos: string[]): string {
+  if (repos.length === 0) return '';
+  const label = repos.length === 1 ? 'Code repo' : 'Code repos';
+  return `. ${label}: ${repos.join(', ')}`;
+}
+
+export function buildClaudeCommand(options?: {
+  prompt?: string;
+  additionalDirs?: string[];
+}): string {
+  let cmd = 'claude';
+  if (options?.prompt) {
+    cmd += ` '${shellEscape(options.prompt)}'`;
+  }
+  cmd += buildAddDirFlags(options?.additionalDirs ?? []);
+  cmd += ' --permission-mode acceptEdits';
+  return cmd;
+}
+
 export function buildQuickActionDirs(
   repos: string[],
   projectDir?: string | null,

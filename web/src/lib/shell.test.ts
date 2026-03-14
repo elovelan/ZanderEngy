@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { shellEscape, buildAddDirFlags, buildQuickActionDirs } from './shell';
+import {
+  shellEscape,
+  buildAddDirFlags,
+  buildRepoContext,
+  buildClaudeCommand,
+  buildQuickActionDirs,
+} from './shell';
 
 describe('shell utilities', () => {
   describe('shellEscape', () => {
@@ -33,6 +39,55 @@ describe('shell utilities', () => {
 
     it('should escape single quotes in paths', () => {
       expect(buildAddDirFlags(["/path/it's"])).toBe(" --add-dir '/path/it'\\''s'");
+    });
+  });
+
+  describe('buildRepoContext', () => {
+    it('should return empty string for empty repos', () => {
+      expect(buildRepoContext([])).toBe('');
+    });
+
+    it('should return singular label for single repo', () => {
+      expect(buildRepoContext(['/Users/me/repo1'])).toBe('. Code repo: /Users/me/repo1');
+    });
+
+    it('should return plural label for multiple repos', () => {
+      expect(buildRepoContext(['/Users/me/repo1', '/Users/me/repo2'])).toBe(
+        '. Code repos: /Users/me/repo1, /Users/me/repo2',
+      );
+    });
+  });
+
+  describe('buildClaudeCommand', () => {
+    it('should return base command with permission mode when no options', () => {
+      expect(buildClaudeCommand()).toBe('claude --permission-mode acceptEdits');
+    });
+
+    it('should include prompt when provided', () => {
+      expect(buildClaudeCommand({ prompt: 'Use /engy:plan to plan engy-T1' })).toBe(
+        "claude 'Use /engy:plan to plan engy-T1' --permission-mode acceptEdits",
+      );
+    });
+
+    it('should include add-dir flags when provided', () => {
+      expect(buildClaudeCommand({ additionalDirs: ['/some/dir'] })).toBe(
+        "claude --add-dir '/some/dir' --permission-mode acceptEdits",
+      );
+    });
+
+    it('should include prompt and add-dir flags together', () => {
+      expect(
+        buildClaudeCommand({
+          prompt: 'Use /engy:plan to plan engy-T1',
+          additionalDirs: ['/some/dir'],
+        }),
+      ).toBe("claude 'Use /engy:plan to plan engy-T1' --add-dir '/some/dir' --permission-mode acceptEdits");
+    });
+
+    it('should escape single quotes in prompt', () => {
+      expect(buildClaudeCommand({ prompt: "it's a test" })).toBe(
+        "claude 'it'\\''s a test' --permission-mode acceptEdits",
+      );
     });
   });
 
