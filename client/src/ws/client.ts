@@ -13,9 +13,14 @@ import type {
   GitLogRequestMessage,
   GitShowRequestMessage,
   GitBranchFilesRequestMessage,
+  ContainerUpRequestMessage,
+  ContainerDownRequestMessage,
+  ContainerStatusRequestMessage,
   TerminalRelayCommand,
 } from '@engy/common';
 import { getStatusDetailed, getDiff, getLog, getShow, getBranchFiles } from '../git/index.js';
+import { ContainerManager } from '../container/manager.js';
+import { generateDevcontainerConfig } from '../container/config-generator.js';
 import type { TerminalManager } from '../terminal/manager.js';
 
 const execFileAsync = promisify(execFile);
@@ -179,6 +184,7 @@ async function searchFilesInDirs(
 export class WsClient {
   private ws: WebSocket | null = null;
   private terminalWs: WebSocket | null = null;
+  private containerManager = new ContainerManager();
   private attempt = 0;
   private terminalAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -323,6 +329,15 @@ export class WsClient {
       case 'GIT_BRANCH_FILES_REQUEST':
         this.handleGitBranchFilesRequest(message as GitBranchFilesRequestMessage);
         break;
+      case 'CONTAINER_UP_REQUEST':
+        this.handleContainerUpRequest(message as ContainerUpRequestMessage);
+        break;
+      case 'CONTAINER_DOWN_REQUEST':
+        this.handleContainerDownRequest(message as ContainerDownRequestMessage);
+        break;
+      case 'CONTAINER_STATUS_REQUEST':
+        this.handleContainerStatusRequest(message as ContainerStatusRequestMessage);
+        break;
     }
   }
 
@@ -454,6 +469,61 @@ export class WsClient {
     } catch (err) {
       this.send({
         type: 'GIT_BRANCH_FILES_RESPONSE',
+        payload: { requestId, error: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  }
+
+  private async handleContainerUpRequest(message: ContainerUpRequestMessage): Promise<void> {
+    const { requestId, workspaceFolder, repos, config } = message.payload;
+    try {
+      await generateDevcontainerConfig({
+        docsDir: workspaceFolder,
+        repos: repos ?? [],
+        containerConfig: config,
+      });
+      const result = await this.containerManager.up(workspaceFolder);
+      this.send({
+        type: 'CONTAINER_UP_RESPONSE',
+        payload: { requestId, containerId: result.containerId },
+      });
+    } catch (err) {
+      this.send({
+        type: 'CONTAINER_UP_RESPONSE',
+        payload: { requestId, error: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  }
+
+  private async handleContainerDownRequest(message: ContainerDownRequestMessage): Promise<void> {
+    const { requestId, workspaceFolder } = message.payload;
+    try {
+      await this.containerManager.down(workspaceFolder);
+      this.send({
+        type: 'CONTAINER_DOWN_RESPONSE',
+        payload: { requestId, success: true },
+      });
+    } catch (err) {
+      this.send({
+        type: 'CONTAINER_DOWN_RESPONSE',
+        payload: { requestId, error: err instanceof Error ? err.message : String(err) },
+      });
+    }
+  }
+
+  private async handleContainerStatusRequest(
+    message: ContainerStatusRequestMessage,
+  ): Promise<void> {
+    const { requestId, workspaceFolder } = message.payload;
+    try {
+      const result = await this.containerManager.status(workspaceFolder);
+      this.send({
+        type: 'CONTAINER_STATUS_RESPONSE',
+        payload: { requestId, ...result },
+      });
+    } catch (err) {
+      this.send({
+        type: 'CONTAINER_STATUS_RESPONSE',
         payload: { requestId, error: err instanceof Error ? err.message : String(err) },
       });
     }
