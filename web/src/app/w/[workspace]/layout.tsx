@@ -85,6 +85,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           workingDir: repoPath,
           command: `claude${addProjectDir}`,
           groupKey,
+          workspaceSlug: params.workspace,
         },
         icon: RiGitRepositoryLine,
       };
@@ -102,6 +103,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           workingDir: repos[0],
           command: `claude${addDirFlags}`,
           groupKey,
+          workspaceSlug: params.workspace,
         },
         icon: RiGitRepositoryFill,
       });

@@ -98,6 +98,7 @@ function OpenPageInner({ dirPath }: { dirPath: string }) {
       scopeLabel: dirPath,
       workingDir: dirPath,
       groupKey: `dir:${dirPath}`,
+      workspaceSlug: '',
     }),
     [dirPath],
   );

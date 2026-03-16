@@ -49,6 +49,7 @@ export function MilestoneQuickActions({ milestoneRef }: MilestoneQuickActionsPro
       workingDir,
       command: buildClaudeCommand({ prompt: skillLine, systemPrompt: ctx, additionalDirs }),
       groupKey: `project:${workspaceSlug}:${projectSlug}`,
+      workspaceSlug,
     });
   }
 

@@ -43,8 +43,10 @@ app.prepare().then(() => {
           workingDir: m.workingDir,
           command: m.command,
           groupKey: m.groupKey,
+          workspaceSlug: m.workspaceSlug,
         }));
 
+      console.log(`[terminal] GET /api/terminal/sessions → returning ${sessions.length} sessions (total meta: ${state.terminalSessionMeta.size})`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ sessions }));
       return;

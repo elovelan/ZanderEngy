@@ -32,6 +32,7 @@ interface SessionListItem {
   workingDir: string;
   command?: string;
   groupKey?: string;
+  workspaceSlug?: string;
 }
 
 const ENGY_THEME = {
@@ -82,6 +83,7 @@ function sessionToTab(s: SessionListItem, fallbackGroupKey: string): TerminalTab
       workingDir: s.workingDir,
       command: s.command,
       groupKey: s.groupKey ?? fallbackGroupKey,
+      workspaceSlug: s.workspaceSlug ?? '',
     },
     status: 'connecting',
   };

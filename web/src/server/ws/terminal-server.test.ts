@@ -163,12 +163,8 @@ describe('Terminal WebSocket Server', () => {
 
       await firstMsgPromise; // consume spawn
 
-      // Manually add session to state so reconnect is detected
-      // (browser1 was added via the first connect)
+      // Meta persists from first spawn — second connect with same sessionId triggers reconnect
       const reconnectMsgPromise = waitForMessage(daemonWs);
-
-      // Close first and reconnect with same sessionId — but session must still be in map
-      // The first browser close removes it, so we need to reconnect before first closes
       const browser2Promise = connectBrowser(port, { sessionId: 'sess-r', workingDir: '/tmp' });
 
       const reconnectRaw = await reconnectMsgPromise;
@@ -181,17 +177,12 @@ describe('Terminal WebSocket Server', () => {
     });
 
     it('should send error message when no daemon connected', async () => {
-      // Buffer messages before the connection resolves
-      const messages: string[] = [];
       const gotMessage = new Promise<string>((resolve) => {
         const ws = new WebSocket(
           `ws://127.0.0.1:${port}/ws/terminal?sessionId=sess-no-daemon&workingDir=/tmp`,
         );
         openClients.push(ws);
-        ws.on('message', (data) => {
-          messages.push(data.toString());
-          resolve(data.toString());
-        });
+        ws.on('message', (data) => resolve(data.toString()));
       });
 
       const raw = await gotMessage;
@@ -252,6 +243,25 @@ describe('Terminal WebSocket Server', () => {
       });
     });
 
+    it('should clear terminalSessionMeta on relay disconnect', async () => {
+      const daemonWs = await connectDaemonRelay(port);
+      const spawnPromise = waitForMessage(daemonWs);
+
+      await connectBrowser(port, { sessionId: 'sess-relay-meta', workingDir: '/tmp' });
+      await spawnPromise;
+
+      expect(state.terminalSessionMeta.has('sess-relay-meta')).toBe(true);
+
+      daemonWs.close();
+
+      await vi.waitFor(() => {
+        expect(state.terminalDaemon).toBeNull();
+      });
+
+      // Stale metadata should be cleared so future connections don't falsely reconnect
+      expect(state.terminalSessionMeta.has('sess-relay-meta')).toBe(false);
+    });
+
     it('should set terminalDaemon to null on relay disconnect', async () => {
       const daemonWs = await connectDaemonRelay(port);
 
@@ -264,6 +274,61 @@ describe('Terminal WebSocket Server', () => {
       await vi.waitFor(() => {
         expect(state.terminalDaemon).toBeNull();
       });
+    });
+  });
+
+  describe('daemon reconnect during spawn', () => {
+    it('should use current daemon after daemon disconnect and reconnect', async () => {
+      // Connect first daemon — browser will start connecting to this one
+      const daemon1 = await connectDaemonRelay(port);
+
+      // Connect browser which sends spawn
+      const spawnPromise = waitForMessage(daemon1);
+      const browserWs = await connectBrowser(port, { sessionId: 'sess-fresh', workingDir: '/tmp' });
+      const raw = await spawnPromise;
+      const msg = JSON.parse(raw);
+      expect(msg.t).toBe('spawn');
+
+      // Simulate daemon disconnect + reconnect (new daemon replaces old)
+      daemon1.close();
+      await vi.waitFor(() => expect(state.terminalDaemon).toBeNull());
+
+      const daemon2 = await connectDaemonRelay(port);
+      await vi.waitFor(() => expect(state.terminalDaemon).not.toBeNull());
+
+      // New browser connect should use daemon2 (fresh reference), not stale daemon1
+      const spawn2Promise = waitForMessage(daemon2);
+      await connectBrowser(port, { sessionId: 'sess-fresh-2', workingDir: '/tmp' });
+
+      const raw2 = await spawn2Promise;
+      const msg2 = JSON.parse(raw2);
+      expect(msg2).toMatchObject({ t: 'spawn', sessionId: 'sess-fresh-2' });
+
+      browserWs.close();
+    });
+
+    it('should send error when daemon disconnects and no new daemon is available', async () => {
+      const daemon = await connectDaemonRelay(port);
+      const spawnPromise = waitForMessage(daemon);
+      await connectBrowser(port, { sessionId: 'sess-pre', workingDir: '/tmp' });
+      await spawnPromise;
+
+      // Disconnect daemon
+      daemon.close();
+      await vi.waitFor(() => expect(state.terminalDaemon).toBeNull());
+
+      // New browser connect without daemon should get error
+      const gotMessage = new Promise<string>((resolve) => {
+        const ws = new WebSocket(
+          `ws://127.0.0.1:${port}/ws/terminal?sessionId=sess-no-daemon-2&workingDir=/tmp`,
+        );
+        openClients.push(ws);
+        ws.on('message', (data) => resolve(data.toString()));
+      });
+
+      const raw = await gotMessage;
+      const msg = JSON.parse(raw);
+      expect(msg).toEqual({ t: 'error', message: 'No daemon connected' });
     });
   });
 

@@ -29,6 +29,10 @@ function sendTerminalOutput(ws: WebSocket, sessionId: string, text: string): voi
   sendRaw(ws, JSON.stringify({ t: 'o', sessionId, d: text }));
 }
 
+function sendTerminalError(ws: WebSocket, message: string): void {
+  sendRaw(ws, JSON.stringify({ t: 'error', message } satisfies TerminalErrorEvent));
+}
+
 /**
  * If the workspace has containerEnabled, start the container and stream progress.
  * Sets spawnCmd.containerWorkspaceFolder on success.
@@ -100,19 +104,23 @@ async function handleTerminalConnection(
     return;
   }
 
-  // Reconnect detection: check both active WS and persisted metadata
+  // Reconnect detection: only check persisted metadata (set after successful spawn).
+  // Using terminalSessions for detection would false-positive on React Strict Mode
+  // double-mount where the first connection's async spawn hasn't completed yet.
   const oldWs = state.terminalSessions.get(sessionId);
   if (oldWs && oldWs.readyState === oldWs.OPEN) {
     oldWs.close(1001, 'Replaced by new connection');
   }
-  const isReconnect = oldWs !== undefined || state.terminalSessionMeta.has(sessionId);
+  const isReconnect = state.terminalSessionMeta.has(sessionId);
+  const short = sessionId.slice(0, 8);
+  console.log(
+    `[terminal] connection sid=${short} isReconnect=${isReconnect} daemon=${state.terminalDaemon != null}`,
+  );
   state.terminalSessions.set(sessionId, ws);
 
-  // Persist session metadata for restoration across page refreshes
+  // Update existing meta's groupKey if needed (reconnect case only)
   const existingMeta = state.terminalSessionMeta.get(sessionId);
-  if (!existingMeta) {
-    state.terminalSessionMeta.set(sessionId, { scopeType, scopeLabel, workingDir, command, groupKey });
-  } else if (!existingMeta.groupKey && groupKey) {
+  if (existingMeta && !existingMeta.groupKey && groupKey) {
     existingMeta.groupKey = groupKey;
   }
 
@@ -142,14 +150,17 @@ async function handleTerminalConnection(
     }
   });
 
-  const daemon = state.terminalDaemon;
-  const daemonReady = daemon && daemon.readyState === daemon.OPEN;
-
   if (isReconnect) {
-    if (daemonReady) {
+    const daemon = state.terminalDaemon;
+    if (daemon && daemon.readyState === daemon.OPEN) {
+      console.log(`[terminal] sending reconnect to daemon for sid=${short}`);
       daemon.send(JSON.stringify({ t: 'reconnect', sessionId } satisfies TerminalReconnectCmd));
+    } else {
+      console.log(`[terminal] reconnect path but no daemon — clearing meta sid=${short}`);
+      state.terminalSessionMeta.delete(sessionId);
+      sendTerminalError(ws, 'No daemon connected');
     }
-  } else if (daemonReady) {
+  } else {
     const spawnCmd: TerminalSpawnCmd = {
       t: 'spawn',
       sessionId,
@@ -166,12 +177,27 @@ async function handleTerminalConnection(
       if (!ok) return;
     }
 
-    daemon.send(JSON.stringify(spawnCmd));
-  } else {
-    sendRaw(
-      ws,
-      JSON.stringify({ t: 'error', message: 'No daemon connected' } satisfies TerminalErrorEvent),
-    );
+    // After potential await (container startup), check if this connection was replaced
+    // (React Strict Mode double-mount or rapid reconnect). Skip spawn to avoid duplicate PTYs.
+    if (state.terminalSessions.get(sessionId) !== ws) {
+      console.log(`[terminal] spawn abandoned — connection replaced for sid=${short}`);
+      return;
+    }
+
+    // Read daemon AFTER await — it may have reconnected during container startup
+    const daemon = state.terminalDaemon;
+    if (daemon && daemon.readyState === daemon.OPEN) {
+      console.log(`[terminal] sending spawn to daemon for sid=${short}`);
+      daemon.send(JSON.stringify(spawnCmd));
+      // Only persist meta after spawn is sent — prevents false reconnects
+      // from concurrent connections (React Strict Mode double-mount)
+      state.terminalSessionMeta.set(sessionId, {
+        scopeType, scopeLabel, workingDir, command, groupKey, workspaceSlug,
+      });
+    } else {
+      console.log(`[terminal] spawn path but no daemon for sid=${short}`);
+      sendTerminalError(ws, 'No daemon connected');
+    }
   }
 }
 
@@ -202,6 +228,7 @@ export function createTerminalRelayWebSocketServer(state: AppState): WebSocketSe
   const wss = new WebSocketServer({ noServer: true });
 
   wss.on('connection', (ws: WebSocket) => {
+    console.log(`[terminal] daemon relay connected (meta count: ${state.terminalSessionMeta.size})`);
     state.terminalDaemon = ws;
 
     // Hot path: forward daemon terminal output raw to browser
@@ -216,6 +243,7 @@ export function createTerminalRelayWebSocketServer(state: AppState): WebSocketSe
       // Exit messages start with {"t":"exit" — no data field to confuse
       const isExit = str.startsWith('{"t":"exit"');
       if (isExit) {
+        console.log(`[terminal] daemon sent exit for sid=${sessionId.slice(0, 8)}`);
         state.terminalSessions.delete(sessionId);
         state.terminalSessionMeta.delete(sessionId);
       }
@@ -223,7 +251,13 @@ export function createTerminalRelayWebSocketServer(state: AppState): WebSocketSe
 
     ws.on('close', () => {
       if (state.terminalDaemon === ws) {
+        console.log(`[terminal] daemon relay disconnected — clearing ${state.terminalSessionMeta.size} session meta entries`);
         state.terminalDaemon = null;
+        // All daemon-side PTY sessions are dead — clear stale metadata so future
+        // connections spawn fresh instead of falsely detecting reconnects.
+        // terminalSessions (browser WSs) are left intact so browsers can still receive
+        // output/errors; they'll spawn fresh on next connect since meta is gone.
+        state.terminalSessionMeta.clear();
       }
     });
   });

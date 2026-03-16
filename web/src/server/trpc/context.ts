@@ -14,6 +14,7 @@ export interface TerminalSessionMeta {
   workingDir: string;
   command?: string;
   groupKey?: string;
+  workspaceSlug?: string;
 }
 
 export interface GitStatusResult {
