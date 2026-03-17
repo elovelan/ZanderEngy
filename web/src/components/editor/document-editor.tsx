@@ -169,10 +169,19 @@ export function DocumentEditor({
     if (initialMarkdown == null) return;
     const hash = simpleHash(initialMarkdown);
     if (lastLoadedHashRef.current === hash) return;
+    // Own save roundtripped back via file watcher — skip disruptive reload
+    if (lastContentHashRef.current === hash) {
+      lastLoadedHashRef.current = hash;
+      return;
+    }
 
     lastLoadedHashRef.current = hash;
     lastContentHashRef.current = hash;
     readyRef.current = false;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
 
     async function loadContent() {
       const blocks = editor.tryParseMarkdownToBlocks(initialMarkdown);
@@ -202,7 +211,6 @@ export function DocumentEditor({
       const contentHash = simpleHash(markdown);
       if (contentHash === lastContentHashRef.current) return;
       lastContentHashRef.current = contentHash;
-      lastLoadedHashRef.current = contentHash;
       onSaveRef.current(markdown);
       if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
       setShowSaved(true);
