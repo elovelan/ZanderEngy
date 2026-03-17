@@ -11,7 +11,7 @@ import { ThreePanelLayout, type ShortcutDef } from '@/components/layout/three-pa
 import { TerminalPanel } from '@/components/terminal/terminal-panel';
 import type { TerminalDropdownGroup } from '@/components/terminal/types';
 import { FileChangeProvider } from '@/contexts/file-change-context';
-import { buildAddDirFlags } from '@/lib/shell';
+import { buildClaudeCommand, buildContextBlock } from '@/lib/shell';
 
 const TERMINAL_CONFIG = {
   defaultWidth: 480,
@@ -59,6 +59,11 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   const isProjectRoute = pathname.startsWith(`${basePath}/projects/`);
   const isDocsRoute = pathname.startsWith(`${basePath}/docs`);
 
+  const { data: project } = trpc.project.getBySlug.useQuery(
+    { workspaceId: workspace?.id ?? 0, slug: params.project ?? '' },
+    { enabled: isProjectRoute && !!workspace && !!params.project },
+  );
+
   const extraDropdownGroups = useMemo<TerminalDropdownGroup[] | undefined>(() => {
     if (!isProjectRoute || !workspace) return undefined;
     const repos = (workspace.repos as string[]) ?? [];
@@ -69,7 +74,15 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
       projectSlug && workspace.resolvedDir
         ? `${workspace.resolvedDir}/projects/${projectSlug}`
         : undefined;
-    const addProjectDir = projectDir ? buildAddDirFlags([projectDir]) : '';
+
+    const systemPrompt =
+      project && projectSlug && projectDir
+        ? buildContextBlock({
+            workspace: { id: workspace.id, slug: params.workspace },
+            project: { id: project.id, slug: projectSlug, dir: projectDir },
+            repos,
+          })
+        : undefined;
 
     const groupKey = `project:${params.workspace}:${projectSlug}`;
 
@@ -83,7 +96,10 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           scopeType: 'project',
           scopeLabel: `claude: ${dirName}`,
           workingDir: repoPath,
-          command: `claude${addProjectDir}`,
+          command: buildClaudeCommand({
+            systemPrompt,
+            additionalDirs: projectDir ? [projectDir] : undefined,
+          }),
           groupKey,
           workspaceSlug: params.workspace,
         },
@@ -92,7 +108,6 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     });
 
     if (repos.length > 1) {
-      const addDirFlags = `${addProjectDir}${buildAddDirFlags(repos.slice(1))}`;
       entries.push({
         id: 'repo:all',
         label: 'All Repos',
@@ -101,7 +116,13 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           scopeType: 'project',
           scopeLabel: 'claude: all repos',
           workingDir: repos[0],
-          command: `claude${addDirFlags}`,
+          command: buildClaudeCommand({
+            systemPrompt,
+            additionalDirs: [
+              ...(projectDir ? [projectDir] : []),
+              ...repos.slice(1),
+            ],
+          }),
           groupKey,
           workspaceSlug: params.workspace,
         },
@@ -110,7 +131,7 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     }
 
     return [{ label: 'Claude in Repos', entries }];
-  }, [isProjectRoute, workspace, params.project, params.workspace]);
+  }, [isProjectRoute, workspace, project, params.project, params.workspace]);
 
   if (isLoading) {
     return (
