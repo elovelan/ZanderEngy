@@ -18,12 +18,13 @@
   "workspaceFolder": "${localWorkspaceFolder}",
   "mounts": [
     "source=${localWorkspaceFolder}/..,target=${localWorkspaceFolder}/..,type=bind",
-    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind"
+    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind",
+    "source=${localEnv:HOME}/.claude.json,target=/tmp/host-claude.json,type=bind,readonly"
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
     "DEVCONTAINER": "true"
   },
-  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "postStartCommand": "cat /tmp/host-claude.json | sed 's|localhost|host.docker.internal|g' > /home/node/.claude.json && sudo /usr/local/bin/init-firewall.sh",
   "waitFor": "postStartCommand"
 }

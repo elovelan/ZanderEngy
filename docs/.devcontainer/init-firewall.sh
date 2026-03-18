@@ -38,7 +38,8 @@ iptables -A INPUT -i lo -j ACCEPT
 iptables -A OUTPUT -o lo -j ACCEPT
 
 # Create ipset with CIDR support
-ipset create allowed-domains hash:net
+ipset create allowed-domains hash:net -exist
+ipset flush allowed-domains
 
 # Fetch GitHub meta information and aggregate + add their IP ranges
 echo "Fetching GitHub IP ranges..."
@@ -60,7 +61,7 @@ while read -r cidr; do
         exit 1
     fi
     echo "Adding GitHub range $cidr"
-    ipset add allowed-domains "$cidr"
+    ipset add allowed-domains "$cidr" -exist
 done < <(echo "$gh_ranges" | jq -r '(.web + .api + .git)[]' | aggregate -q)
 
 # Resolve and add other allowed domains
@@ -86,7 +87,7 @@ for domain in \
             exit 1
         fi
         echo "Adding $ip for $domain"
-        ipset add allowed-domains "$ip"
+        ipset add allowed-domains "$ip" -exist
     done < <(echo "$ips")
 done
 
@@ -100,9 +101,20 @@ fi
 HOST_NETWORK=$(echo "$HOST_IP" | sed "s/\.[0-9]*$/.0\/24/")
 echo "Host network detected as: $HOST_NETWORK"
 
-# Set up remaining iptables rules
-iptables -A INPUT -s "$HOST_NETWORK" -j ACCEPT
-iptables -A OUTPUT -d "$HOST_NETWORK" -j ACCEPT
+# Allow host network (bridge) — only established return traffic
+iptables -A INPUT -s "$HOST_NETWORK" -m state --state ESTABLISHED,RELATED -j ACCEPT
+
+# Allow Docker Desktop host proxy (host.docker.internal) on specific ports
+DOCKER_HOST_IP=$(getent ahostsv4 host.docker.internal | head -1 | awk '{print $1}')
+if [ -n "$DOCKER_HOST_IP" ]; then
+    echo "Docker host IPv4: $DOCKER_HOST_IP"
+    HOST_PORTS=(3000 4000)
+    for port in "${HOST_PORTS[@]}"; do
+        iptables -A OUTPUT -p tcp -d "$DOCKER_HOST_IP" --dport "$port" -j ACCEPT
+        echo "Allowed host port $port -> $DOCKER_HOST_IP"
+    done
+    iptables -A INPUT -s "$DOCKER_HOST_IP" -m state --state ESTABLISHED,RELATED -j ACCEPT
+fi
 
 # Set default policies to DROP first
 iptables -P INPUT DROP
@@ -118,6 +130,24 @@ iptables -A OUTPUT -m set --match-set allowed-domains dst -j ACCEPT
 
 # Explicitly REJECT all other outbound traffic for immediate feedback
 iptables -A OUTPUT -j REJECT --reject-with icmp-admin-prohibited
+
+# Close IPv6 internet bypass — append only, don't flush/modify existing Docker state
+# Docker Desktop for Mac routes host.docker.internal via IPv6 internally
+DOCKER_HOST_IPV6=$(getent hosts host.docker.internal | awk '{print $1}')
+if [ -n "$DOCKER_HOST_IPV6" ]; then
+    echo "Docker host IPv6: $DOCKER_HOST_IPV6"
+    ip6tables -A OUTPUT -o lo -j ACCEPT
+    ip6tables -A OUTPUT -p icmpv6 -j ACCEPT
+    ip6tables -A OUTPUT -p udp --dport 53 -j ACCEPT
+    ip6tables -A OUTPUT -p tcp -d "$DOCKER_HOST_IPV6" --dport 3000 -j ACCEPT
+    ip6tables -A OUTPUT -p tcp -d "$DOCKER_HOST_IPV6" --dport 4000 -j ACCEPT
+    ip6tables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+    ip6tables -A OUTPUT -j REJECT --reject-with icmp6-adm-prohibited
+    ip6tables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+    ip6tables -A INPUT -j DROP
+    ip6tables -P FORWARD DROP
+    echo "IPv6 locked down (host ports 3000, 4000 allowed)"
+fi
 
 echo "Firewall configuration complete"
 echo "Verifying firewall rules..."
