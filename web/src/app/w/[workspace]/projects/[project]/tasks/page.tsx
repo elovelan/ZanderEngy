@@ -11,7 +11,13 @@ import { EisenhowerMatrix } from "@/components/projects/task-views/eisenhower-ma
 import { useOnFileChange } from "@/contexts/file-change-context";
 import { TaskDialog } from "@/components/projects/task-dialog";
 import { TaskGroupForm } from "@/components/projects/task-group-form";
-import { TaskFilter, applyTaskFilters, type TaskFilters } from "@/components/projects/task-filter";
+import {
+  TaskFilter,
+  applyTaskFilters,
+  emptyFilters,
+  DEFAULT_DONE_LIMIT,
+  type TaskFilters,
+} from "@/components/projects/task-filter";
 import { Button } from "@/components/ui/button";
 import { RiAddLine } from "@remixicon/react";
 
@@ -41,8 +47,12 @@ export default function ProjectTasksPage() {
   const { data: taskGroups } = trpc.taskGroup.list.useQuery({});
 
   const filters: TaskFilters = useMemo(() => {
+    const base = emptyFilters();
     const status = searchParams.get("status")?.split(",").filter(Boolean) ?? [];
-    const type = searchParams.get("type")?.split(",").filter(Boolean) ?? [];
+    const typeParam = searchParams.get("type");
+    const type = typeParam !== null
+      ? typeParam.split(",").filter(Boolean)
+      : currentView === "eisenhower" ? ["human"] : [];
     const groupId =
       searchParams
         .get("group")
@@ -50,13 +60,37 @@ export default function ProjectTasksPage() {
         .filter(Boolean)
         .map(Number)
         .filter(Number.isFinite) ?? [];
-    return { status, type, groupId };
-  }, [searchParams]);
+    const milestoneRef =
+      searchParams.get("milestone")?.split(",").filter(Boolean) ?? [];
+    const unassignedParam = searchParams.get("unassigned");
+    const unassignedOnly = unassignedParam !== null ? unassignedParam !== "0" : base.unassignedOnly;
+    const doneLimitParam = searchParams.get("doneLimit");
+    const doneLimit = doneLimitParam !== null ? Number(doneLimitParam) : base.doneLimit;
+    const planStatus =
+      searchParams.get("planStatus")?.split(",").filter(Boolean) ?? [];
+    return { status, type, groupId, milestoneRef, unassignedOnly, doneLimit, planStatus };
+  }, [searchParams, currentView]);
 
   const filteredTasks = useMemo(
     () => applyTaskFilters(tasks ?? [], filters),
     [tasks, filters],
   );
+
+  const activeMilestones = useMemo(() => {
+    if (!milestones || !tasks) return [];
+    const nonDoneByMilestone = new Set(
+      tasks.filter((t) => t.status !== "done" && t.milestoneRef).map((t) => t.milestoneRef),
+    );
+    return milestones.filter((m) => nonDoneByMilestone.has(m.ref));
+  }, [milestones, tasks]);
+
+  const activeGroups = useMemo(() => {
+    if (!taskGroups || !tasks) return [];
+    const nonDoneByGroup = new Set(
+      tasks.filter((t) => t.status !== "done" && t.taskGroupId).map((t) => t.taskGroupId),
+    );
+    return taskGroups.filter((g) => nonDoneByGroup.has(g.id));
+  }, [taskGroups, tasks]);
 
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [showNewTask, setShowNewTask] = useState(false);
@@ -128,6 +162,14 @@ export default function ProjectTasksPage() {
       else p.delete("type");
       if (next.groupId.length > 0) p.set("group", next.groupId.join(","));
       else p.delete("group");
+      if (next.milestoneRef.length > 0) p.set("milestone", next.milestoneRef.join(","));
+      else p.delete("milestone");
+      if (!next.unassignedOnly) p.set("unassigned", "0");
+      else p.delete("unassigned");
+      if (next.doneLimit !== DEFAULT_DONE_LIMIT) p.set("doneLimit", String(next.doneLimit));
+      else p.delete("doneLimit");
+      if (next.planStatus.length > 0) p.set("planStatus", next.planStatus.join(","));
+      else p.delete("planStatus");
     });
   }
 
@@ -141,7 +183,8 @@ export default function ProjectTasksPage() {
           <TaskFilter
             value={filters}
             onChange={handleFilterChange}
-            groups={taskGroups ?? []}
+            groups={activeGroups}
+            milestones={activeMilestones}
           />
         </div>
         <div className="flex gap-2">
@@ -161,7 +204,7 @@ export default function ProjectTasksPage() {
       )}
 
       {currentView === "kanban" && (
-        <KanbanBoard tasks={filteredTasks} onTaskClick={setSelectedTaskId} />
+        <KanbanBoard tasks={filteredTasks} onTaskClick={setSelectedTaskId} doneLimit={filters.doneLimit} />
       )}
 
       {currentView === "eisenhower" && (
