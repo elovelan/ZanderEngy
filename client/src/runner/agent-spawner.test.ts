@@ -1,0 +1,615 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { EventEmitter } from 'node:events';
+
+vi.mock('node:child_process', () => ({
+  spawn: vi.fn(),
+}));
+
+vi.mock('node:crypto', () => ({
+  randomUUID: vi.fn(() => 'test-uuid-1234'),
+}));
+
+import type { SpawnConfig, SpawnResult } from './agent-spawner.js';
+
+const { spawn } = await import('node:child_process');
+const { AgentSpawner, TASK_COMPLETION_SCHEMA } = await import('./agent-spawner.js');
+
+const mockSpawn = spawn as unknown as ReturnType<typeof vi.fn>;
+
+function createMockProcess(): EventEmitter & {
+  stdout: EventEmitter;
+  stderr: EventEmitter;
+  stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
+  kill: ReturnType<typeof vi.fn>;
+  pid: number;
+} {
+  const proc = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> };
+    kill: ReturnType<typeof vi.fn>;
+    pid: number;
+  };
+  proc.stdout = new EventEmitter();
+  proc.stderr = new EventEmitter();
+  proc.stdin = { write: vi.fn(), end: vi.fn() };
+  proc.kill = vi.fn();
+  proc.pid = 12345;
+  return proc;
+}
+
+function createMockContainerManager() {
+  return { exec: vi.fn() };
+}
+
+const HOST_CONFIG: SpawnConfig = {
+  prompt: 'Do something',
+  flags: [],
+  containerMode: false,
+  workingDir: '/workspace',
+};
+
+const CONTAINER_CONFIG: SpawnConfig = {
+  prompt: 'Do something',
+  flags: [],
+  containerMode: true,
+  containerWorkspaceFolder: '/workspace/project',
+  workingDir: '/workspace',
+};
+
+function expectSpawnResult(result: SpawnResult) {
+  expect(result).toHaveProperty('sessionId');
+  expect(result).toHaveProperty('exitCode');
+  expect(result).toHaveProperty('success');
+}
+
+describe('AgentSpawner', () => {
+  let spawner: InstanceType<typeof AgentSpawner>;
+  let containerManager: ReturnType<typeof createMockContainerManager>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    containerManager = createMockContainerManager();
+    spawner = new AgentSpawner(containerManager as never);
+  });
+
+  describe('TASK_COMPLETION_SCHEMA', () => {
+    it('should define the expected JSON schema', () => {
+      expect(TASK_COMPLETION_SCHEMA).toBe(
+        JSON.stringify({
+          type: 'object',
+          properties: {
+            taskCompleted: { type: 'boolean' },
+            summary: { type: 'string' },
+          },
+          required: ['taskCompleted', 'summary'],
+        }),
+      );
+    });
+  });
+
+  describe('host mode', () => {
+    it('should spawn claude with --permission-mode acceptEdits', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn(HOST_CONFIG);
+
+      proc.emit('close', 0);
+      const result = await promise;
+
+      expectSpawnResult(result);
+      expect(mockSpawn).toHaveBeenCalledWith(
+        'claude',
+        expect.arrayContaining(['--permission-mode', 'acceptEdits']),
+        expect.objectContaining({ cwd: '/workspace' }),
+      );
+      expect(result.sessionId).toBe('test-uuid-1234');
+    });
+
+    it('should NOT include --dangerously-skip-permissions in host mode', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+      expect(spawnArgs).not.toContain('--dangerously-skip-permissions');
+    });
+
+    it('should include --session-id with generated UUID', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+      const sessionIdIndex = spawnArgs.indexOf('--session-id');
+      expect(sessionIdIndex).toBeGreaterThan(-1);
+      expect(spawnArgs[sessionIdIndex + 1]).toBe('test-uuid-1234');
+    });
+
+    it('should include --json-schema with TASK_COMPLETION_SCHEMA', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+      const schemaIndex = spawnArgs.indexOf('--json-schema');
+      expect(schemaIndex).toBeGreaterThan(-1);
+      expect(spawnArgs[schemaIndex + 1]).toBe(TASK_COMPLETION_SCHEMA);
+    });
+
+    it('should include -p and --output-format stream-json', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+      expect(spawnArgs).toContain('-p');
+      expect(spawnArgs).toContain('--output-format');
+      expect(spawnArgs[spawnArgs.indexOf('--output-format') + 1]).toBe('stream-json');
+    });
+
+    it('should pass additional flags', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: ['--append-system-prompt', 'extra context', '--add-dir', '/other'],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+      expect(spawnArgs).toContain('--append-system-prompt');
+      expect(spawnArgs).toContain('extra context');
+      expect(spawnArgs).toContain('--add-dir');
+      expect(spawnArgs).toContain('/other');
+    });
+  });
+
+  describe('container mode', () => {
+    it('should spawn via containerManager.exec', async () => {
+      const proc = createMockProcess();
+      containerManager.exec.mockReturnValue(proc);
+
+      const promise = spawner.spawn(CONTAINER_CONFIG);
+
+      proc.emit('close', 0);
+      await promise;
+
+      expect(containerManager.exec).toHaveBeenCalledWith(
+        '/workspace/project',
+        'claude',
+        expect.arrayContaining(['--dangerously-skip-permissions']),
+        undefined,
+      );
+      expect(mockSpawn).not.toHaveBeenCalled();
+    });
+
+    it('should include --dangerously-skip-permissions in container mode', async () => {
+      const proc = createMockProcess();
+      containerManager.exec.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: true,
+        containerWorkspaceFolder: '/workspace/project',
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const execArgs = containerManager.exec.mock.calls[0][2] as string[];
+      expect(execArgs).toContain('--dangerously-skip-permissions');
+    });
+
+    it('should NOT include --permission-mode in container mode', async () => {
+      const proc = createMockProcess();
+      containerManager.exec.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: true,
+        containerWorkspaceFolder: '/workspace/project',
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const execArgs = containerManager.exec.mock.calls[0][2] as string[];
+      expect(execArgs).not.toContain('--permission-mode');
+    });
+
+    it('should pass env to containerManager.exec', async () => {
+      const proc = createMockProcess();
+      containerManager.exec.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: true,
+        containerWorkspaceFolder: '/workspace/project',
+        workingDir: '/workspace',
+        env: { NODE_ENV: 'test' },
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      expect(containerManager.exec).toHaveBeenCalledWith(
+        '/workspace/project',
+        'claude',
+        expect.any(Array),
+        { NODE_ENV: 'test' },
+      );
+    });
+
+    it('should throw when containerWorkspaceFolder is missing in container mode', async () => {
+      await expect(
+        spawner.spawn({
+          prompt: 'Do something',
+          flags: [],
+          containerMode: true,
+          workingDir: '/workspace',
+        }),
+      ).rejects.toThrow('containerWorkspaceFolder is required when containerMode is true');
+    });
+  });
+
+  describe('safety validation (FR #14)', () => {
+    it('should throw when --dangerously-skip-permissions is used in host mode', async () => {
+      await expect(
+        spawner.spawn({
+          prompt: 'Do something',
+          flags: ['--dangerously-skip-permissions'],
+          containerMode: false,
+          workingDir: '/workspace',
+        }),
+      ).rejects.toThrow('--dangerously-skip-permissions can only be used inside a container');
+    });
+
+    it('should allow --dangerously-skip-permissions in container mode', async () => {
+      const proc = createMockProcess();
+      containerManager.exec.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: ['--dangerously-skip-permissions'],
+        containerMode: true,
+        containerWorkspaceFolder: '/workspace/project',
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      const result = await promise;
+
+      expect(result.exitCode).toBe(0);
+    });
+  });
+
+  describe('stdin handling', () => {
+    it('should write prompt to stdin and close it', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Implement feature X',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      expect(proc.stdin.write).toHaveBeenCalledWith('Implement feature X');
+      expect(proc.stdin.end).toHaveBeenCalled();
+    });
+  });
+
+  describe('stream-json output parsing', () => {
+    it('should parse completion from stream-json result message', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      const resultMessage = JSON.stringify({
+        type: 'result',
+        result: JSON.stringify({ taskCompleted: true, summary: 'Done' }),
+      });
+      proc.stdout.emit('data', Buffer.from(resultMessage + '\n'));
+      proc.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({
+        sessionId: 'test-uuid-1234',
+        exitCode: 0,
+        success: true,
+        completion: { taskCompleted: true, summary: 'Done' },
+      });
+    });
+
+    it('should handle result with taskCompleted=false', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      const resultMessage = JSON.stringify({
+        type: 'result',
+        result: JSON.stringify({ taskCompleted: false, summary: 'Failed to complete' }),
+      });
+      proc.stdout.emit('data', Buffer.from(resultMessage + '\n'));
+      proc.emit('close', 1);
+
+      const result = await promise;
+
+      expect(result).toEqual({
+        sessionId: 'test-uuid-1234',
+        exitCode: 1,
+        success: false,
+        completion: { taskCompleted: false, summary: 'Failed to complete' },
+      });
+    });
+
+    it('should resolve without completion when no result message is received', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.stdout.emit(
+        'data',
+        Buffer.from(JSON.stringify({ type: 'assistant', message: 'thinking...' }) + '\n'),
+      );
+      proc.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result).toEqual({
+        sessionId: 'test-uuid-1234',
+        exitCode: 0,
+        success: true,
+        completion: undefined,
+      });
+    });
+
+    it('should handle multiple stdout chunks', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.stdout.emit(
+        'data',
+        Buffer.from(JSON.stringify({ type: 'assistant', message: 'working' }) + '\n'),
+      );
+      const resultMessage = JSON.stringify({
+        type: 'result',
+        result: JSON.stringify({ taskCompleted: true, summary: 'All done' }),
+      });
+      proc.stdout.emit('data', Buffer.from(resultMessage + '\n'));
+      proc.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result.completion).toEqual({ taskCompleted: true, summary: 'All done' });
+    });
+  });
+
+  describe('resume mode', () => {
+    it('should use --resume instead of --session-id when sessionId is provided', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Continue from where you left off',
+        flags: [],
+        sessionId: 'existing-session-abc',
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+      expect(spawnArgs).toContain('--resume');
+      const resumeIndex = spawnArgs.indexOf('--resume');
+      expect(spawnArgs[resumeIndex + 1]).toBe('existing-session-abc');
+      expect(spawnArgs).not.toContain('--session-id');
+    });
+
+    it('should return the provided sessionId in the result', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Continue',
+        flags: [],
+        sessionId: 'existing-session-abc',
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      const result = await promise;
+
+      expect(result.sessionId).toBe('existing-session-abc');
+    });
+  });
+
+  describe('timeout', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    it('should send SIGTERM after timeout, then SIGKILL', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something slow',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+        timeoutMs: 5000,
+      });
+
+      vi.advanceTimersByTime(5000);
+      expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+
+      vi.advanceTimersByTime(5000);
+      expect(proc.kill).toHaveBeenCalledWith('SIGKILL');
+
+      proc.emit('close', 137);
+      vi.useRealTimers();
+
+      const result = await promise;
+      expect(result.exitCode).toBe(137);
+      expect(result.success).toBe(false);
+    });
+
+    it('should clear timeout when process exits before timeout', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something fast',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+        timeoutMs: 60000,
+      });
+
+      proc.emit('close', 0);
+      vi.useRealTimers();
+
+      const result = await promise;
+      expect(result.exitCode).toBe(0);
+      expect(proc.kill).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('process exit', () => {
+    it('should resolve with success=true when exit code is 0', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      const result = await promise;
+
+      expect(result.success).toBe(true);
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('should resolve with success=false when exit code is non-zero', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 1);
+      const result = await promise;
+
+      expect(result.success).toBe(false);
+      expect(result.exitCode).toBe(1);
+    });
+
+    it('should handle null exit code as exit code 1', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', null);
+      const result = await promise;
+
+      expect(result.success).toBe(false);
+      expect(result.exitCode).toBe(1);
+    });
+  });
+});
