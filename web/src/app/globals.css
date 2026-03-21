@@ -182,6 +182,12 @@
   overflow: hidden;
 }
 
+/* BlockNote: keep formatting toolbar visible in narrow containers */
+.bn-shadcn .bn-toolbar {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
 /* BlockNote: constrain all block content to container width */
 .bn-editor .bn-block-content {
   max-width: 100%;
