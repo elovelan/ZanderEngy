@@ -15,7 +15,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { trpc } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 
@@ -124,8 +123,11 @@ export function ExecutionTab({ taskId, sessionId, status }: ExecutionTabProps) {
         )}
       </div>
 
-      <ScrollArea className="max-h-[50vh] overflow-auto border border-border">
-        <div ref={scrollRef} className="max-h-[50vh] overflow-auto" onScroll={handleScroll}>
+      <div
+        ref={scrollRef}
+        className="max-h-[50vh] overflow-auto border border-border"
+        onScroll={handleScroll}
+      >
           {isLoading ? (
             <div className="flex items-center justify-center p-8 text-muted-foreground">
               <RiLoader4Line className="mr-2 size-4 animate-spin" />
@@ -155,8 +157,7 @@ export function ExecutionTab({ taskId, sessionId, status }: ExecutionTabProps) {
               )}
             </div>
           )}
-        </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -310,18 +311,19 @@ function ToolUseBlock({ block }: { block: ContentBlock }) {
   );
 }
 
+function formatContent(content: unknown): string | null {
+  if (!content) return null;
+  if (typeof content === 'string') return content;
+  return JSON.stringify(content, null, 2);
+}
+
 function ToolResultBlock({ block }: { block: ContentBlock }) {
   const [open, setOpen] = useState(false);
-  const contentStr = block.content
-    ? typeof block.content === 'string'
-      ? block.content
-      : JSON.stringify(block.content, null, 2)
-    : null;
+  const contentStr = formatContent(block.content);
 
   if (!contentStr) return null;
 
   const isError = block.is_error === true;
-  const truncated = contentStr.length > 500 ? contentStr.slice(0, 500) + '...' : contentStr;
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -356,7 +358,7 @@ function ToolResultBlock({ block }: { block: ContentBlock }) {
               isError ? 'text-red-400' : 'text-muted-foreground',
             )}
           >
-            {open ? contentStr : truncated}
+            {contentStr}
           </pre>
         </div>
       </CollapsibleContent>

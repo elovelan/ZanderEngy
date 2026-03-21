@@ -18,7 +18,7 @@ interface ExecutionStatusIconProps {
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   active: RiLoader4Line,
-  paused: RiLoader4Line,
+  paused: RiPauseCircleLine,
   completed: RiCheckboxCircleLine,
   stopped: RiErrorWarningLine,
   planning: RiLightbulbLine,

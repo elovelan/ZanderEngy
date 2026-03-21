@@ -276,10 +276,11 @@ function TaskGroupRow({
   const done = tasks.filter((t) => t.status === 'done').length;
   const visibleTasks = showDone ? tasks : tasks.filter((t) => t.status !== 'done');
   const allDone = isAllDone(tasks);
-  const hasVisibleTasks = visibleTasks.length > 0;
-  const isCollapsible = hasVisibleTasks;
+  const isCollapsible = visibleTasks.length > 0;
 
-  const activeTask = tgExecStatus === 'active' ? tasks.find((t) => t.subStatus) : null;
+  const activeTask = tgExecStatus === 'active'
+    ? tasks.find((t) => t.subStatus === 'implementing' || t.subStatus === 'planning')
+    : null;
 
   const completeBadge = allDone && (
     <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-500">

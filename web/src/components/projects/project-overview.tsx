@@ -20,7 +20,13 @@ type Project = {
   workspaceId: number;
 };
 
-export function ProjectOverview({ project }: { project: Project }) {
+export function ProjectOverview({
+  project,
+  containerEnabled = false,
+}: {
+  project: Project;
+  containerEnabled?: boolean;
+}) {
   const { data: milestones } = trpc.milestone.list.useQuery({ projectId: project.id });
   const { data: tasks } = trpc.task.list.useQuery({ projectId: project.id });
 
@@ -63,6 +69,7 @@ export function ProjectOverview({ project }: { project: Project }) {
           milestones={milestones ?? []}
           showDone={showDone}
           onTaskClick={setSelectedTaskId}
+          containerEnabled={containerEnabled}
         />
       </div>
 

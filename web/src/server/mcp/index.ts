@@ -249,7 +249,9 @@ function registerWorkspaceTools(mcp: McpServer): void {
         ),
       ];
 
-      const sessions =
+      const projectTaskIds = projectTasks.map((t) => t.id);
+
+      const groupSessions =
         taskGroupIds.length > 0
           ? db
               .select()
@@ -258,6 +260,23 @@ function registerWorkspaceTools(mcp: McpServer): void {
               .orderBy(desc(agentSessions.createdAt))
               .all()
           : [];
+
+      const taskSessions =
+        projectTaskIds.length > 0
+          ? db
+              .select()
+              .from(agentSessions)
+              .where(
+                and(
+                  inArray(agentSessions.taskId, projectTaskIds),
+                  eq(agentSessions.executionMode, 'task'),
+                ),
+              )
+              .orderBy(desc(agentSessions.createdAt))
+              .all()
+          : [];
+
+      const sessions = [...groupSessions, ...taskSessions];
 
       // Build per-taskGroup execution summary (latest session wins)
       const taskGroupExecution: Record<
@@ -289,7 +308,7 @@ function registerWorkspaceTools(mcp: McpServer): void {
         };
       }
 
-      const activeSessions = sessions
+      const activeExecutionSessions = sessions
         .filter((s) => s.status === 'active')
         .map((s) => ({
           sessionId: s.sessionId,
@@ -313,7 +332,7 @@ function registerWorkspaceTools(mcp: McpServer): void {
         },
         execution: {
           taskGroups: taskGroupExecution,
-          activeSessions,
+          activeSessions: activeExecutionSessions,
         },
       });
     },
