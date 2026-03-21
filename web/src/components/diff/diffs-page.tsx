@@ -13,7 +13,7 @@ import { CommitList } from './commit-list';
 import { RepoSelector } from './repo-selector';
 import { SessionSelector } from './session-selector';
 import { ReviewActions } from './review-actions';
-import { useDiffComments } from './use-diff-comments';
+import { useDiffComments, extractFilePathFromDocPath } from './use-diff-comments';
 import type { ChangedFile, ViewMode, DiffViewMode } from './types';
 
 const SIDEBAR_CONFIG = {
@@ -179,6 +179,25 @@ export function DiffsPage({ workspaceSlug }: DiffsPageProps) {
     (diffViewMode === 'history' && isLogLoading) ||
     (diffViewMode === 'branch' && isBranchLoading);
 
+  // Filter comments to current diff files + build per-file unresolved counts
+  const { currentFileComments, fileCommentCounts } = useMemo(() => {
+    if (!selectedRepo) return { currentFileComments: [], fileCommentCounts: new Map<string, number>() };
+    const filePaths = new Set(files.map((f) => f.path));
+    const filtered: typeof diffComments = [];
+    const counts = new Map<string, number>();
+
+    for (const c of diffComments) {
+      const filePath = extractFilePathFromDocPath(c.documentPath, selectedRepo);
+      if (!filePath || !filePaths.has(filePath)) continue;
+      filtered.push(c);
+      if (!c.resolved) {
+        counts.set(filePath, (counts.get(filePath) ?? 0) + 1);
+      }
+    }
+
+    return { currentFileComments: filtered, fileCommentCounts: counts };
+  }, [diffComments, files, selectedRepo]);
+
   return (
     <div className="flex flex-1 min-h-0 flex-col">
       {/* Top bar: view mode tabs + repo selector + review actions */}
@@ -196,7 +215,7 @@ export function DiffsPage({ workspaceSlug }: DiffsPageProps) {
           />
         </div>
         <div className="px-3">
-          <ReviewActions repoDir={selectedRepo} diffComments={diffComments} />
+          <ReviewActions repoDir={selectedRepo} diffComments={currentFileComments} />
         </div>
       </div>
 
@@ -251,6 +270,7 @@ export function DiffsPage({ workspaceSlug }: DiffsPageProps) {
                     onSelectFile={setSelectedFile}
                     onRefresh={() => {}}
                     isLoading={false}
+                    commentCounts={fileCommentCounts}
                   />
                 </div>
               )}
@@ -264,6 +284,7 @@ export function DiffsPage({ workspaceSlug }: DiffsPageProps) {
                 if (diffViewMode === 'latest') refetchStatus();
               }}
               isLoading={isFileListLoading}
+              commentCounts={fileCommentCounts}
             />
           )
         }

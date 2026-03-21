@@ -27,7 +27,7 @@ export function formatCommentsForExport({
   }
 
   for (const [, thread] of threads) {
-    if (thread.deletedAt) continue;
+    if (thread.deletedAt || thread.resolved) continue;
     const threadComments = thread.comments.filter((c) => !c.deletedAt);
     if (threadComments.length === 0) continue;
 
@@ -36,14 +36,10 @@ export function formatCommentsForExport({
       | undefined;
     const exact = anchor?.exact;
     const lineNum = exact ? findLineNumber(markdown, exact) : null;
-    const resolvedTag = thread.resolved ? ' (Resolved)' : '';
-
     if (exact && lineNum) {
-      lines.push(`Line ${lineNum}: "${exact}"${resolvedTag}`);
+      lines.push(`Line ${lineNum}: "${exact}"`);
     } else if (exact) {
-      lines.push(`"${exact}"${resolvedTag}`);
-    } else if (thread.resolved) {
-      lines.push('(Resolved)');
+      lines.push(`"${exact}"`);
     }
 
     for (const comment of threadComments) {

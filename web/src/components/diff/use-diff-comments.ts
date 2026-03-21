@@ -22,6 +22,11 @@ function makeDiffDocPath(repoDir: string, filePath: string): string {
   return `diff://${repoDir}/${filePath}`;
 }
 
+export function extractFilePathFromDocPath(documentPath: string, repoDir: string): string | null {
+  const prefix = `diff://${repoDir}/`;
+  return documentPath.startsWith(prefix) ? documentPath.slice(prefix.length) : null;
+}
+
 export function useDiffComments(repoDir: string | null) {
   const prefix = repoDir ? `diff://${repoDir}/` : '';
 
