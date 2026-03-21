@@ -1,17 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { RiArrowRightSLine, RiHammerLine } from '@remixicon/react';
+import { RiArrowRightSLine, RiHammerLine, RiMore2Line, RiPlayLine, RiStopLine } from '@remixicon/react';
 import { trpc } from '@/lib/trpc';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { MilestoneStatusBadge } from './milestone-status-badge';
 import { MilestoneQuickActions } from './milestone-quick-actions';
 import { TaskCard } from './task-card';
 import { useQuickAction } from '@/hooks/use-quick-action';
+import { useExecutionStatus } from '@/hooks/use-execution-status';
+import { ExecutionStatusIcon } from './execution-status-icon';
 import { cn } from '@/lib/utils';
 import type { Task } from './types';
 
@@ -323,6 +331,11 @@ function TaskGroupQuickAction({
   milestoneRef: string;
 }) {
   const { disabled, launch, projectSlug } = useQuickAction();
+  const {
+    isActive,
+    start: startExecution,
+    stop: stopExecution,
+  } = useExecutionStatus('taskGroup', taskGroupId);
 
   function handleImplementTaskGroup() {
     launch({
@@ -332,26 +345,51 @@ function TaskGroupQuickAction({
   }
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
+    <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+      {isActive && <ExecutionStatusIcon status="active" />}
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+              disabled={disabled}
+              onClick={handleImplementTaskGroup}
+            >
+              <RiHammerLine className="size-3" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Implement Task Group</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon-xs"
-            className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-            disabled={disabled}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleImplementTaskGroup();
-            }}
+            className="shrink-0 text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground"
           >
-            <RiHammerLine className="size-3" />
+            <RiMore2Line className="size-3" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          <p>Implement Task Group</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+          {isActive ? (
+            <DropdownMenuItem onClick={stopExecution}>
+              <RiStopLine className="size-4" />
+              Stop Execution
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem disabled={disabled} onClick={startExecution}>
+              <RiPlayLine className="size-4" />
+              Execute Task Group
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

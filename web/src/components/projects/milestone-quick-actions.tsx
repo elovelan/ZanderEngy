@@ -1,9 +1,17 @@
 'use client';
 
-import { RiHammerLine } from '@remixicon/react';
+import { RiHammerLine, RiMore2Line, RiPlayLine, RiStopLine } from '@remixicon/react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useQuickAction } from '@/hooks/use-quick-action';
+import { useExecutionStatus } from '@/hooks/use-execution-status';
+import { ExecutionStatusIcon } from './execution-status-icon';
 
 interface MilestoneQuickActionsProps {
   milestoneRef: string;
@@ -11,6 +19,11 @@ interface MilestoneQuickActionsProps {
 
 export function MilestoneQuickActions({ milestoneRef }: MilestoneQuickActionsProps) {
   const { disabled, launch, projectSlug, workspace } = useQuickAction();
+  const {
+    isActive,
+    start: startExecution,
+    stop: stopExecution,
+  } = useExecutionStatus('milestone', milestoneRef);
 
   function handleImplementMilestone() {
     const useContainer = workspace?.containerEnabled ?? false;
@@ -22,26 +35,51 @@ export function MilestoneQuickActions({ milestoneRef }: MilestoneQuickActionsPro
   }
 
   return (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip>
-        <TooltipTrigger asChild>
+    <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+      {isActive && <ExecutionStatusIcon status="active" />}
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+              disabled={disabled}
+              onClick={handleImplementMilestone}
+            >
+              <RiHammerLine className="size-3" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Implement Milestone</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon-xs"
-            className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-            disabled={disabled}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleImplementMilestone();
-            }}
+            className="shrink-0 text-muted-foreground transition-colors hover:text-foreground data-[state=open]:text-foreground"
           >
-            <RiHammerLine className="size-3" />
+            <RiMore2Line className="size-3" />
           </Button>
-        </TooltipTrigger>
-        <TooltipContent side="bottom">
-          <p>Implement Milestone</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+          {isActive ? (
+            <DropdownMenuItem onClick={stopExecution}>
+              <RiStopLine className="size-4" />
+              Stop Execution
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem disabled={disabled} onClick={startExecution}>
+              <RiPlayLine className="size-4" />
+              Execute Milestone
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { eq, desc, and, inArray } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import { router, publicProcedure } from '../trpc';
 import { getDb } from '../../db/client';
@@ -321,5 +321,101 @@ export const executionRouter = router({
           (s.taskId !== null && projectTaskIds.has(s.taskId)) ||
           (s.taskGroupId !== null && projectTaskGroupIds.has(s.taskGroupId)),
       );
+    }),
+
+  getSessionStatus: publicProcedure
+    .input(
+      z.object({
+        scope: z.enum(['task', 'taskGroup', 'milestone']),
+        id: z.union([z.number(), z.string()]),
+      }),
+    )
+    .query(({ input }) => {
+      const db = getDb();
+
+      if (input.scope === 'task') {
+        const taskId = typeof input.id === 'string' ? parseInt(input.id, 10) : input.id;
+        const session = db
+          .select()
+          .from(agentSessions)
+          .where(and(eq(agentSessions.taskId, taskId), eq(agentSessions.executionMode, 'task')))
+          .orderBy(desc(agentSessions.createdAt))
+          .get();
+
+        return session
+          ? { status: session.status, sessionId: session.sessionId }
+          : { status: null, sessionId: null };
+      }
+
+      if (input.scope === 'taskGroup') {
+        const groupId = typeof input.id === 'string' ? parseInt(input.id, 10) : input.id;
+        const session = db
+          .select()
+          .from(agentSessions)
+          .where(
+            and(eq(agentSessions.taskGroupId, groupId), eq(agentSessions.executionMode, 'group')),
+          )
+          .orderBy(desc(agentSessions.createdAt))
+          .get();
+
+        return session
+          ? { status: session.status, sessionId: session.sessionId }
+          : { status: null, sessionId: null };
+      }
+
+      // milestone scope — find tasks in the milestone, then find sessions for those tasks
+      const milestoneRef = String(input.id);
+      const milestoneTasks = db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.milestoneRef, milestoneRef))
+        .all();
+      const taskIds = milestoneTasks.map((t) => t.id);
+
+      if (taskIds.length === 0) {
+        return { status: null, sessionId: null };
+      }
+
+      const session = db
+        .select()
+        .from(agentSessions)
+        .where(
+          and(
+            inArray(agentSessions.taskId, taskIds),
+            eq(agentSessions.executionMode, 'milestone'),
+          ),
+        )
+        .orderBy(desc(agentSessions.createdAt))
+        .get();
+
+      return session
+        ? { status: session.status, sessionId: session.sessionId }
+        : { status: null, sessionId: null };
+    }),
+
+  getWorktreeSessions: publicProcedure
+    .input(z.object({ workspaceSlug: z.string().optional() }))
+    .query(() => {
+      const db = getDb();
+
+      const activeSessions = db
+        .select({
+          id: agentSessions.id,
+          sessionId: agentSessions.sessionId,
+          worktreePath: agentSessions.worktreePath,
+        })
+        .from(agentSessions)
+        .where(eq(agentSessions.status, 'active'))
+        .all();
+
+      const sessions = activeSessions
+        .filter((s) => s.worktreePath !== null)
+        .map((s) => ({
+          id: s.id,
+          sessionId: s.sessionId,
+          worktreePath: s.worktreePath!,
+        }));
+
+      return { sessions };
     }),
 });

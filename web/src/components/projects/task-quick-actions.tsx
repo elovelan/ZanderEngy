@@ -1,6 +1,6 @@
 'use client';
 
-import { RiMore2Line, RiDraftLine, RiHammerLine } from '@remixicon/react';
+import { RiMore2Line, RiDraftLine, RiHammerLine, RiPlayLine, RiStopLine } from '@remixicon/react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,6 +12,8 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { trpc } from '@/lib/trpc';
 import { useQuickAction } from '@/hooks/use-quick-action';
+import { useExecutionStatus } from '@/hooks/use-execution-status';
+import { ExecutionStatusIcon } from './execution-status-icon';
 import { toast } from 'sonner';
 
 const DEFAULT_PLAN_SKILL = '/engy:plan';
@@ -79,6 +81,8 @@ export function TaskQuickActions({
     updateTask.mutate({ id: taskId, needsPlan: !needsPlan });
   }
 
+  const { isActive, start: startExecution, stop: stopExecution } = useExecutionStatus('task', taskId);
+
   const showImplement = !needsPlan || hasPlan;
 
   const tooltip = disabled
@@ -89,6 +93,7 @@ export function TaskQuickActions({
 
   return (
     <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+      {isActive && <ExecutionStatusIcon status="active" />}
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -123,6 +128,18 @@ export function TaskQuickActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
+          {isActive ? (
+            <DropdownMenuItem onClick={stopExecution}>
+              <RiStopLine className="size-4" />
+              Stop Execution
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem disabled={disabled} onClick={startExecution}>
+              <RiPlayLine className="size-4" />
+              Execute in Background
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
           {needsPlan && hasPlan && (
             <>
               <DropdownMenuItem disabled={disabled} onClick={handlePlan}>
