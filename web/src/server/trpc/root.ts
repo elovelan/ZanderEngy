@@ -7,6 +7,7 @@ import { taskRouter } from './routers/task';
 import { commentRouter } from './routers/comment';
 import { dirRouter } from './routers/dir';
 import { diffRouter } from './routers/diff';
+import { executionRouter } from './routers/execution';
 
 export const appRouter = router({
   workspace: workspaceRouter,
@@ -17,6 +18,7 @@ export const appRouter = router({
   comment: commentRouter,
   dir: dirRouter,
   diff: diffRouter,
+  execution: executionRouter,
 });
 
 /** @public Used by tRPC client setup */
