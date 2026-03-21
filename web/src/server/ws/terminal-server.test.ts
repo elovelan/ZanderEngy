@@ -243,7 +243,7 @@ describe('Terminal WebSocket Server', () => {
       });
     });
 
-    it('should clear terminalSessionMeta on relay disconnect', async () => {
+    it('should retain terminalSessionMeta on relay disconnect for respawn', async () => {
       const daemonWs = await connectDaemonRelay(port);
       const spawnPromise = waitForMessage(daemonWs);
 
@@ -258,8 +258,8 @@ describe('Terminal WebSocket Server', () => {
         expect(state.terminalDaemon).toBeNull();
       });
 
-      // Stale metadata should be cleared so future connections don't falsely reconnect
-      expect(state.terminalSessionMeta.has('sess-relay-meta')).toBe(false);
+      // Meta is retained so the sync handler can respawn sessions with active browsers
+      expect(state.terminalSessionMeta.has('sess-relay-meta')).toBe(true);
     });
 
     it('should set terminalDaemon to null on relay disconnect', async () => {

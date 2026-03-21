@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { MilestoneList } from './milestone-list';
 import { MilestoneForm } from './milestone-form';
+import { TaskDialog } from './task-dialog';
 import { RiAddLine } from '@remixicon/react';
 
 type Project = {
@@ -25,6 +26,7 @@ export function ProjectOverview({ project }: { project: Project }) {
 
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
   const [showDone, setShowDone] = useState(false);
+  const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const utils = trpc.useUtils();
 
   const totalTasks = tasks?.length ?? 0;
@@ -56,7 +58,12 @@ export function ProjectOverview({ project }: { project: Project }) {
             </Button>
           </div>
         </div>
-        <MilestoneList projectId={project.id} milestones={milestones ?? []} showDone={showDone} />
+        <MilestoneList
+          projectId={project.id}
+          milestones={milestones ?? []}
+          showDone={showDone}
+          onTaskClick={setSelectedTaskId}
+        />
       </div>
 
       <MilestoneForm
@@ -68,6 +75,17 @@ export function ProjectOverview({ project }: { project: Project }) {
           utils.milestone.list.invalidate();
         }}
       />
+
+      {selectedTaskId !== null && (
+        <TaskDialog
+          mode="edit"
+          taskId={selectedTaskId}
+          open
+          onOpenChange={(open) => {
+            if (!open) setSelectedTaskId(null);
+          }}
+        />
+      )}
     </div>
   );
 }

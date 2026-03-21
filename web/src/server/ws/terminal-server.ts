@@ -312,13 +312,11 @@ export function createTerminalRelayWebSocketServer(state: AppState): WebSocketSe
         `[terminal-relay] Daemon disconnected: code=${code} reason=${reason?.toString() ?? ''}`,
       );
       if (state.terminalDaemon === ws) {
-        console.log(`[terminal] daemon relay disconnected — clearing ${state.terminalSessionMeta.size} session meta entries`);
+        console.log(`[terminal] daemon relay disconnected — retaining ${state.terminalSessionMeta.size} session meta entries for respawn`);
         state.terminalDaemon = null;
-        // All daemon-side PTY sessions are dead — clear stale metadata so future
-        // connections spawn fresh instead of falsely detecting reconnects.
-        // terminalSessions (browser WSs) are left intact so browsers can still receive
-        // output/errors; they'll spawn fresh on next connect since meta is gone.
-        state.terminalSessionMeta.clear();
+        // Keep terminalSessionMeta intact so the sync handler can respawn
+        // sessions with active browsers when a new daemon connects.
+        // The sync handler already cleans up entries with no active browser WS.
       }
     });
   });
