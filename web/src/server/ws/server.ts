@@ -324,14 +324,20 @@ function handleExecutionCompleteEvent(payload: {
       .run();
 
     if (session.taskId) {
-      const subStatus = payload.success ? null : 'failed';
-      tx.update(tasks)
-        .set({
-          subStatus: subStatus as typeof tasks.$inferInsert.subStatus,
-          updatedAt: now,
-        })
-        .where(eq(tasks.id, session.taskId))
-        .run();
+      if (payload.success) {
+        tx.update(tasks)
+          .set({ status: 'done', subStatus: null, updatedAt: now })
+          .where(eq(tasks.id, session.taskId))
+          .run();
+      } else {
+        tx.update(tasks)
+          .set({
+            subStatus: 'failed' as typeof tasks.$inferInsert.subStatus,
+            updatedAt: now,
+          })
+          .where(eq(tasks.id, session.taskId))
+          .run();
+      }
     }
   });
 }

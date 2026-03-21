@@ -234,6 +234,14 @@ export const executionRouter = router({
         })
         .run();
 
+      // Move task to in_progress
+      if (taskId) {
+        db.update(tasks)
+          .set({ status: 'in_progress', subStatus: 'implementing' })
+          .where(eq(tasks.id, taskId))
+          .run();
+      }
+
       const flags: string[] = [];
       if (systemPrompt) flags.push('--append-system-prompt', systemPrompt);
       for (const dir of additionalDirs) flags.push('--add-dir', dir);
