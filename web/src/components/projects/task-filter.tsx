@@ -1,33 +1,32 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 import {
   RiFilterLine,
   RiDraftLine,
   RiHammerLine,
   RiArrowDownSLine,
-} from "@remixicon/react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+  RiRobotLine,
+  RiUserLine,
+} from '@remixicon/react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Command,
   CommandEmpty,
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command";
-import { Switch } from "@/components/ui/switch";
-import { taskStatusOptions } from "@/components/projects/task-status-badge";
+} from '@/components/ui/command';
+import { Switch } from '@/components/ui/switch';
+import {
+  taskStatusOptions,
+  taskStatusColors,
+  taskStatusIcons,
+  taskStatusLabels,
+} from '@/components/projects/task-status-badge';
+import { cn } from '@/lib/utils';
 
 export interface TaskFilters {
   status: string[];
@@ -75,7 +74,7 @@ export function applyTaskFilters<
     if (filters.unassignedOnly && (task.milestoneRef !== null || task.taskGroupId !== null))
       return false;
     if (filters.planStatus.length > 0) {
-      const taskPlanStatus = task.needsPlan ? "needs_plan" : "ready";
+      const taskPlanStatus = task.needsPlan ? 'needs_plan' : 'ready';
       if (!filters.planStatus.includes(taskPlanStatus)) return false;
     }
     return true;
@@ -98,6 +97,38 @@ function toggle<T>(arr: T[], value: T): T[] {
   return arr.includes(value) ? arr.filter((v) => v !== value) : [...arr, value];
 }
 
+function FilterChip({
+  selected,
+  onClick,
+  icon: Icon,
+  label,
+  activeClass,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon?: React.ComponentType<{ className?: string }>;
+  label: string;
+  activeClass?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'inline-flex items-center gap-1 border px-2 py-1 text-xs font-medium transition-colors',
+        selected
+          ? cn('border-border bg-muted', activeClass)
+          : 'border-transparent text-muted-foreground hover:text-foreground',
+      )}
+    >
+      {Icon && <Icon className="size-3.5" />}
+      {label}
+    </button>
+  );
+}
+
+const SECTION_LABEL = 'mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground';
+
 interface MultiSelectComboboxProps {
   label: string;
   options: { value: string; label: string }[];
@@ -116,7 +147,9 @@ function MultiSelectCombobox({ label, options, selected, onChange }: MultiSelect
           className="flex w-full items-center justify-between rounded-none border border-input/30 bg-input/30 px-2 py-1.5 text-xs hover:bg-muted"
         >
           <span className="truncate text-muted-foreground">
-            {selected.length > 0 ? `${selected.length} selected` : `Select ${label.toLowerCase()}...`}
+            {selected.length > 0
+              ? `${selected.length} selected`
+              : `Select ${label.toLowerCase()}...`}
           </span>
           <RiArrowDownSLine className="size-3.5 shrink-0 text-muted-foreground" />
         </button>
@@ -146,8 +179,18 @@ function MultiSelectCombobox({ label, options, selected, onChange }: MultiSelect
 const DONE_LIMIT_OPTIONS = [5, 10, 25, 0] as const;
 
 function doneLimitLabel(limit: number): string {
-  return limit === 0 ? "All" : String(limit);
+  return limit === 0 ? 'All' : String(limit);
 }
+
+const typeConfig = [
+  { value: 'ai', label: 'AI', icon: RiRobotLine },
+  { value: 'human', label: 'Human', icon: RiUserLine },
+] as const;
+
+const planStatusConfig = [
+  { value: 'needs_plan', label: 'Needs plan', icon: RiDraftLine },
+  { value: 'ready', label: 'Ready', icon: RiHammerLine },
+] as const;
 
 interface TaskFilterProps {
   value: TaskFilters;
@@ -180,8 +223,8 @@ export function TaskFilter({ value, onChange, groups, milestones }: TaskFilterPr
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <Popover>
+      <PopoverTrigger asChild>
         <Button size="sm" variant="outline">
           <RiFilterLine data-icon="inline-start" />
           Filter
@@ -191,127 +234,117 @@ export function TaskFilter({ value, onChange, groups, milestones }: TaskFilterPr
             </Badge>
           )}
         </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-52">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Status</DropdownMenuLabel>
-          {taskStatusOptions.map((s) => (
-            <DropdownMenuCheckboxItem
-              key={s}
-              checked={value.status.includes(s)}
-              onCheckedChange={() => onChange({ ...value, status: toggle(value.status, s) })}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {s.replace("_", " ")}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuGroup>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-[26rem]">
+        <div className="flex flex-col gap-3">
+          {/* Status */}
+          <div>
+            <div className={SECTION_LABEL}>Status</div>
+            <div className="flex gap-1">
+              {taskStatusOptions.map((s) => {
+                const Icon = taskStatusIcons[s];
+                return (
+                  <FilterChip
+                    key={s}
+                    selected={value.status.includes(s)}
+                    onClick={() => onChange({ ...value, status: toggle(value.status, s) })}
+                    icon={Icon}
+                    label={taskStatusLabels[s] ?? s}
+                    activeClass={taskStatusColors[s]}
+                  />
+                );
+              })}
+            </div>
+          </div>
 
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Type</DropdownMenuLabel>
-          {(["ai", "human"] as const).map((t) => (
-            <DropdownMenuCheckboxItem
-              key={t}
-              checked={value.type.includes(t)}
-              onCheckedChange={() => onChange({ ...value, type: toggle(value.type, t) })}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {t === "ai" ? "AI" : "Human"}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuGroup>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Plan Status</DropdownMenuLabel>
-          <DropdownMenuCheckboxItem
-            checked={value.planStatus.includes("needs_plan")}
-            onCheckedChange={() =>
-              onChange({ ...value, planStatus: toggle(value.planStatus, "needs_plan") })
-            }
-            onSelect={(e) => e.preventDefault()}
-          >
-            <RiDraftLine className="mr-1 size-3.5" />
-            Needs plan
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuCheckboxItem
-            checked={value.planStatus.includes("ready")}
-            onCheckedChange={() =>
-              onChange({ ...value, planStatus: toggle(value.planStatus, "ready") })
-            }
-            onSelect={(e) => e.preventDefault()}
-          >
-            <RiHammerLine className="mr-1 size-3.5" />
-            Ready to implement
-          </DropdownMenuCheckboxItem>
-        </DropdownMenuGroup>
-
-        <DropdownMenuSeparator />
-
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="flex items-center justify-between">
-            Unassigned only
-            <Switch
-              checked={value.unassignedOnly}
-              onCheckedChange={handleUnassignedToggle}
-              className="scale-75"
-            />
-          </DropdownMenuLabel>
-        </DropdownMenuGroup>
-
-        {milestones.length > 0 && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Milestone</DropdownMenuLabel>
-              <div className="px-2 pb-1" onClick={(e) => e.stopPropagation()}>
-                <MultiSelectCombobox
-                  label="Milestones"
-                  options={milestones.map((m) => ({ value: m.ref, label: m.title }))}
-                  selected={value.milestoneRef}
-                  onChange={handleMilestoneChange}
-                />
+          {/* Type + Plan Status */}
+          <div className="flex gap-6">
+            <div>
+              <div className={SECTION_LABEL}>Type</div>
+              <div className="flex gap-1">
+                {typeConfig.map((t) => (
+                  <FilterChip
+                    key={t.value}
+                    selected={value.type.includes(t.value)}
+                    onClick={() => onChange({ ...value, type: toggle(value.type, t.value) })}
+                    icon={t.icon}
+                    label={t.label}
+                  />
+                ))}
               </div>
-            </DropdownMenuGroup>
-          </>
-        )}
-
-        {groups.length > 0 && (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Group</DropdownMenuLabel>
-              <div className="px-2 pb-1" onClick={(e) => e.stopPropagation()}>
-                <MultiSelectCombobox
-                  label="Groups"
-                  options={groups.map((g) => ({ value: String(g.id), label: g.name }))}
-                  selected={value.groupId.map(String)}
-                  onChange={(selected) => handleGroupChange(selected.map(Number))}
-                />
+            </div>
+            <div>
+              <div className={SECTION_LABEL}>Plan Status</div>
+              <div className="flex gap-1">
+                {planStatusConfig.map((p) => (
+                  <FilterChip
+                    key={p.value}
+                    selected={value.planStatus.includes(p.value)}
+                    onClick={() =>
+                      onChange({ ...value, planStatus: toggle(value.planStatus, p.value) })
+                    }
+                    icon={p.icon}
+                    label={p.label}
+                  />
+                ))}
               </div>
-            </DropdownMenuGroup>
-          </>
-        )}
+            </div>
+          </div>
 
-        <DropdownMenuSeparator />
+          {/* Done limit + Unassigned */}
+          <div className="flex items-end gap-6">
+            <div>
+              <div className={SECTION_LABEL}>Done limit</div>
+              <div className="flex gap-1">
+                {DONE_LIMIT_OPTIONS.map((limit) => (
+                  <FilterChip
+                    key={limit}
+                    selected={value.doneLimit === limit}
+                    onClick={() => onChange({ ...value, doneLimit: limit })}
+                    label={doneLimitLabel(limit)}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="ml-auto flex items-center gap-2 pb-1">
+              <span className={SECTION_LABEL.replace('mb-1 ', '')}>Unassigned only</span>
+              <Switch
+                size="sm"
+                checked={value.unassignedOnly}
+                onCheckedChange={handleUnassignedToggle}
+              />
+            </div>
+          </div>
 
-        <DropdownMenuGroup>
-          <DropdownMenuLabel>Done limit</DropdownMenuLabel>
-          {DONE_LIMIT_OPTIONS.map((limit) => (
-            <DropdownMenuCheckboxItem
-              key={limit}
-              checked={value.doneLimit === limit}
-              onCheckedChange={() => onChange({ ...value, doneLimit: limit })}
-              onSelect={(e) => e.preventDefault()}
-            >
-              {doneLimitLabel(limit)}
-            </DropdownMenuCheckboxItem>
-          ))}
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {/* Milestone + Group comboboxes */}
+          {(milestones.length > 0 || groups.length > 0) && (
+            <div className="flex gap-3">
+              {milestones.length > 0 && (
+                <div className="flex-1">
+                  <div className={SECTION_LABEL}>Milestone</div>
+                  <MultiSelectCombobox
+                    label="Milestones"
+                    options={milestones.map((m) => ({ value: m.ref, label: m.title }))}
+                    selected={value.milestoneRef}
+                    onChange={handleMilestoneChange}
+                  />
+                </div>
+              )}
+              {groups.length > 0 && (
+                <div className="flex-1">
+                  <div className={SECTION_LABEL}>Group</div>
+                  <MultiSelectCombobox
+                    label="Groups"
+                    options={groups.map((g) => ({ value: String(g.id), label: g.name }))}
+                    selected={value.groupId.map(String)}
+                    onChange={(selected) => handleGroupChange(selected.map(Number))}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

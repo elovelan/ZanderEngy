@@ -32,14 +32,14 @@ export const taskStatusColors: Record<string, string> = {
   done: 'text-green-500',
 };
 
-const taskStatusIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+export const taskStatusIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   todo: RiCircleLine,
   in_progress: RiLoader4Line,
   review: RiEyeLine,
   done: RiCheckboxCircleLine,
 };
 
-const taskStatusLabels: Record<string, string> = {
+export const taskStatusLabels: Record<string, string> = {
   todo: 'Todo',
   in_progress: 'In Progress',
   review: 'Review',
