@@ -39,7 +39,7 @@ const taskStatusIcons: Record<string, React.ComponentType<{ className?: string }
   done: RiCheckboxCircleLine,
 };
 
-export const taskStatusLabels: Record<string, string> = {
+const taskStatusLabels: Record<string, string> = {
   todo: 'Todo',
   in_progress: 'In Progress',
   review: 'Review',

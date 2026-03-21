@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,11 +63,29 @@ export function TaskDialog(props: TaskDialogProps) {
   return <CreateTask {...props} />;
 }
 
+function useMentionDirs(projectId?: number): string[] | undefined {
+  const { data: project } = trpc.project.get.useQuery(
+    { id: projectId! },
+    { enabled: !!projectId },
+  );
+  const { data: workspaces } = trpc.workspace.list.useQuery();
+  return useMemo(() => {
+    if (!project || !workspaces) return undefined;
+    const workspace = workspaces.find((w) => w.id === project.workspaceId);
+    const dirs = [
+      ...((workspace?.repos as string[] | undefined) ?? []),
+      ...(project.projectDir ? [project.projectDir] : []),
+    ];
+    return dirs.length > 0 ? dirs : undefined;
+  }, [project, workspaces]);
+}
+
 // ── Create ───────────────────────────────────────────────────────────
 
 function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: CreateProps) {
   const [title, setTitle] = useState("");
   const descriptionRef = useRef("");
+  const mentionDirs = useMentionDirs(projectId);
   const [type, setType] = useState<"ai" | "human">("human");
   const [importance, setImportance] = useState<"important" | "not_important">("not_important");
   const [urgency, setUrgency] = useState<"urgent" | "not_urgent">("not_urgent");
@@ -141,6 +159,7 @@ function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: Create
                   <DynamicDocumentEditor
                     initialMarkdown=""
                     onSave={(md: string) => { descriptionRef.current = md; }}
+                    mentionDirs={mentionDirs}
                   />
                 )}
               </div>
@@ -201,6 +220,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
     { id: taskId },
     { enabled: open },
   );
+  const mentionDirs = useMentionDirs(task?.projectId ?? undefined);
 
   const [title, setTitle] = useState(task?.title ?? "");
   const [status, setStatus] = useState(task?.status ?? "");
@@ -357,6 +377,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
               <DynamicDocumentEditor
                 initialMarkdown={task.description || ""}
                 onSave={(md: string) => { setDescription(md); setDirty(true); }}
+                mentionDirs={mentionDirs}
               />
             </div>
           </div>
