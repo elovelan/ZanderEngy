@@ -13,6 +13,7 @@
     "**/.next/**",
     "**/.turbo/**",
     "**/eslint.config.mjs",
-    "**/migrations/**"
+    "**/migrations/**",
+    "**/.playwright-cli/**"
   ]
 }

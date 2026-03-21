@@ -10,7 +10,7 @@ vi.mock('node:crypto', () => ({
 
 import { simpleGit } from 'simple-git';
 import { Runner } from './index.js';
-import type { AgentSpawner, SpawnConfig, SpawnResult, AgentProcess } from './index.js';
+import type { AgentSpawner, SpawnResult, AgentProcess } from './index.js';
 
 const mockedSimpleGit = vi.mocked(simpleGit);
 

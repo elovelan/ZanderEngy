@@ -5,7 +5,7 @@ import type { ClientToServerMessage } from '@engy/common';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export interface RunnerConfig {
+interface RunnerConfig {
   repoPath: string;
   containerMode: boolean;
   containerWorkspaceFolder?: string;
@@ -41,13 +41,7 @@ export interface AgentSpawner {
 
 // ── WS Event payloads ────────────────────────────────────────────────────────
 
-export interface ExecutionStatusPayload {
-  sessionId: string;
-  worktreePath: string;
-  status: 'running';
-}
-
-export interface ExecutionCompletePayload {
+interface ExecutionCompletePayload {
   sessionId: string;
   exitCode: number;
   success: boolean;
