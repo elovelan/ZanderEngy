@@ -1,12 +1,14 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { trpc } from "@/lib/trpc";
-import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
-import { MilestoneList } from "./milestone-list";
-import { MilestoneForm } from "./milestone-form";
-import { RiAddLine } from "@remixicon/react";
+import { useState } from 'react';
+import { trpc } from '@/lib/trpc';
+import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { MilestoneList } from './milestone-list';
+import { MilestoneForm } from './milestone-form';
+import { RiAddLine } from '@remixicon/react';
 
 type Project = {
   id: number;
@@ -22,10 +24,11 @@ export function ProjectOverview({ project }: { project: Project }) {
   const { data: tasks } = trpc.task.list.useQuery({ projectId: project.id });
 
   const [showMilestoneForm, setShowMilestoneForm] = useState(false);
+  const [showDone, setShowDone] = useState(false);
   const utils = trpc.useUtils();
 
   const totalTasks = tasks?.length ?? 0;
-  const doneTasks = tasks?.filter((t) => t.status === "done").length ?? 0;
+  const doneTasks = tasks?.filter((t) => t.status === 'done').length ?? 0;
   const pct = totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   return (
@@ -40,12 +43,20 @@ export function ProjectOverview({ project }: { project: Project }) {
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold">Milestones</h3>
-          <Button size="xs" variant="ghost" onClick={() => setShowMilestoneForm(true)}>
-            <RiAddLine data-icon="inline-start" />
-            Add
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <Switch id="show-done" size="sm" checked={showDone} onCheckedChange={setShowDone} />
+              <Label htmlFor="show-done" className="text-xs text-muted-foreground">
+                Show done
+              </Label>
+            </div>
+            <Button size="xs" variant="ghost" onClick={() => setShowMilestoneForm(true)}>
+              <RiAddLine data-icon="inline-start" />
+              Add
+            </Button>
+          </div>
         </div>
-        <MilestoneList projectId={project.id} milestones={milestones ?? []} />
+        <MilestoneList projectId={project.id} milestones={milestones ?? []} showDone={showDone} />
       </div>
 
       <MilestoneForm

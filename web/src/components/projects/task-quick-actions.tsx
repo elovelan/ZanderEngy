@@ -1,6 +1,5 @@
 'use client';
 
-import { useParams } from 'next/navigation';
 import { RiMore2Line, RiDraftLine, RiHammerLine } from '@remixicon/react';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,9 +10,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { useSendToTerminal } from '@/components/terminal/use-send-to-terminal';
 import { trpc } from '@/lib/trpc';
-import { buildQuickActionDirs, buildContextBlock, buildClaudeCommand } from '@/lib/shell';
+import { useQuickAction } from '@/hooks/use-quick-action';
 import { toast } from 'sonner';
 
 const DEFAULT_PLAN_SKILL = '/engy:plan';
@@ -25,32 +23,22 @@ interface TaskQuickActionsProps {
   projectSlug?: string;
 }
 
-export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projectSlugProp }: TaskQuickActionsProps) {
-  const params = useParams<{ workspace: string; project: string }>();
-  const workspaceSlug = params.workspace ?? '';
-  const projectSlug = projectSlugProp ?? params.project;
+export function TaskQuickActions({
+  taskId,
+  needsPlan = true,
+  projectSlug: projectSlugProp,
+}: TaskQuickActionsProps) {
+  const { disabled, launch, projectSlug: hookProjectSlug, workspace, project } = useQuickAction();
+  const projectSlug = projectSlugProp ?? hookProjectSlug;
+  const workspaceSlug = workspace?.slug ?? '';
 
-  const { data: workspace } = trpc.workspace.get.useQuery(
-    { slug: workspaceSlug },
-    { enabled: !!workspaceSlug },
-  );
-  const { data: project } = trpc.project.getBySlug.useQuery(
-    { workspaceId: workspace?.id ?? 0, slug: projectSlug ?? '' },
-    { enabled: !!workspace && !!projectSlug },
-  );
-
-  const { openNewTerminal } = useSendToTerminal();
-
-  const repos = Array.isArray(workspace?.repos) ? (workspace.repos as string[]) : [];
-  const projectDir = project?.projectDir;
   const planSlugs = project?.planSlugs ?? [];
   const planSkill = workspace?.planSkill || DEFAULT_PLAN_SKILL;
   const implementSkill = workspace?.implementSkill || DEFAULT_IMPLEMENT_SKILL;
 
   const taskSlug = `${workspaceSlug}-T${taskId}`;
   const hasPlan = planSlugs.includes(taskSlug);
-
-  const { workingDir, additionalDirs } = buildQuickActionDirs(repos, projectDir);
+  const projectDir = project?.projectDir;
 
   const utils = trpc.useUtils();
   const updateTask = trpc.task.update.useMutation({
@@ -65,51 +53,28 @@ export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projec
   });
 
   function handlePlan() {
-    if (!workingDir || !projectDir || !workspace || !project || !projectSlug) return;
-    const ctx = buildContextBlock({
-      workspace: { id: workspace.id, slug: workspaceSlug },
-      project: { id: project.id, slug: projectSlug, dir: projectDir },
-      repos,
-    });
-    const skillLine = `Use ${planSkill} to plan ${taskSlug}, output plan to ${projectDir}/plans/${taskSlug}.plan.md`;
-    openNewTerminal({
-      scopeType: 'project',
+    if (!projectDir || !projectSlug) return;
+    launch({
+      prompt: `Use ${planSkill} to plan ${taskSlug}, output plan to ${projectDir}/plans/${taskSlug}.plan.md`,
       scopeLabel: `plan: ${taskSlug}`,
-      workingDir,
-      command: buildClaudeCommand({ prompt: skillLine, systemPrompt: ctx, additionalDirs }),
-      groupKey: `project:${workspaceSlug}:${projectSlug}`,
-      workspaceSlug,
     });
   }
 
   function handleImplement() {
-    if (!workingDir || !projectDir || !workspace || !project || !projectSlug) return;
-    const ctx = buildContextBlock({
-      workspace: { id: workspace.id, slug: workspaceSlug },
-      project: { id: project.id, slug: projectSlug, dir: projectDir },
-      repos,
-    });
-    const skillLine = needsPlan
+    if (!projectDir || !projectSlug) return;
+    const prompt = needsPlan
       ? `Use ${implementSkill} for ${taskSlug}, plan at ${projectDir}/plans/${taskSlug}.plan.md`
       : `Use ${implementSkill} for ${taskSlug}`;
-    openNewTerminal({
-      scopeType: 'project',
-      scopeLabel: `impl: ${taskSlug}`,
-      workingDir,
-      command: buildClaudeCommand({ prompt: skillLine, systemPrompt: ctx, additionalDirs }),
-      groupKey: `project:${workspaceSlug}:${projectSlug}`,
-      workspaceSlug,
-    });
+    launch({ prompt, scopeLabel: `impl: ${taskSlug}` });
   }
 
   function handleToggleNeedsPlan() {
     updateTask.mutate({ id: taskId, needsPlan: !needsPlan });
   }
 
-  const actionDisabled = !workingDir || !projectDir;
   const showImplement = !needsPlan || hasPlan;
 
-  const tooltip = actionDisabled
+  const tooltip = disabled
     ? 'No project directory'
     : showImplement
       ? 'Start Implementing'
@@ -124,10 +89,14 @@ export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projec
               variant="ghost"
               size="icon-xs"
               className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-              disabled={actionDisabled}
+              disabled={disabled}
               onClick={showImplement ? handleImplement : handlePlan}
             >
-              {showImplement ? <RiHammerLine className="size-3" /> : <RiDraftLine className="size-3" />}
+              {showImplement ? (
+                <RiHammerLine className="size-3" />
+              ) : (
+                <RiDraftLine className="size-3" />
+              )}
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
@@ -149,7 +118,7 @@ export function TaskQuickActions({ taskId, needsPlan = true, projectSlug: projec
         <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
           {needsPlan && hasPlan && (
             <>
-              <DropdownMenuItem disabled={actionDisabled} onClick={handlePlan}>
+              <DropdownMenuItem disabled={disabled} onClick={handlePlan}>
                 <RiDraftLine className="size-4" />
                 Replan
               </DropdownMenuItem>
