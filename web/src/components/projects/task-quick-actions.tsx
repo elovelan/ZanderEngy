@@ -13,7 +13,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { trpc } from '@/lib/trpc';
 import { useQuickAction } from '@/hooks/use-quick-action';
 import { useExecutionStatus } from '@/hooks/use-execution-status';
-import { ExecutionStatusIcon } from './execution-status-icon';
 import { toast } from 'sonner';
 
 const DEFAULT_PLAN_SKILL = '/engy:plan';
@@ -93,7 +92,6 @@ export function TaskQuickActions({
 
   return (
     <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-      {isActive && <ExecutionStatusIcon status="active" />}
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -101,7 +99,7 @@ export function TaskQuickActions({
               variant="ghost"
               size="icon-xs"
               className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-              disabled={disabled}
+              disabled={disabled || isActive}
               onClick={showImplement ? handleImplement : handlePlan}
             >
               {showImplement ? (

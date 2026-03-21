@@ -238,7 +238,7 @@ export const executionRouter = router({
           : undefined,
       };
 
-      await dispatchExecutionStart(ctx.state, prompt, flags, config);
+      await dispatchExecutionStart(ctx.state, sessionId, prompt, flags, config);
 
       return { sessionId };
     }),
@@ -292,7 +292,7 @@ export const executionRouter = router({
 
       const flags: string[] = ['--resume', input.sessionId];
 
-      await dispatchExecutionStart(ctx.state, '', flags);
+      await dispatchExecutionStart(ctx.state, newSessionId, '', flags);
 
       return { sessionId: newSessionId };
     }),

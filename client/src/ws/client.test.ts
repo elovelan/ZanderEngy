@@ -578,6 +578,7 @@ describe('WsClient execution handlers', () => {
       type: 'EXECUTION_START_REQUEST',
       payload: {
         requestId: 'req-exec-1',
+        sessionId: 'test-session-1',
         prompt: 'Fix the bug',
         flags: ['--verbose'],
         config: { repoPath: '/tmp/repo', containerMode: false },
@@ -590,10 +591,11 @@ describe('WsClient execution handlers', () => {
 
     expect(parsed).toEqual({
       type: 'EXECUTION_START_RESPONSE',
-      payload: { requestId: 'req-exec-1', sessionId: 'mock-session-123' },
+      payload: { requestId: 'req-exec-1', sessionId: 'test-session-1' },
     });
 
     expect(mockRunner.start).toHaveBeenCalledWith(
+      'test-session-1',
       'Fix the bug',
       ['--verbose'],
       {
@@ -654,6 +656,7 @@ describe('WsClient execution handlers', () => {
       type: 'EXECUTION_START_REQUEST',
       payload: {
         requestId: 'req-err-1',
+        sessionId: 'test-session-err',
         prompt: 'Do something',
       },
     };
@@ -756,6 +759,7 @@ describe('WsClient execution handlers', () => {
       type: 'EXECUTION_START_REQUEST',
       payload: {
         requestId: 'req-minimal',
+        sessionId: 'test-session-minimal',
         prompt: 'Simple task',
       },
     };
@@ -766,10 +770,11 @@ describe('WsClient execution handlers', () => {
 
     expect(parsed).toEqual({
       type: 'EXECUTION_START_RESPONSE',
-      payload: { requestId: 'req-minimal', sessionId: 'mock-session-123' },
+      payload: { requestId: 'req-minimal', sessionId: 'test-session-minimal' },
     });
 
     expect(mockRunner.start).toHaveBeenCalledWith(
+      'test-session-minimal',
       'Simple task',
       [],
       {

@@ -114,6 +114,7 @@ function MilestoneRow({
   onTaskClick?: (taskId: number) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { status: execStatus } = useExecutionStatus('milestone', milestone.ref);
   const { data: tasks } = trpc.task.list.useQuery({ milestoneRef: milestone.ref });
   const { data: taskGroups, isLoading: groupsLoading } = trpc.taskGroup.list.useQuery({
     milestoneRef: milestone.ref,
@@ -184,6 +185,7 @@ function MilestoneRow({
             {done}/{total}
           </span>
         </div>
+        <ExecutionStatusIcon status={execStatus} />
       </div>
     </div>
   );
@@ -253,6 +255,7 @@ function TaskGroupRow({
   onTaskClick?: (taskId: number) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { status: tgExecStatus } = useExecutionStatus('taskGroup', taskGroup.id);
 
   const total = tasks.length;
   const done = tasks.filter((t) => t.status === 'done').length;
@@ -293,6 +296,7 @@ function TaskGroupRow({
           {done}/{total}
         </span>
       )}
+      <ExecutionStatusIcon status={tgExecStatus} />
     </div>
   );
 
@@ -346,7 +350,6 @@ function TaskGroupQuickAction({
 
   return (
     <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-      {isActive && <ExecutionStatusIcon status="active" />}
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -354,7 +357,7 @@ function TaskGroupQuickAction({
               variant="ghost"
               size="icon-xs"
               className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-              disabled={disabled}
+              disabled={disabled || isActive}
               onClick={handleImplementTaskGroup}
             >
               <RiHammerLine className="size-3" />

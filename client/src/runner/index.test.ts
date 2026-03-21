@@ -50,7 +50,7 @@ describe('Runner', () => {
       const spawner = createMockSpawner();
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', ['--verbose'], {
+      await runner.start('session-abc', 'implement feature X', ['--verbose'], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -71,7 +71,7 @@ describe('Runner', () => {
       const spawner = createMockSpawner();
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -79,7 +79,7 @@ describe('Runner', () => {
       expect(send).toHaveBeenCalledWith({
         type: 'EXECUTION_STATUS_EVENT',
         payload: {
-          sessionId: 'engy-session-a1b2c3',
+          sessionId: 'session-abc',
           worktreePath: '/path/to/repo/.claude/worktrees/engy-session-a1b2c3',
           status: 'running',
         },
@@ -91,7 +91,7 @@ describe('Runner', () => {
       const spawner = createMockSpawner();
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', ['--verbose'], {
+      await runner.start('session-abc', 'implement feature X', ['--verbose'], {
         repoPath: '/path/to/repo',
         containerMode: true,
         containerWorkspaceFolder: '/workspace',
@@ -101,7 +101,7 @@ describe('Runner', () => {
       expect(spawner.spawn).toHaveBeenCalledWith({
         prompt: 'implement feature X',
         flags: ['--verbose'],
-        sessionId: 'engy-session-a1b2c3',
+        sessionId: 'session-abc',
         workingDir: '/path/to/repo/.claude/worktrees/engy-session-a1b2c3',
         containerMode: true,
         containerWorkspaceFolder: '/workspace',
@@ -119,7 +119,7 @@ describe('Runner', () => {
       });
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -140,7 +140,7 @@ describe('Runner', () => {
       const spawner = createMockSpawner();
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -160,7 +160,7 @@ describe('Runner', () => {
       const runner = new Runner(spawner, send);
 
       // Start to initialize internal state
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -176,7 +176,7 @@ describe('Runner', () => {
       const spawner = createMockSpawner();
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -187,7 +187,7 @@ describe('Runner', () => {
       expect(send).toHaveBeenCalledWith({
         type: 'EXECUTION_COMPLETE_EVENT',
         payload: {
-          sessionId: 'engy-session-a1b2c3',
+          sessionId: 'session-abc',
           exitCode: 1,
           success: false,
         },
@@ -199,7 +199,7 @@ describe('Runner', () => {
       const spawner = createMockSpawner();
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -229,7 +229,7 @@ describe('Runner', () => {
       const runner = new Runner(spawner, send);
 
       // Start first to establish worktree
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -252,7 +252,7 @@ describe('Runner', () => {
       const spawner = createMockSpawner();
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -281,7 +281,7 @@ describe('Runner', () => {
       });
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });
@@ -322,7 +322,7 @@ describe('Runner', () => {
       });
       const runner = new Runner(spawner, send);
 
-      await runner.start('implement feature X', [], {
+      await runner.start('session-abc', 'implement feature X', [], {
         repoPath: '/path/to/repo',
         containerMode: false,
       });

@@ -51,11 +51,15 @@ export class Runner {
     this.send = send;
   }
 
-  async start(prompt: string, flags: string[], config: RunnerConfig): Promise<string> {
+  async start(
+    sessionId: string,
+    prompt: string,
+    flags: string[],
+    config: RunnerConfig,
+  ): Promise<void> {
     const shortId = generateShortId();
-    const sessionId = `engy-session-${shortId}`;
     const branchName = `engy/session-${shortId}`;
-    const worktreePath = join(config.repoPath, WORKTREE_DIR, sessionId);
+    const worktreePath = join(config.repoPath, WORKTREE_DIR, `engy-session-${shortId}`);
 
     const git = simpleGit(config.repoPath);
     await git.raw(['worktree', 'add', worktreePath, '-b', branchName, 'main']);
@@ -85,7 +89,6 @@ export class Runner {
         });
       });
 
-    return sessionId;
   }
 
   stop(): void {

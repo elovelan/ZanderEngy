@@ -14,6 +14,8 @@ import {
   RiRobotLine,
 } from '@remixicon/react';
 
+import { useExecutionStatus } from '@/hooks/use-execution-status';
+import { ExecutionStatusIcon } from '@/components/projects/execution-status-icon';
 import type { Task } from '@/components/projects/types';
 
 interface TaskCardProps {
@@ -72,6 +74,7 @@ export function TaskCard({
   className,
 }: TaskCardProps) {
   const isDone = task.status === 'done';
+  const { status: execStatus } = useExecutionStatus('task', task.id);
   const typeInfo = typeIcons[task.type] ?? typeIcons.human;
   const TypeIcon = typeInfo.icon;
   const nextType = task.type === 'human' ? 'ai' : 'human';
@@ -155,6 +158,12 @@ export function TaskCard({
                 TG{task.taskGroupId}
               </span>
             )}
+            <ExecutionStatusIcon status={execStatus} />
+          </div>
+        )}
+        {!task.milestoneRef && !task.taskGroupId && execStatus && (
+          <div className="ml-auto">
+            <ExecutionStatusIcon status={execStatus} />
           </div>
         )}
       </div>

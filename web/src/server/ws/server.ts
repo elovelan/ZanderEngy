@@ -435,11 +435,11 @@ function resolvePendingResponse<T>(
 
 // ── Daemon dispatch functions ───────────────────────────────────────────────
 
-function dispatchDaemonOp<T>(
+function dispatchDaemonOp<T, P extends object = Record<string, unknown>>(
   state: AppState,
   pendingMap: Map<string, { resolve: (result: T) => void; reject: (reason: Error) => void }>,
   messageType: string,
-  payload: Record<string, unknown>,
+  payload: P,
   timeoutMs: number = GIT_TIMEOUT_MS,
   explicitRequestId?: string,
 ): Promise<T> {
@@ -542,6 +542,7 @@ const EXECUTION_TIMEOUT_MS = 300_000;
 
 export function dispatchExecutionStart(
   state: AppState,
+  sessionId: string,
   prompt: string,
   flags?: string[],
   config?: ExecutionStartConfig,
@@ -550,7 +551,7 @@ export function dispatchExecutionStart(
     state,
     state.pendingExecutionStart,
     'EXECUTION_START_REQUEST',
-    { prompt, flags, config } as unknown as Record<string, unknown>,
+    { sessionId, prompt, flags, config },
     EXECUTION_TIMEOUT_MS,
   );
 }

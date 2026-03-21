@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useQuickAction } from '@/hooks/use-quick-action';
 import { useExecutionStatus } from '@/hooks/use-execution-status';
-import { ExecutionStatusIcon } from './execution-status-icon';
 
 interface MilestoneQuickActionsProps {
   milestoneRef: string;
@@ -36,7 +35,6 @@ export function MilestoneQuickActions({ milestoneRef }: MilestoneQuickActionsPro
 
   return (
     <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-      {isActive && <ExecutionStatusIcon status="active" />}
       <TooltipProvider delayDuration={300}>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -44,7 +42,7 @@ export function MilestoneQuickActions({ milestoneRef }: MilestoneQuickActionsPro
               variant="ghost"
               size="icon-xs"
               className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-              disabled={disabled}
+              disabled={disabled || isActive}
               onClick={handleImplementMilestone}
             >
               <RiHammerLine className="size-3" />

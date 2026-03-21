@@ -637,7 +637,7 @@ export class WsClient {
   private async handleExecutionStartRequest(
     message: ExecutionStartRequestMessage,
   ): Promise<void> {
-    const { requestId, prompt, flags, config } = message.payload;
+    const { requestId, sessionId, prompt, flags, config } = message.payload;
     try {
       const runnerConfig = {
         repoPath: config?.repoPath ?? '',
@@ -646,7 +646,7 @@ export class WsClient {
         env: config?.env,
       };
 
-      const sessionId = await this.runner.start(prompt, flags ?? [], runnerConfig);
+      await this.runner.start(sessionId, prompt, flags ?? [], runnerConfig);
 
       this.send({
         type: 'EXECUTION_START_RESPONSE',

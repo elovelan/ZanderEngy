@@ -245,6 +245,7 @@ export interface ExecutionStartRequestMessage {
   type: 'EXECUTION_START_REQUEST';
   payload: {
     requestId: string;
+    sessionId: string;
     prompt: string;
     flags?: string[];
     config?: ExecutionStartConfig;
