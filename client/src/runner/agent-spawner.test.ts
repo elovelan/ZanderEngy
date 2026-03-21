@@ -165,7 +165,7 @@ describe('AgentSpawner', () => {
       expect(spawnArgs[schemaIndex + 1]).toBe(TASK_COMPLETION_SCHEMA);
     });
 
-    it('should include -p and --output-format stream-json', async () => {
+    it('should include -p and --output-format json', async () => {
       const proc = createMockProcess();
       mockSpawn.mockReturnValue(proc);
 
@@ -182,7 +182,7 @@ describe('AgentSpawner', () => {
       const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
       expect(spawnArgs).toContain('-p');
       expect(spawnArgs).toContain('--output-format');
-      expect(spawnArgs[spawnArgs.indexOf('--output-format') + 1]).toBe('stream-json');
+      expect(spawnArgs[spawnArgs.indexOf('--output-format') + 1]).toBe('json');
     });
 
     it('should pass additional flags', async () => {
@@ -351,8 +351,8 @@ describe('AgentSpawner', () => {
     });
   });
 
-  describe('stream-json output parsing', () => {
-    it('should parse completion from stream-json result message', async () => {
+  describe('json output parsing', () => {
+    it('should parse completion from json output', async () => {
       const proc = createMockProcess();
       mockSpawn.mockReturnValue(proc);
 
@@ -363,11 +363,10 @@ describe('AgentSpawner', () => {
         workingDir: '/workspace',
       });
 
-      const resultMessage = JSON.stringify({
-        type: 'result',
+      const output = JSON.stringify({
         result: JSON.stringify({ taskCompleted: true, summary: 'Done' }),
       });
-      proc.stdout.emit('data', Buffer.from(resultMessage + '\n'));
+      proc.stdout.emit('data', Buffer.from(output));
       proc.emit('close', 0);
 
       const result = await promise;
@@ -391,11 +390,10 @@ describe('AgentSpawner', () => {
         workingDir: '/workspace',
       });
 
-      const resultMessage = JSON.stringify({
-        type: 'result',
+      const output = JSON.stringify({
         result: JSON.stringify({ taskCompleted: false, summary: 'Failed to complete' }),
       });
-      proc.stdout.emit('data', Buffer.from(resultMessage + '\n'));
+      proc.stdout.emit('data', Buffer.from(output));
       proc.emit('close', 1);
 
       const result = await promise;
@@ -408,7 +406,7 @@ describe('AgentSpawner', () => {
       });
     });
 
-    it('should resolve without completion when no result message is received', async () => {
+    it('should resolve without completion when output has no result', async () => {
       const proc = createMockProcess();
       mockSpawn.mockReturnValue(proc);
 
@@ -419,10 +417,7 @@ describe('AgentSpawner', () => {
         workingDir: '/workspace',
       });
 
-      proc.stdout.emit(
-        'data',
-        Buffer.from(JSON.stringify({ type: 'assistant', message: 'thinking...' }) + '\n'),
-      );
+      proc.stdout.emit('data', Buffer.from('not json'));
       proc.emit('close', 0);
 
       const result = await promise;
@@ -435,7 +430,7 @@ describe('AgentSpawner', () => {
       });
     });
 
-    it('should handle multiple stdout chunks', async () => {
+    it('should handle chunked stdout', async () => {
       const proc = createMockProcess();
       mockSpawn.mockReturnValue(proc);
 
@@ -446,15 +441,12 @@ describe('AgentSpawner', () => {
         workingDir: '/workspace',
       });
 
-      proc.stdout.emit(
-        'data',
-        Buffer.from(JSON.stringify({ type: 'assistant', message: 'working' }) + '\n'),
-      );
-      const resultMessage = JSON.stringify({
-        type: 'result',
+      const output = JSON.stringify({
         result: JSON.stringify({ taskCompleted: true, summary: 'All done' }),
       });
-      proc.stdout.emit('data', Buffer.from(resultMessage + '\n'));
+      // Emit in two chunks
+      proc.stdout.emit('data', Buffer.from(output.slice(0, 20)));
+      proc.stdout.emit('data', Buffer.from(output.slice(20)));
       proc.emit('close', 0);
 
       const result = await promise;

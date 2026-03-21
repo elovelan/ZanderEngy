@@ -87,7 +87,7 @@ export class AgentSpawner {
   }
 
   private buildArgs(config: SpawnConfig, sessionId: string): string[] {
-    const args = ['-p', '--output-format', 'stream-json'];
+    const args = ['-p', '--output-format', 'json'];
 
     if (config.containerMode) {
       args.push('--dangerously-skip-permissions');
@@ -128,28 +128,10 @@ export class AgentSpawner {
   private waitForExit(proc: ChildProcess, sessionId: string, timeoutMs: number): Promise<SpawnResult> {
     return new Promise((resolve) => {
       let completion: SpawnResult['completion'];
-      let buffer = '';
+      const chunks: string[] = [];
 
       proc.stdout?.on('data', (chunk: Buffer) => {
-        buffer += chunk.toString();
-        const lines = buffer.split('\n');
-        buffer = lines.pop()!;
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          try {
-            const msg = JSON.parse(trimmed);
-            if (msg.type === 'result' && msg.result) {
-              const parsed = JSON.parse(msg.result);
-              if ('taskCompleted' in parsed && 'summary' in parsed) {
-                completion = { taskCompleted: parsed.taskCompleted, summary: parsed.summary };
-              }
-            }
-          } catch {
-            // Non-JSON lines are ignored
-          }
-        }
+        chunks.push(chunk.toString());
       });
 
       const timeoutId = setTimeout(() => {
@@ -160,6 +142,20 @@ export class AgentSpawner {
       proc.on('close', (code) => {
         clearTimeout(timeoutId);
         const exitCode = code ?? 1;
+
+        const stdout = chunks.join('');
+        try {
+          const output = JSON.parse(stdout);
+          if (output.result) {
+            const parsed = typeof output.result === 'string' ? JSON.parse(output.result) : output.result;
+            if ('taskCompleted' in parsed && 'summary' in parsed) {
+              completion = { taskCompleted: parsed.taskCompleted, summary: parsed.summary };
+            }
+          }
+        } catch (err) {
+          console.warn(`[agent-spawner] Failed to parse stdout JSON: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
         resolve({
           sessionId,
           exitCode,
