@@ -9,7 +9,7 @@ export function useExecutionStatus(scope: Scope, id: number | string) {
 
   const { data } = trpc.execution.getSessionStatus.useQuery(
     { scope, id },
-    { refetchInterval: (query) => (query.state.data?.status === 'active' ? 2000 : false) },
+    { refetchInterval: (query) => (query.state.data?.status === 'active' ? 10_000 : false) },
   );
 
   const status = data?.status ?? null;
