@@ -2,12 +2,11 @@
 title: Execution Engine
 status: active
 ---
-
 # Plan: M6 Execution Engine
 
 ## Overview
 
-M6 delivers the autonomous execution runtime for Engy v2. A simple runner loop on the client daemon spawns short-lived Claude CLI agents per task, tracks execution state in SQLite, and streams structured logs to the UI. Dev containers provide optional sandboxed execution with `--dangerously-skip-permissions`. Git worktrees isolate work at two levels: every workspace repo gets a per-project worktree (so spec files and terminals resolve through the worktree), and task-group worktrees branch from the project worktree (so each group's implementation is isolated). A questions system enables agents to ask for clarification during planning, and a feedback loop lets devs kick back implementation results via the diff viewer.
+M6 delivers the autonomous execution runtime for Engy v2. A simple runner loop on the client daemon spawns short-lived Claude CLI agents per task, tracks execution state in SQLite, and reads Claude's native session files for execution logs. Dev containers provide optional sandboxed execution with `--dangerously-skip-permissions`. Per-session git worktrees from local main isolate each execution run. A questions system enables agents to ask for clarification during planning, and a feedback loop lets devs kick back implementation results via the diff viewer.
 
 No frameworks. The orchestrator is a for loop and a spawn. SQLite is the state machine.
 
@@ -27,61 +26,45 @@ Boundary: no auto-commit/push/PR (future milestone), no Mastra, no long-running 
 
 * UI: Next.js App Router, shadcn/ui, xterm.js terminal panel, diff viewer, task views (kanban, eisenhower, dependency graph)
 
-**Existing worktree context doc** (`context/worktrees.md`): detailed plan for project-level worktrees — `worktreePaths: Record<string, string>` on projects table, `effectiveWorkspace()` and `effectiveRepos()` helpers, WS protocol for `GIT_WORKTREE_ADD_REQUEST/RESPONSE`. M6 implements project-level worktrees from this doc AND adds task-group-level worktrees branched from the project worktree.
+**Existing worktree context doc** (`context/worktrees.md`): detailed plan for project-level worktrees. M6 simplifies this to per-session worktrees from local main — no project-level worktrees, no `effectiveWorkspace()`/`effectiveRepos()` helpers, no WS protocol for worktree ops. The runner creates worktrees directly on the client daemon.
 
 **Old Engy3 reference** (`engy3/websocket/src/workflow/executors/`): LlmExecutor spawning `claude -p --output-format json`, ClaudeExecutionManager wrapping prompts with task context + memories + aggregated issues and requiring structured completion output via `--json-schema` (TASK_COMPLETION_SCHEMA: taskCompleted, summary, memories), ValidationRunner for shell + claude-code validations. M6 replaces XState with a plain loop but preserves the structured output pattern.
 
 ## Affected Components
 
-| File                                                      | Change                                                                                                                                                                       |
-| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `web/src/server/db/schema.ts`                             | **Modify** — add subStatus/sessionId/feedback to tasks, worktreePaths to projects + taskGroups, container config + maxConcurrency to workspaces, update agentSessions for execution tracking, new questions table, new executionLogs table |
-| `common/src/ws/protocol.ts`                               | **Modify** — add worktree add/remove, execution commands (start/stop/status/output), container lifecycle messages                                                            |
-| `client/src/runner/index.ts`                              | **Create** — runner loop: pick task, spawn agent, track status, handle questions/feedback, parallel execution                                                                |
-| `client/src/runner/agent-spawner.ts`                      | **Create** — spawn `claude -p` or `devcontainer exec ... claude -p`, parse stream-json, structured completion via `--json-schema`                                            |
-| `client/src/runner/stream-parser.ts`                      | **Create** — parse NDJSON stream-json events into structured log entries                                                                                                     |
-| `client/src/git/index.ts`                                 | **Modify** — add worktree add/remove/list functions                                                                                                                          |
-| `client/src/container/manager.ts`                         | **Create** — @devcontainers/cli integration (up/exec/down)                                                                                                                   |
-| `client/src/ws/client.ts`                                 | **Modify** — handle execution and container WS commands                                                                                                                      |
-| `web/src/server/trpc/routers/execution.ts`                | **Create** — start/stop/retry execution, execution status, log queries                                                                                                       |
-| `web/src/server/trpc/routers/question.ts`                 | **Create** — questions CRUD, answer submission                                                                                                                               |
-| `web/src/server/trpc/routers/project.ts`                  | **Modify** — project-level worktreePaths, effectiveWorkspace, effectiveRepos, update all spec procedures                                                                     |
-| `web/src/server/trpc/routers/task.ts`                     | **Modify** — add subStatus to task updates                                                                                                                                   |
-| `web/src/server/trpc/routers/task-group.ts`               | **Modify** — task-group worktreePaths, execution state                                                                                                                       |
-| `web/src/server/trpc/routers/workspace.ts`                | **Modify** — container config settings, maxConcurrency                                                                                                                       |
-| `web/src/server/trpc/routers/diff.ts`                     | **Modify** — server resolves worktree paths from project/task-group records, passes as repoDir for worktree-scoped diffs                                                     |
-| `web/src/components/diff/worktree-selector.tsx`           | **Create** — dropdown for selecting which worktree to review (project-level or task-group-level)                                                                              |
-| `web/src/server/mcp/index.ts`                             | **Modify** — add askQuestion tool (based on existing Claude askQuestion tool pattern), expose worktree paths                                                                 |
-| `web/src/server/ws/server.ts`                             | **Modify** — dispatch worktree ops, execution commands, container commands                                                                                                   |
-| `web/src/server/trpc/context.ts`                          | **Modify** — add pending maps for new WS operations                                                                                                                          |
-| `web/src/components/tasks/execution-tab.tsx`              | **Create** — structured log viewer in task detail                                                                                                                            |
-| `web/src/components/tasks/task-card.tsx`                  | **Modify** — auto-implement icon/badge for subStatus                                                                                                                         |
-| `web/src/components/questions/question-queue.tsx`         | **Create** — question queue UI component                                                                                                                                     |
-| `web/src/components/diff/feedback-sender.tsx`             | **Create** — send feedback to runner (not terminal)                                                                                                                          |
-| `web/src/components/workspace/container-settings.tsx`     | **Create** — container config in workspace settings                                                                                                                          |
-| `web/src/components/projects/create-project-dialog.tsx`   | **Modify** — add "Create git worktree" checkbox                                                                                                                              |
-| `web/src/components/projects/project-overview.tsx`        | **Modify** — retroactive "Create Worktree" button                                                                                                                            |
-| `web/src/components/projects/task-quick-actions.tsx`      | **Modify** — use effectiveRepos from project                                                                                                                                 |
-| `web/src/components/projects/milestone-quick-actions.tsx` | **Modify** — use effectiveRepos from project                                                                                                                                 |
-| `web/src/components/terminal/use-terminal-scope.ts`       | **Modify** — use effectiveRepos from project                                                                                                                                 |
+| File                                                  | Change                                                                                                                                                                              |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `web/src/server/db/schema.ts`                         | **Modify** — add subStatus/sessionId/feedback to tasks, worktreePath/completionSummary to agentSessions, container config + maxConcurrency to workspaces (TG1), new questions table |
+| `common/src/ws/protocol.ts`                           | **Modify** — add execution commands (start/stop/status/complete), container lifecycle messages (TG1)                                                                                |
+| `client/src/runner/index.ts`                          | **Create** — runner loop: worktree lifecycle, pick task, spawn agent, track status, handle questions/feedback, parallel execution                                                   |
+| `client/src/runner/agent-spawner.ts`                  | **Create** — spawn `claude -p` or `devcontainer exec ... claude -p`, structured completion via `--json-schema`                                                                      |
+| `client/src/container/manager.ts`                     | **Modify** (TG1 done) — @devcontainers/cli integration (up/exec/down)                                                                                                               |
+| `client/src/ws/client.ts`                             | **Modify** — handle execution and container WS commands                                                                                                                             |
+| `web/src/server/trpc/routers/execution.ts`            | **Create** — start/stop/retry execution, session file reading, execution status                                                                                                     |
+| `web/src/server/trpc/routers/question.ts`             | **Create** — questions CRUD, batch answer submission                                                                                                                                |
+| `web/src/server/trpc/routers/task.ts`                 | **Modify** — add subStatus to task updates                                                                                                                                          |
+| `web/src/server/trpc/routers/diff.ts`                 | **Modify** — resolve session worktree path, pass as repoDir for worktree-scoped diffs                                                                                               |
+| `web/src/server/mcp/index.ts`                         | **Modify** — add askQuestion tool, expose execution data in getProjectDetails                                                                                                       |
+| `web/src/server/ws/server.ts`                         | **Modify** — dispatch execution commands, handle status/complete events                                                                                                             |
+| `web/src/server/trpc/context.ts`                      | **Modify** — add pending maps for execution WS operations                                                                                                                           |
+| `web/src/components/tasks/execution-tab.tsx`          | **Create** — session file viewer in task detail (reads Claude JSONL session files)                                                                                                  |
+| `web/src/components/tasks/task-card.tsx`              | **Modify** — auto-implement icon/badge for subStatus                                                                                                                                |
+| `web/src/components/questions/question-list.tsx`      | **Create** — notification-triggered question list grouped by task/session                                                                                                           |
+| `web/src/components/questions/question-dialog.tsx`    | **Create** — per-task/session question dialog with structured options                                                                                                               |
+| `web/src/components/diff/review-actions.tsx`          | **Modify** — add task-record feedback path for runner agents                                                                                                                        |
+| `web/src/components/workspace/container-settings.tsx` | **Modify** (TG1 done) — container config in workspace settings                                                                                                                      |
 
 ## Functional Requirements
 
 ### Git Worktrees
 
-1. The system shall support two levels of worktrees: **project-level** (one worktree per repo per project for ALL workspace repos, stored on the projects table) and **task-group-level** (one worktree per repo per task group, branched from the project worktree). Every workspace repo gets a project worktree — this is the base that task-group worktrees branch from. *(source: user request + context/worktrees.md)*
+1. The system shall create **per-session worktrees** from local main when execution starts. Path: `{repo}/.claude/worktrees/{session-branch}`. The runner creates worktrees directly (no WS protocol needed — runner runs on the client daemon). *(source: user request, simplified from context/worktrees.md)*
 
-2. Project-level worktrees shall be created for ALL workspace repos per `context/worktrees.md`: `worktreePaths: Record<string, string>` on the projects table, `effectiveWorkspace()` rewrites docsDir through worktree, `effectiveRepos()` replaces repo paths. Path: `{repo}/.claude/worktrees/{project-slug}`, branch: `{project-slug}`. *(source: context/worktrees.md)*
+2. The system shall store `worktreePath` on the `agentSessions` table. The diff viewer and execution UI use this to locate diffs and session files. *(source: user request)*
 
-3. Task-group-level worktrees shall be created when a task group starts execution, branched from the project worktree (not from main). Path: `{repo}/.claude/worktrees/{project-slug}/{group-slug}`, branch: `{project-slug}/{group-name}`. Requires project-level worktrees to exist first. *(source: v2 architecture, spec FR-6.1, context/sdd-workflow.md)*
+3. The system shall **retain** worktrees after a session completes — worktrees are needed for diff review, feedback loops, and eventually PR creation (future milestone). Cleanup is deferred to the PR/merge milestone where worktrees are removed after the PR is merged. *(source: inferred — worktree lifecycle spans beyond execution)*
 
-4. The system shall remove task-group worktrees when a task group completes or is stopped. Project-level worktrees persist with the project. *(source: inferred — cleanup)*
-
-5. The system shall store task-group worktree paths as `worktreePaths: Record<string, string>` on the task group record. *(source: context/worktrees.md, adapted)*
-
-6. The system shall provide `effectiveRepos()` helper that replaces repo paths with worktree paths for terminal scoping and diff viewing. *(source: context/worktrees.md)*
-
-7. All worktree creation/removal goes through client daemon via WebSocket (server never touches repos). *(source: context/worktrees.md)*
+4. For task groups, all tasks share one worktree/session. For individual tasks, each gets its own ephemeral worktree. *(source: user request)*
 
 ### Dev Containers
 
@@ -101,67 +84,59 @@ Boundary: no auto-commit/push/PR (future milestone), no Mastra, no long-running 
 
 14. **Hard validation**: The system shall NEVER allow `--dangerously-skip-permissions` to be used outside of a container. The agent spawner must validate that this flag is only passed when executing via `devcontainer exec`. If containerEnabled is false on the workspace, the flag must not be used regardless of any other configuration. *(source: user request — safety critical)*
 
-### Runner Loop
+### Runner
 
-15. The system shall provide a runner loop on the client daemon that processes tasks within a task group: pick next pending task, spawn agent, wait for exit, update status, repeat. The runner only processes `type: 'ai'` tasks — `type: 'human'` tasks are skipped and left for manual completion. A task group completes when all tasks (ai + human) are done. *(source: v2 architecture + elicited)*
+15. The system shall provide an "Execute in Background" action in the quick action dropdowns for tasks, task groups, and milestones. This triggers headless execution via the runner instead of opening a terminal. The action shall be available alongside the existing "Implement" terminal action. When a session is active, the quick action button shows a running/completed status indicator. *(source: user request)*
 
-16. The system shall support **parallel execution** of independent tasks within a task group. When tasks have no dependency relationships (`blockedBy` is empty or all blockers are done), the runner may spawn multiple agents concurrently up to `maxConcurrency` (per-workspace setting on workspaces table, default 1 = sequential). *(source: user request + elicited)*
+16. The system shall provide a runner on the client daemon that: creates a worktree from local main, spawns an agent with the same prompt and flags that existing quick actions build, waits for exit, reports status. The agent itself handles task orchestration — the runner is just a headless version of clicking "Implement" in the UI. *(source: v2 architecture, simplified — agent is the orchestrator)*
 
-17. The system shall support three execution modes: (a) **task group execution** — runner processes tasks in a group sequentially/parallel, (b) **individual task execution** — one-off tasks get an ephemeral worktree branched from the project worktree, cleaned up after completion, (c) **milestone execution** — a single agent runs the existing `/engy:implement-milestone` skill prompt in a dev container (same prompt as the current milestone quick action, but via `devcontainer exec` instead of local terminal). *(source: user request + v2 architecture + elicited)*
+17. The runner shall receive start/stop commands from the server via WebSocket. The server sends `EXECUTION_START_REQUEST` with the pre-built prompt and flags (same as quick actions: `--append-system-prompt` with project context, `--add-dir` for repos). The runner creates a worktree, spawns the agent, and reports back. *(source: inferred + elicited)*
 
-18. The system shall track task execution sub-status as a field on the task record: `planning | implementing | blocked | failed | null`. Main status stays `todo | in_progress | review | done`. subStatus is a sub-state of `in_progress` — fewer kanban lanes. Tasks with `needsPlan=true` start in `planning` subStatus (agent refines spec, can ask questions). Tasks with `needsPlan=false` go straight to `implementing`. *(source: user request + elicited)*
+18. The system shall track `sessionId` on the session record. The system generates its own UUID for `--session-id` before spawning. *(source: user request)*
 
-19. The runner shall receive start/stop/retry commands from the server via WebSocket. **Data flow is push per task group**: `EXECUTION_START_REQUEST` includes the full task list with descriptions, dependencies, and pre-built prompts. The server builds the complete agent prompt (task description + plan content + project context) and sends it with the request — the client just passes it to `claude -p`. *(source: inferred + elicited)*
-
-20. The system shall track `sessionId` on tasks and task groups for Claude session continuity. The system generates its own UUID for `--session-id` before spawning, making it easy to capture and store the correct session ID rather than parsing it from output. *(source: user request)*
-
-21. The runner shall emit execution events to the server via WebSocket (task started, output chunk, task completed/failed, group completed). *(source: inferred)*
-
-22_a. The system shall support **manual retry only** for failed tasks — no automatic retries. Failed tasks stay failed until the user clicks "Retry" in the UI. *(source: elicited)*
-
-22_b. The system shall support **auto-start** as an opt-in per-workspace setting. When enabled: if a task's type is changed to `ai` in a project with worktrees, the system starts a new runner for that task if none is currently running (no manual "Execute" click needed). For milestone-level execution, auto-start is handled by the `/engy:implement-milestone` skill agent itself — the agent decides task ordering and execution, not deterministic runner logic. *(source: spec FR-9.7, adapted)*
+19. The runner shall emit execution status events to the server via WebSocket (session started, session completed/failed). Execution output is NOT streamed — Claude writes session files to `~/.claude/projects/{encoded-worktree-path}/{sessionId}.jsonl`, readable from host via bind mount. *(source: inferred, simplified)*
 
 ### Agent Spawning
 
-22. The system shall spawn agents via `claude -p --output-format stream-json --permission-mode acceptEdits` on host, or `devcontainer exec ... claude -p --output-format stream-json --dangerously-skip-permissions` in containers. The spawner enforces FR #14 (hard validation of permission flags). *(source: v2 architecture + user confirmation)*
+20. The system shall spawn agents via `claude -p --output-format stream-json --permission-mode acceptEdits` on host, or `devcontainer exec ... claude -p --output-format stream-json --dangerously-skip-permissions` in containers. The spawner enforces FR #14 (hard validation of permission flags). *(source: v2 architecture + user confirmation)*
 
-23. The system shall write the task prompt to stdin and close it (same pattern as old Engy3 LlmExecutor). *(source: engy3 reference)*
+21. The system shall write the quick-action-built prompt to stdin and close it. *(source: engy3 reference)*
 
-24. The system shall support session management via `--session-id {uuid}` (new task, UUID generated by runner before spawn) and `--resume {sessionId}` (feedback continuation). *(source: v2 architecture + user request on UUID strategy)*
+22. The system shall support session management via `--session-id {uuid}` (new session) and `--resume {sessionId}` (retry/feedback continuation). *(source: v2 architecture)*
 
-25. The system shall pass `--append-system-prompt` with task context (task description, plan content, project context, memories). *(source: inferred from engy3 ClaudeExecutionManager.buildPrompt)*
+23. The system shall require structured completion output via `--json-schema` with a task completion schema: `{ taskCompleted: boolean, summary: string }`. *(source: engy3 reference)*
 
-26. The system shall require structured completion output via `--json-schema` with a task completion schema: `{ taskCompleted: boolean, summary: string }`. This ensures the runner can programmatically determine success and capture a summary. Same pattern as Engy3's TASK_COMPLETION_SCHEMA (memories field deferred to future milestone). *(source: engy3 reference — user flagged as missing)*
+24. Execution output is stored in Claude's native session files (`~/.claude/projects/{encoded-worktree-path}/{sessionId}.jsonl`). The UI reads these directly — no SQLite storage. *(source: engy3 reference, simplified)*
 
-27. The system shall parse stream-json NDJSON output into structured log entries (type, content, timestamp) and store key events in SQLite. *(source: v2 architecture)*
+25. The system shall support **manual retry only** — failed sessions stay failed until user clicks "Retry". *(source: elicited)*
+
+26. The system shall support **auto-start** as an opt-in per-workspace setting. When a task's type changes to `ai`, starts a runner if none is running. *(source: spec FR-9.7, adapted)*
 
 ### Questions System
 
-28. The system shall provide an `askQuestion` MCP tool that agents can call during planning. Based on the existing Claude askQuestion tool pattern. The tool writes the question to SQLite (persisted for durability across page refreshes) and signals the agent to exit with `blocked` status. *(source: v2 architecture + user request to base on existing Claude tool)*
+27. The system shall provide an `askQuestion` MCP tool modeled after Claude Code's native `AskUserQuestion` tool. The tool accepts `{ sessionId, taskId?, documentPath?, questions: [{ question, header, multiSelect, options: [{ label, description, preview? }] }] }` — supporting 1-4 batched questions per call, structured options with descriptions, optional markdown previews for visual comparison, and multi-select. `sessionId` (required) identifies the agent session asking; `taskId` (optional) identifies the task being planned; `documentPath` (optional) references the spec/plan doc the agent is reading. The tool writes each question as a separate row to SQLite (persisted for durability across page refreshes). Signals the agent to exit. *(source: v2 architecture + user request to model after Claude Code AskUserQuestion tool)*
 
-29. The system shall surface unanswered questions in the UI as a queue, grouped by task, with task context. Questions are persisted in the database and survive page refresh. *(source: v2 architecture + user request on persistence)*
+28. The system shall surface unanswered questions via a **persistent notification badge** in the header (count of unanswered questions). The notification persists until **all** questions in the group (task or session) are answered and submitted — partially answered groups still show in the badge count. Clicking the notification opens a **question list** with two grouping modes: (a) **task-scoped questions** grouped by task — each entry shows task title and unanswered count; (b) **session-scoped questions** (no task) — each session is its own entry showing the session ID or a label. Clicking any entry opens a **question dialog** with tabs: one **tab per question** (labeled by `header` chip, e.g. "Auth", "ORM") — each tab shows the question text, structured options (label + description), optional preview rendered as HTML via markdown, multi-select support via checkboxes, free-text "Other" input. A **Task** tab (only when `taskId` is set) — task title and description. A **Document** tab (when `documentPath` is set) — reuses the existing document editor in read-only mode. Single "Submit All" button in the dialog footer. Questions are persisted in the database and survive page refresh. The runner is only notified after the user submits all answers for a group — partial submissions do not unblock the task or resume the agent. *(source: v2 architecture + user request on persistent notifications until fully answered)*
 
-30. When a question is answered in the UI, the runner spawns a new agent invocation with the answer as context. *(source: v2 architecture)*
+29. When all questions are answered in the UI, the runner spawns a new agent invocation with `--resume {sessionId}` and answers as context. *(source: v2 architecture)*
 
-31. Blocked tasks don't block the queue — runner skips them and picks up the next pending task. *(source: v2 architecture)*
-
-32. Questions only come from planning, never from implementation. The `askQuestion` MCP tool validates server-side that the task's `subStatus === 'planning'` and rejects calls otherwise. System prompt also instructs implementation agents not to ask questions. *(source: v2 architecture — key design decision)*
+30. When `taskId` is provided, the `askQuestion` MCP tool validates server-side that the task's `subStatus === 'planning'` and rejects otherwise. When `taskId` is omitted (session-scoped), no validation. *(source: v2 architecture — relaxed for non-task agents)*
 
 ### Feedback Loop
 
-33. The diff viewer shall scope diffs to worktree paths. The **server** is responsible for substituting worktree paths when building git operation requests. The diff viewer shall include a **worktree selector dropdown** allowing the user to choose which worktree to review (project-level or any task-group-level worktree). Supports both project-level and task-group-level worktree diffs. *(source: user request)*
+31. The diff viewer shall scope diffs to session worktree paths. The **server** looks up `worktreePath` from the session record and passes it as `repoDir` to existing git diff operations. The diff viewer shall include a **session selector dropdown** listing active and recent sessions. *(source: user request)*
 
-34. The diff viewer shall provide a "Send Feedback" action that writes feedback text to the task record in SQLite and notifies the runner. Feedback goes to the async agent, not through the terminal. *(source: user request)*
+32. The diff viewer shall provide a "Send Feedback" action that writes feedback text to the task record in SQLite and notifies the runner. Feedback goes to the async agent, not through the terminal. *(source: user request)*
 
-35. The runner shall detect feedback on a task and resume the agent session with `--resume {sessionId}` and feedback as context. *(source: v2 architecture)*
+33. The runner shall detect feedback and resume the agent session with `--resume {sessionId}` and feedback as context. *(source: v2 architecture)*
 
 ### Execution UI
 
-36. Task cards shall show an auto-implement indicator icon when `subStatus` is set (planning/implementing/blocked/failed), distinguishing autonomous work from manual. *(source: user request)*
+34. Task cards shall show an execution indicator when a session is active for that task, distinguishing autonomous work from manual. *(source: user request)*
 
-37. Task detail shall include an "Execution" tab with a structured log viewer showing parsed stream-json events (tool calls, text output, errors, timing). *(source: v2 architecture + user request)*
+35. Task detail shall include an "Execution" tab that reads the Claude session file (JSONL) and renders conversation entries: user prompts, assistant responses, tool calls (collapsible), errors. *(source: v2 architecture + user request)*
 
-38. Project overview shall show execution status (which task groups are running, current task per group). *(source: inferred)*
+36. Project overview shall show execution status (which sessions are running, per task group). *(source: inferred)*
 
 ## Out of Scope
 
@@ -182,6 +157,16 @@ Boundary: no auto-commit/push/PR (future milestone), no Mastra, no long-running 
 * Automatic retries (manual retry only via UI)
 
 * Task group locking during execution (single-user, runner re-reads task list each iteration)
+
+* Task group Paused/Stopped states and Pause/Resume/Restart controls (future — current groups are either running or not, stop kills the runner and group stays active for manual restart)
+
+* Repos outside workspace boundaries in task groups (FR-6.12 — future, workspace repos sufficient for now)
+
+* Read-only main branch bind mounts in containers (NF-7 — low risk since agents always work in worktrees, not main)
+
+* Crash recovery on daemon restart (NF-10 — future, manual retry sufficient for now. Tasks left in `in_progress` with stale `subStatus` after a crash can be manually retried)
+
+* Worktree cleanup after PR merge (future PR/merge milestone — worktrees retained after execution for review and PR creation)
 
 * Worktree removal on project delete (follow-up)
 
@@ -207,7 +192,7 @@ Boundary: no auto-commit/push/PR (future milestone), no Mastra, no long-running 
 
    * Update tRPC workspace router to accept/return new fields
 
-   * *Implements FR #8, #16, #22_b*
+   * *Implements FR #8, #26*
 
 2. **Add container WebSocket protocol messages**
 
@@ -287,191 +272,29 @@ Boundary: no auto-commit/push/PR (future milestone), no Mastra, no long-running 
 
    * *Implements FR #8, #13*
 
-### TG2: Schema & Protocol Foundation
+### TG2: Runner Loop & Agent Spawning
 
-Schema migrations, WebSocket protocol additions, and shared types for execution, worktrees, and questions.
+The core execution engine on the client daemon. A for loop, a spawn, a database write. Includes execution schema, protocol, and worktree management.
 
 **Tasks:**
 
-1. **Add execution columns to tasks table**
+1. **Add execution schema and WebSocket protocol**
 
-   * Add `subStatus text('sub_status')` (nullable, enum: planning/implementing/blocked/failed)
+   * Add to tasks table: `subStatus text('sub_status')` (nullable, enum: planning/implementing/blocked/failed), `sessionId text('session_id')` (nullable), `feedback text('feedback')` (nullable)
 
-   * Add `sessionId text('session_id')` (nullable)
-
-   * Add `workingDir text('working_dir')` (nullable)
-
-   * Add `feedback text('feedback')` (nullable)
+   * Update existing `agentSessions` table — add `taskId` FK (nullable), `executionMode` text (nullable, enum: group/task/milestone), `completionSummary` text (nullable), `worktreePath text('worktree_path')` (nullable — path to the worktree for this session)
 
    * Generate migration with `pnpm drizzle-kit generate`
 
-   * Update tRPC task router to accept/return new fields
+   * Update tRPC task router to accept/return subStatus, sessionId, feedback
 
    * Update MCP updateTask tool schema
 
-   * *Implements FR #18, #20*
+   * Add WS protocol messages: `EXECUTION_START_REQUEST` (pre-built prompt + flags), `EXECUTION_STOP_REQUEST`, `EXECUTION_STATUS_EVENT` (session started), `EXECUTION_COMPLETE_EVENT` (session done/failed)
 
-2. **Add worktreePaths to projects and task groups**
+   * Add dispatch functions and pending maps for execution messages following existing patterns
 
-   * Add `worktreePaths text('worktree_paths', { mode: 'json' }).$type<Record<string, string>>()` to projects table (project-level worktrees per `context/worktrees.md`)
-
-   * Add `worktreePaths text('worktree_paths', { mode: 'json' }).$type<Record<string, string>>()` to taskGroups table (task-group-level worktrees)
-
-   * Add `sessionId text('session_id')` to taskGroups (tracks which session ran the group)
-
-   * Generate migration
-
-   * Update tRPC task-group and project routers
-
-   * *Implements FR #2, #5, #20*
-
-3. **Create questions table**
-
-   * New table: `questions` (id, taskId, sessionId, question, answer, createdAt, answeredAt)
-
-   * Foreign key to tasks
-
-   * Generate migration — questions persisted in DB for durability across page refreshes
-
-   * *Implements FR #28, #29*
-
-4. **Update agentSessions table and create execution_logs table**
-
-   * **Update existing `agentSessions` table** — add `taskId` FK (nullable, for task-level session tracking), add `executionMode` text (nullable, enum: group/task/milestone), add `completionSummary` text (nullable). Reuse existing sessionId/taskGroupId/state/status fields for runner session tracking.
-
-   * **New table**: `execution_logs` (id, taskId, sessionId, eventType, content, timestamp)
-
-   * Index on taskId + timestamp for efficient querying
-
-   * Generate migration
-
-   * *Implements FR #20, #27*
-
-5. **Add execution and worktree WebSocket protocol messages**
-
-   * Worktree: `GIT_WORKTREE_ADD_REQUEST/RESPONSE`, `GIT_WORKTREE_REMOVE_REQUEST/RESPONSE`
-
-   * Execution: `EXECUTION_START_REQUEST` (includes full task list with pre-built prompts, deps, config), `EXECUTION_STOP_REQUEST`, `EXECUTION_STATUS_EVENT`, `EXECUTION_OUTPUT_EVENT`, `EXECUTION_COMPLETE_EVENT`
-
-   * Add to WsMessage, ClientToServerMessage, ServerToClientMessage unions
-
-   * *Implements FR #7, #19, #21*
-
-6. **Add server-side WebSocket dispatch for new message types**
-
-   * Add pending maps to AppState: `pendingGitWorktreeAdd`, `pendingGitWorktreeRemove`
-
-   * Add dispatch functions following existing `dispatchGitOp` pattern
-
-   * Add response handlers in `handleMessage` switch
-
-   * Add to `rejectAllPending`
-
-   * *Implements FR #7, #19*
-
-### TG3: Git Worktree Management
-
-Two-level worktree model: project-level (from `context/worktrees.md`) and task-group-level (branched from project worktree). Client daemon operations, server dispatch, path resolution helpers.
-
-**Tasks:**
-
-1. **Add worktree git operations to client daemon**
-
-   * `client/src/git/index.ts`: add `addWorktree(repoDir, worktreePath, branch)`, `removeWorktree(repoDir, worktreePath)`, `listWorktrees(repoDir)`
-
-   * Use `execFileAsync('git', ['-C', repoDir, 'worktree', 'add', '-b', branch, worktreePath])`
-
-   * Remove: `git worktree remove {path}` then `git branch -d {branch}`
-
-   * Tests in `client/src/git/index.test.ts`
-
-   * *Implements FR #1, #4*
-
-2. **Handle worktree WS messages in client daemon**
-
-   * `client/src/ws/client.ts`: add cases for `GIT_WORKTREE_ADD_REQUEST` and `GIT_WORKTREE_REMOVE_REQUEST`
-
-   * Same pattern as existing `handleGitStatusRequest` etc.
-
-   * Tests in `client/src/ws/client.test.ts`
-
-   * *Implements FR #7*
-
-3. **Add project-level worktree support to project router**
-
-   * Per `context/worktrees.md` — full implementation:
-
-   * `effectiveWorkspace()`: rewrites docsDir through worktree when docsDir is inside a repo with a worktree
-
-   * `effectiveRepos()`: replaces repo paths with worktree paths
-
-   * `project.create`: accept `createWorktree` boolean, create worktrees for all repos at `{repo}/.claude/worktrees/{project-slug}`
-
-   * `project.addWorktree`: retroactive worktree creation for existing projects
-
-   * `project.getBySlug`: return worktreePaths and effectiveRepos
-
-   * Update all spec file procedures (12+) to use `effectiveWorkspace()`
-
-   * Compensating action on failure: delete DB row + cleanup created worktrees
-
-   * *Implements FR #2, #6*
-
-4. **Add task-group-level worktree management**
-
-   * `web/src/server/trpc/routers/task-group.ts`: add `createWorktrees` mutation
-
-   * Creates worktrees branched from project worktree (not main): `{repo}/.claude/worktrees/{project-slug}/{group-slug}`, branch `{project-slug}/{group-name}`
-
-   * Add `removeWorktrees` mutation (cleanup on group completion)
-
-   * Return `worktreePaths` and `effectiveRepos` in group queries
-
-   * Compensating action: if any worktree fails, clean up already-created ones
-
-   * *Implements FR #3, #4, #5, #6*
-
-5. **Scope diff viewer to worktree paths**
-
-   * `web/src/server/trpc/routers/diff.ts`: **server is responsible** for path substitution — existing git operations already accept `repoDir`, the diff router resolves worktree paths from the project/task-group record and passes the worktree path instead of the repo path
-
-   * Frontend: add a **worktree selector dropdown** to the diff viewer allowing the user to choose which worktree to review (project-level worktree, or any active task-group worktree). Default to the most recently active task-group worktree.
-
-   * Support both project-level and task-group-level worktree diffs
-
-   * *Implements FR #33*
-
-6. **Update frontend to use effective repos**
-
-   * `web/src/components/projects/create-project-dialog.tsx`: add "Create git worktree" checkbox (only when workspace has repos)
-
-   * `web/src/components/projects/project-overview.tsx`: "Create Worktree" button for existing projects without worktrees
-
-   * `web/src/components/projects/task-quick-actions.tsx`: use `project?.effectiveRepos`
-
-   * `web/src/components/projects/milestone-quick-actions.tsx`: use effectiveRepos + add "Implement in Container" action that calls `execution.startMilestoneExecution` instead of opening a local terminal
-
-   * `web/src/components/terminal/use-terminal-scope.ts`: use `project?.effectiveRepos`
-
-   * *Implements FR #2, #6*
-
-### TG4: Runner Loop & Agent Spawning
-
-The core execution engine on the client daemon. A for loop, a spawn, a database write.
-
-**Tasks:**
-
-1. **Create stream-json parser**
-
-   * `client/src/runner/stream-parser.ts`: parses NDJSON lines from `--output-format stream-json`
-
-   * Emits typed events: `init`, `assistant_text`, `tool_use`, `tool_result`, `result_success`, `result_error`
-
-   * Extracts key fields: session_id from init, text content from assistant messages, tool names/inputs from tool_use
-
-   * Unit tests with sample stream-json fixtures
-
-   * *Implements FR #27*
+   * *Implements FR #17, #18, #19*
 
 2. **Create agent spawner**
 
@@ -485,139 +308,189 @@ The core execution engine on the client daemon. A for loop, a spawn, a database 
 
    * **Hard validation**: assert containerMode === true before allowing `--dangerously-skip-permissions`. Throw if this flag would be used on host.
 
-   * Writes prompt to stdin, closes stdin
+   * Receives pre-built prompt, flags, and system prompt from the execution router (same as quick actions). Writes prompt to stdin, closes stdin.
 
-   * Pipes stdout through stream parser, emits events
+   * Monitors stdout for structured completion output from `--json-schema` (taskCompleted, summary). Claude writes session files natively — UI reads them directly.
 
-   * Generates UUID for `--session-id` before spawn (stored on task record, making it easy to capture and resume)
+   * Generates UUID for `--session-id` before spawn (stored on session record)
 
-   * Supports `--resume {sessionId}` for feedback continuation
+   * Supports `--resume {sessionId}` for retry/feedback continuation
 
-   * Supports `--append-system-prompt` for task context injection
+   * Timeout with SIGTERM → SIGKILL
 
-   * Parses structured completion output from `--json-schema` (taskCompleted, summary)
-
-   * Timeout with SIGTERM → SIGKILL (same pattern as engy3 LlmExecutor)
-
-   * Returns: `{ sessionId, exitCode, success, output, completion: { taskCompleted, summary } }`
+   * Returns: `{ sessionId, exitCode, success, completion: { taskCompleted, summary } }`
 
    * TASK_COMPLETION_SCHEMA: `{ taskCompleted: boolean, summary: string }`
 
    * Unit tests
 
-   * *Implements FR #14, #22, #23, #24, #25, #26*
+   * *Implements FR #14, #20, #21, #22, #23*
 
-3. **Create runner loop**
+3. **Create runner**
 
-   * `client/src/runner/index.ts`: Runner class
+   * `client/src/runner/index.ts`: Runner class — a thin wrapper around the agent spawner that manages worktree lifecycle and WS communication. The agent itself handles task orchestration.
 
-   * `startGroup(groupId, tasks, config)`: creates task-group worktrees, then processes `type: 'ai'` tasks (skips `type: 'human'`). Tasks with `needsPlan=true` start in `planning` subStatus, `needsPlan=false` go straight to `implementing`.
+   * `start(prompt, flags, config)`: creates worktree from local main, creates session record with `worktreePath`, spawns agent with the pre-built prompt. Worktrees are **retained** after completion (needed for diff review, feedback, future PR creation).
 
-   * **Sequential mode** (concurrency=1): for each task: set subStatus, spawn agent with server-built prompt from EXECUTION_START_REQUEST, on exit update status (done/failed), emit events via WS, advance to next
+   * `stop()`: kills current agent process, preserves worktree
 
-   * **Parallel mode** (concurrency>1): analyze task dependency graph, spawn up to `maxConcurrency` agents for independent tasks simultaneously, track completions and unblock dependents
+   * `retry(sessionId)`: re-spawn agent with `--resume {sessionId}` in the same worktree
 
-   * `startTask(taskId, config)`: single task execution for one-offs. Creates ephemeral worktree branched from project worktree, cleans up after completion.
+   * Emits typed WS events: EXECUTION_STATUS_EVENT, EXECUTION_COMPLETE_EVENT
 
-   * `startMilestone(milestoneRef, prompt, config)`: milestone-level execution — spawns a single agent with the `/engy:implement-milestone` prompt (same prompt the current milestone quick action uses: `Use /engy:implement-milestone for {milestoneRef} in project {projectSlug}`). Runs in dev container when containerEnabled. No per-task tracking — single long-running agent handles the entire milestone.
+   * Stores structured completion output (summary) on session record
 
-   * `stop()`: kills current agent process(es), preserves worktree
-
-   * `retry(taskId)`: re-spawn agent for failed task (manual only, no automatic retries)
-
-   * **Auto-start** (opt-in workspace setting): when a task's type changes to `ai` in a project with worktrees, starts a new runner for that task if none is running. Listens for task update events via WS.
-
-   * Skips blocked tasks (questions unanswered) and human tasks, moves to next
-
-   * Emits typed WS events: EXECUTION_STATUS_EVENT, EXECUTION_OUTPUT_EVENT, EXECUTION_COMPLETE_EVENT
-
-   * Reports stream-json log entries to server for storage
-
-   * Stores structured completion output (summary) on task record
-
-   * *Implements FR #15, #16, #17, #18, #20, #21, #22_a, #22_b, #31*
+   * *Implements FR #16, #19, #25, #26*
 
 4. **Wire runner to client daemon WS handler**
 
-   * `client/src/ws/client.ts`: handle `EXECUTION_START_REQUEST` → delegates to Runner.startGroup or Runner.startTask
+   * `client/src/ws/client.ts`: handle `EXECUTION_START_REQUEST` → delegates to Runner.start
 
    * Handle `EXECUTION_STOP_REQUEST` → delegates to Runner.stop
 
    * Runner events flow back through WS to server
 
-   * *Implements FR #19*
+   * *Implements FR #17*
 
 5. **Create execution tRPC router**
 
    * `web/src/server/trpc/routers/execution.ts`:
 
-   * `startGroupExecution(groupId)` — builds prompts for all tasks (task desc + plan content + project context), dispatches EXECUTION_START_REQUEST with full task data to daemon
+   * `startExecution({ scope, id })` — builds the same prompt and flags that the corresponding quick action uses (task → task-quick-actions, task group → TG quick action, milestone → milestone-quick-actions). Reuses `buildClaudeCommand` logic with `--append-system-prompt` + `--add-dir` flags. Dispatches EXECUTION_START_REQUEST with prompt + config to daemon.
 
-   * `startTaskExecution(taskId)` — builds prompt, dispatches for single task
+   * `stopExecution(sessionId)` — dispatches stop
 
-   * `startMilestoneExecution(milestoneRef)` — builds the same prompt as the current milestone quick action (`Use /engy:implement-milestone for {milestoneRef} in project {projectSlug}` + add-dir flags), dispatches to daemon for single-agent execution in dev container
+   * `retryExecution(sessionId)` — dispatches retry (resume in same worktree)
 
-   * `stopExecution(groupId)` — dispatches stop
+   * `getSessionFile(sessionId)` — resolves session file path from `~/.claude/projects/{encoded-worktree-path}/{sessionId}.jsonl`, reads and returns content for execution log viewer
 
-   * `retryTask(taskId)` — dispatches retry with feedback context
-
-   * `getExecutionLogs(taskId, { limit, offset })` — queries execution_logs table
-
-   * `getExecutionStatus(groupId)` — current runner state
+   * `getActiveSessions({ projectId? })` — lists active/recent sessions with worktree paths (for terminal scope and diff viewer)
 
    * Wire to app router
 
    * Tests
 
-   * *Implements FR #15, #17, #27*
+   * *Implements FR #16, #24*
 
 6. **Server-side execution event handling**
 
-   * `web/src/server/ws/server.ts`: when receiving EXECUTION_STATUS_EVENT, update task subStatus in SQLite
+   * `web/src/server/ws/server.ts`: when receiving EXECUTION_STATUS_EVENT, update session state in SQLite
 
-   * When receiving EXECUTION_OUTPUT_EVENT, insert into execution_logs table
+   * When receiving EXECUTION_COMPLETE_EVENT, update session status (done/failed), store completion summary on session record
 
-   * When receiving EXECUTION_COMPLETE_EVENT, update task status (done/failed), clear subStatus, store completion data
+   * Broadcast status changes to UI via tRPC invalidation
 
-   * Broadcast status changes to UI via SSE/polling (tRPC invalidation)
+   * No output event handling — execution logs live in Claude's session files, read directly by the UI
 
-   * *Implements FR #21*
+   * *Implements FR #19*
 
-### TG5: Questions System & Feedback Loop
+7. **Scope diff viewer to session worktree paths**
 
-Agent-initiated questions during planning, UI queue, feedback from diff viewer.
+   * `web/src/server/trpc/routers/diff.ts`: look up the active session's `worktreePath` for the given task/task-group and pass it as `repoDir` to existing git diff operations
+
+   * Frontend: add a **session selector dropdown** to the diff viewer — lists active and recent sessions with their worktree paths. Default to the most recent active session.
+
+   * Enables reviewing agent diffs while execution is in progress
+
+   * *Implements FR #31*
+
+8. **Add worktree sessions to terminal scope**
+
+   * Extend the terminal dock's "New Terminal" dropdown to show active session worktrees alongside workspace repos. Group under a "Worktrees" section — each entry shows session branch name and target repo.
+
+   * Clicking opens a terminal `cd`'d into the worktree path (routes through container when `containerEnabled`)
+
+   * Uses existing terminal scope infrastructure (`use-terminal-scope.ts`) — add a worktree scope type that reads `worktreePath` from active sessions via a new `execution.getActiveSessions()` query
+
+   * *Implements FR #12*
+
+9. **Add "Execute" action to quick action dropdowns**
+
+   * `web/src/components/projects/task-quick-actions.tsx`: add "Execute in Background" to the existing 3-dot dropdown alongside "Implement". Calls `execution.startExecution({ scope: 'task', id: taskId })` instead of opening a terminal. Same prompt, headless.
+
+   * `web/src/components/projects/milestone-quick-actions.tsx`: add "Execute Milestone" to dropdown. Calls `execution.startExecution({ scope: 'milestone', id: milestoneRef })`.
+
+   * `web/src/components/projects/milestone-list.tsx` (TaskGroupQuickAction): add "Execute Task Group" to dropdown. Calls `execution.startExecution({ scope: 'taskGroup', id: groupId })`.
+
+   * Show running/completed status indicator on the quick action button when a session is active for that scope
+
+   * *Implements FR #15*
+
+### TG3: Questions System & Feedback Loop
+
+Agent-initiated questions during planning, UI queue, feedback from diff viewer. Includes questions schema.
 
 **Tasks:**
 
-1. **Add askQuestion MCP tool**
+1. **Create questions table**
+
+   * New table: `questions` (id, taskId, sessionId, documentPath, question, header, options JSON, multiSelect, answer, createdAt, answeredAt)
+
+   * `taskId` — nullable FK to tasks (null for session-scoped questions outside task context)
+
+   * `sessionId` — required, identifies the agent session (grouping key for non-task questions)
+
+   * `documentPath` — nullable, path to the spec/plan doc the agent was reading (for UI context tab)
+
+   * `header` — short chip label (max 12 chars) for quick scanning
+
+   * `options` — JSON array of `{ label, description, preview? }` (structured choices modeled after Claude Code's AskUserQuestion)
+
+   * `multiSelect` — boolean, whether multiple options can be selected
+
+   * Generate migration with `pnpm drizzle-kit generate`
+
+   * *Implements FR #27, #28*
+
+2. **Add askQuestion MCP tool**
 
    * `web/src/server/mcp/index.ts`: register `askQuestion` tool
 
-   * Based on existing Claude askQuestion tool pattern — input: `{ taskId, question, options?: string[] }`
+   * Modeled after Claude Code's native `AskUserQuestion` tool. Input schema:
 
-   * **Server-side validation**: looks up task's `subStatus` and rejects with error if not `planning`. This is the hard gate — MCP tools are global so can't be selectively registered per agent.
+```typescript
+{
+  sessionId: string,        // agent session (required, grouping key)
+  taskId?: number,          // task being planned (optional)
+  documentPath?: string,    // spec/plan doc the agent is reading
+  questions: [{             // 1-4 batched questions
+    question: string,       // "Which auth method should we use?"
+    header: string,         // max 12 chars, e.g. "Auth method"
+    multiSelect: boolean,
+    options: [{             // 2-4 structured choices (+ auto "Other")
+      label: string,
+      description: string,
+      preview?: string      // optional markdown for side panel
+    }]
+  }]
+}
+```
 
-   * Writes to questions table (persisted in SQLite for durability across page refreshes), returns `{ status: 'blocked', questionId }`
+* **Server-side validation**: if `taskId` is provided, looks up task's `subStatus` and rejects with error if not `planning`. If `taskId` is omitted (session-scoped), no subStatus check.
 
-   * Agent system prompt also instructs: "If you need clarification during planning, call askQuestion and exit."
+* Writes one row per question to questions table (persisted in SQLite). If `taskId` is set, sets task `subStatus` to `blocked`. Returns `{ status: 'blocked', questionIds: number[] }`
 
-   * *Implements FR #28, #32*
+* Agent system prompt instructs: "If you need clarification during planning, call askQuestion with structured options and exit. Batch related questions into a single call (up to 4). Include documentPath so the user can reference the spec."
 
-2. **Create questions tRPC router**
+* *Implements FR #27, #30*
+
+3. **Create questions tRPC router**
 
    * `web/src/server/trpc/routers/question.ts`:
 
-   * `list({ taskId?, unanswered? })` — list questions, optionally filtered
+   * `list({ taskId?, sessionId?, unanswered? })` — list questions, optionally filtered. Returns questions with full options JSON for rendering.
 
-   * `answer({ questionId, answer })` — writes answer, updates task subStatus from blocked to null, notifies runner
+   * `submitAnswers({ answers: [{ questionId, answer }] })` — batch-writes answers (string for single-select/free text, JSON array for multi-select) for all questions in a group. Only unblocks the task (clears `subStatus` from `blocked`) and notifies the runner **after all questions in the group are answered** — partial submissions are rejected. This ensures the agent always gets a complete set of answers when it resumes.
 
-   * `get(questionId)` — single question with task context
+   * `get(questionId)` — single question with task context (task title, description) and `documentPath` for the Document tab
+
+   * `unansweredCount()` — returns count for notification badge (counts groups with any unanswered questions, not individual questions)
 
    * Tests
 
-   * *Implements FR #29, #30*
+   * *Implements FR #28, #29*
 
-3. **Runner integration for questions and feedback**
+4. **Runner integration for questions and feedback**
 
    * Runner checks for answered questions on blocked tasks each loop iteration
 
@@ -627,35 +500,43 @@ Agent-initiated questions during planning, UI queue, feedback from diff viewer.
 
    * Clear feedback field after spawning
 
-   * *Implements FR #30, #35*
+   * *Implements FR #29, #33*
 
-4. **Add feedback sender to diff viewer**
+5. **Add task-record feedback path to diff viewer**
 
-   * `web/src/components/diff/feedback-sender.tsx`: text input + "Send Feedback" button
+   * Modify existing `web/src/components/diff/review-actions.tsx` — currently "Send Feedback" pastes into the active terminal. Add an alternative path: when viewing diffs for a task with active runner execution, "Send Feedback" writes to `task.update({ feedback: text })` instead of the terminal.
 
-   * Writes feedback to task record via `task.update({ feedback: text })`
+   * Terminal-based feedback remains for non-runner contexts (manual work, no active execution)
 
-   * Feedback goes to the async agent, not through the terminal
+   * Show feedback target indicator: "Sending to runner agent" vs "Sending to terminal"
 
-   * Show when viewing diffs for a task group with active execution
+   * *Implements FR #32*
 
-   * *Implements FR #34*
+6. **Create question dialog UI**
 
-5. **Create question queue UI**
+   * `web/src/components/questions/question-list.tsx`: notification-triggered panel listing tasks with unanswered questions
 
-   * `web/src/components/questions/question-queue.tsx`: list of unanswered questions grouped by task
+   * `web/src/components/questions/question-dialog.tsx`: task-scoped dialog for answering all questions for one task
 
-   * Each question shows: task title, question text, answer input, submit button
+   * **Notification badge** in project header — shows total unanswered question count, clicking opens the question list
 
-   * Show on project overview or as a notification-triggered panel
+   * **Question list** — two sections: (a) task-scoped entries grouped by task (shows task title + unanswered count), (b) session-scoped entries (no task) where each session is its own entry. Clicking any entry opens its question dialog.
 
-   * Badge count in header for unanswered questions
+   * **Question dialog** scoped to a single task or session, with tabs:
+
+     * **One tab per question** — labeled by `header` chip (e.g. "Auth", "ORM"). Each tab shows the question text, structured options list (label + description), optional preview panel rendered as **HTML via markdown** (not monospace — full rich rendering since we have a browser), multi-select support via checkboxes, free-text "Other" input. Unanswered tabs show a dot indicator.
+
+     * **Task tab** (only when `taskId` is set) — task title and description (stays fixed — shared context for all questions)
+
+     * **Document tab** (when `documentPath` is set) — reuses the existing document editor component in read-only mode for consistency (stays fixed — all questions from one askQuestion call share the same document context)
+
+     * Single **"Submit All"** button in dialog footer — disabled until all questions have answers
 
    * Questions persist across page refresh (backed by SQLite)
 
-   * *Implements FR #29*
+   * *Implements FR #28*
 
-### TG6: Execution UI
+### TG4: Execution UI
 
 Task-level execution indicators, structured log viewer, project-level status.
 
@@ -663,49 +544,45 @@ Task-level execution indicators, structured log viewer, project-level status.
 
 1. **Add auto-implement indicator to task cards**
 
-   * Modify task card components across all views (kanban, eisenhower, dependency graph)
+   * Modify `task-card.tsx` — task cards already show milestone badge, task group badge, and type indicator. Add a subStatus indicator alongside existing badges.
 
    * When `subStatus` is set: show icon (spinner for implementing, pause for blocked, alert for failed, brain for planning)
 
    * Distinguish from manual in_progress (no subStatus = manual work)
 
-   * *Implements FR #36*
+   * *Implements FR #34*
 
 2. **Create execution tab in task detail**
 
-   * `web/src/components/tasks/execution-tab.tsx`: structured log viewer
+   * `web/src/components/tasks/execution-tab.tsx`: session file viewer
 
-   * Queries `execution.getExecutionLogs(taskId)` with auto-refresh
+   * Reads Claude's session file via `execution.getSessionFile(sessionId)` — parses JSONL entries (UserEntry, AssistantEntry, tool calls). Polls for updates **only while the execution tab is open** — no background file watching. Component mounts → start polling, unmounts → stop.
 
-   * Renders log entries by type: tool calls (collapsible with input/output), text output, errors (highlighted), timing info
+   * Renders conversation entries: user prompts, assistant responses, tool calls (collapsible with input/output), errors (highlighted)
 
    * Session ID display, duration, status, structured completion summary
 
    * "Retry" button for failed tasks, "Stop" button for running tasks
 
-   * *Implements FR #37*
+   * *Implements FR #35*
 
 3. **Add execution status to project overview**
 
-   * Show which task groups are currently executing
+   * Integrate into existing expandable milestone/task group layout in `milestone-list.tsx` (task groups already render with `TaskGroupQuickAction` — extend with execution state)
 
-   * Current task per group with subStatus
+   * Show which task groups are currently executing, current task per group with subStatus
 
    * Container status if containers enabled
 
-   * Quick actions: start group, stop group, open container terminal
+   * Quick actions: start group, stop group, open container terminal (extend existing `TaskGroupQuickAction`)
 
-   * *Implements FR #38*
+   * *Implements FR #36*
 
-4. **Update MCP to expose worktree and execution data**
+4. **Update MCP to expose execution data**
 
-   * `getProjectDetails`: include `worktreePaths` and computed `effectiveRepos`
+   * `getProjectDetails`: include active session worktree paths and execution status for task groups
 
-   * Use `effectiveWorkspace()` when computing `projectDir` and `specDir` paths
-
-   * Return execution status for active task groups
-
-   * *Implements FR #2, #6*
+   * *Implements FR #2*
 
 5. **Run /engy:review, pnpm blt, test in Chrome**
 
@@ -715,24 +592,19 @@ Task-level execution indicators, structured log viewer, project-level status.
 
 ## Test Scenarios
 
-### Two-Level Worktree Lifecycle
+### Session Worktree Lifecycle
 
 ```text
-Given a project "my-project" in a workspace with repos ["/path/to/repo"]
-When the user creates the project with createWorktree=true
-Then a project worktree is created at "{repo}/.claude/worktrees/my-project"
-And worktreePaths is stored on the project record
-And spec files resolve through the project worktree
+Given a task group "backend-api" in a workspace with repos ["/path/to/repo"]
+When the user starts execution on the task group
+Then the runner creates a worktree from local main: git worktree add -b backend-api {repo}/.claude/worktrees/backend-api
+And stores worktreePath on the session record
+And all tasks in the group execute in this worktree
+And diffs show changes in the session worktree
 
-When the user starts execution on task group "backend-api"
-Then a task-group worktree is created at "{repo}/.claude/worktrees/my-project/backend-api"
-And the branch is named "my-project/backend-api" (per spec FR-6.1)
-And the task-group worktree is branched from the project worktree (not main)
-And diffs show changes in the task-group worktree
-
-When all tasks complete and the group is stopped
-Then the task-group worktree is removed
-But the project worktree persists
+When all tasks complete
+Then the worktree is retained for diff review and future PR creation
+And the session record still references the worktree path
 ```
 
 ### Agent Execution (Host Mode)
@@ -741,15 +613,16 @@ But the project worktree persists
 Given a task with status "todo" and type "ai" in a task group
 And containers are disabled on the workspace
 When the runner picks up this task
-Then it generates a UUID and sets sessionId on the task record
+Then it generates a UUID and creates a session record with worktreePath
 And sets status to "in_progress" and subStatus to "implementing"
 And spawns: claude -p --output-format stream-json --permission-mode acceptEdits --session-id {uuid} --json-schema {TASK_COMPLETION_SCHEMA}
 And does NOT use --dangerously-skip-permissions (hard validation)
-And writes task prompt to stdin
-And parses stream-json events into execution_logs
+And writes the same prompt that task-quick-actions builds to stdin
+And passes --append-system-prompt with project context and --add-dir flags (same as UI quick actions)
+And Claude writes session output to ~/.claude/projects/{encoded-worktree-path}/{uuid}.jsonl
 When the agent exits with code 0 and structured output { taskCompleted: true, summary: "..." }
 Then task status is set to "done" and subStatus is cleared
-And completion summary is stored on the task record
+And completion summary is stored on the session record
 And runner advances to next ai task (skips human tasks)
 ```
 
@@ -760,6 +633,7 @@ Given a task in a workspace with containerEnabled=true
 When the runner picks up this task
 Then it ensures the container is running (devcontainer up if needed)
 And spawns: devcontainer exec ... claude -p --output-format stream-json --dangerously-skip-permissions --json-schema {TASK_COMPLETION_SCHEMA}
+And the agent writes session output to ~/.claude/projects/... (accessible on host via bind mount)
 When the agent exits
 Then task status is updated accordingly
 And structured completion output is parsed and stored
@@ -791,19 +665,48 @@ Then B is unblocked and the runner spawns an agent for B
 
 ### Questions Flow
 
-```text
+````text
 Given a task with subStatus "planning"
-When the agent calls askQuestion MCP tool with "What authentication method?"
-Then a question record is created in SQLite (persisted across refresh)
+When the agent calls askQuestion MCP tool with:
+  sessionId="abc-123", taskId=42, documentPath="projects/initial/m6-execution-engine.plan.md",
+  questions=[
+    { question: "Which auth method?", header: "Auth", multiSelect: false,
+      options: [
+        { label: "JWT tokens", description: "Stateless, good for APIs",
+          preview: "```ts\nconst token = jwt.sign(payload, secret)\n```" },
+        { label: "Session cookies", description: "Server-side state, simpler" }
+      ]
+    },
+    { question: "Which ORM features?", header: "ORM", multiSelect: true,
+      options: [
+        { label: "Migrations", description: "Schema versioning" },
+        { label: "Seeding", description: "Test data generation" }
+      ]
+    }
+  ]
+Then two question records are created in SQLite (one per question, persisted across refresh)
 And the task subStatus is set to "blocked"
 And the agent process exits
 And the runner skips this task and moves to next
+And the notification badge shows "1" (one task group with unanswered questions)
 
-When the user answers "Use JWT tokens" in the question queue UI
-Then the question record is updated with the answer
+When the user clicks the notification badge
+Then the question list shows task #42 with "2 unanswered"
+When the user clicks on the task entry
+Then a question dialog opens with tabs: "Auth", "ORM", "Task", "Document"
+And the "Auth" tab shows "Which auth method?" with JWT/Session options
+And selecting "JWT tokens" renders the preview markdown as HTML in the side panel
+And the "ORM" tab shows checkboxes for Migrations and Seeding
+And the "Task" tab shows the task's title and description
+And the "Document" tab shows the m6 plan doc in the read-only document editor
+And the "Submit All" button is disabled until both questions have answers
+
+When the user answers both questions and clicks "Submit All"
+Then both question records are updated with answers in a single batch
+And the notification badge clears (no remaining unanswered groups)
 And the task subStatus is cleared from "blocked"
-And on next loop iteration, the runner spawns a new agent with the answer as context
-```
+And on next loop iteration, the runner spawns a new agent with the answers as context
+````
 
 ### Feedback Loop
 
@@ -818,12 +721,12 @@ And the runner spawns agent with --resume {sessionId} and feedback as prompt
 ### One-Off Task Execution
 
 ```text
-Given a project with worktrees and a task not in any task group
+Given a task not in any task group
 When the user clicks "Execute" on the individual task
-Then an ephemeral worktree is created branched from the project worktree
-And the agent runs in the ephemeral worktree
+Then a worktree is created from local main
+And the agent runs in the worktree
 When the task completes
-Then the ephemeral worktree is cleaned up
+Then the worktree is retained for review
 ```
 
 ### Planning Phase (needsPlan)
@@ -833,8 +736,9 @@ Given a task with needsPlan=true and type "ai"
 When the runner picks up this task
 Then it sets subStatus to "planning" (not "implementing")
 And spawns a planning agent with askQuestion MCP tool registered
-When the agent calls askQuestion with "Which database should I use?"
-Then the task becomes blocked
+When the agent calls askQuestion with taskId, documentPath, and batched questions
+Then one row per question is written to the questions table
+And the task becomes blocked
 And the runner moves to the next task
 
 Given a task with needsPlan=false and type "ai"
@@ -846,11 +750,11 @@ And spawns an implementation agent without askQuestion tool
 ### Auto-Start (Single Task)
 
 ```text
-Given a workspace with autoStart enabled and a project with worktrees
+Given a workspace with autoStart enabled
 And a task with type "human" and no runner currently active
 When the user changes the task type to "ai"
 Then the system starts a new runner for this task
-And creates an ephemeral worktree branched from the project worktree
+And creates a worktree from local main
 And sets subStatus to "planning" or "implementing" based on needsPlan
 And spawns an agent without requiring a manual "Execute" click
 ```
@@ -876,40 +780,28 @@ And the task is marked as failed with error message
 
 ## Key Design Decisions
 
-1. **Spawn per task, not long-running.** No idle detection, no wasted compute. Agent comes in, does the work, leaves.
+1. **Agent is the orchestrator.** The runner doesn't manage tasks, dependencies, or ordering. It just creates a worktree, spawns an agent with the same prompt quick actions build, and reports status. The agent handles everything else.
 
-2. **Planning is collaborative, execution is autonomous.** Clear boundary at the task spec.
+2. **Runner = headless quick action.** Same prompt, same flags, same `--append-system-prompt`, same `--add-dir`. Only difference: worktree creation and headless execution instead of terminal.
 
-3. **Questions only in planning, never in implementation.** Spec should be detailed enough.
+3. **Container is the sandbox.** `--dangerously-skip-permissions` ONLY in containers (hard validated). Firewall + bind mount is the boundary.
 
-4. **Container is the sandbox.** `--dangerously-skip-permissions` ONLY in containers (hard validated). Firewall + bind mount is the boundary.
+4. **Logs from session files, not DB.** Claude writes JSONL session files to `~/.claude/projects/...`. UI reads them directly — no stream-to-DB pipeline. Accessible from host for both host and container execution via bind mount.
 
-5. **Logs from stream-json, not xterm.** Agent runs headless via `-p`. UI parses the JSON stream for progress.
+5. **Per-session worktrees from local main.** Runner creates a worktree before spawning, stores path on session record. Worktrees retained after completion (needed for diff review, feedback, future PR). Cleanup deferred to PR/merge milestone.
 
-6. **Abstract later, not now.** Build on `claude -p`, extract AgentRuntime interface when coupling friction appears.
+6. **UUID session-id set by runner.** Generate before spawn, store immediately. No parsing from output.
 
-7. **Blocked tasks don't block the queue.** Runner skips them, parallel progress across the group.
+7. **Structured completion via --json-schema.** Runner gets programmatic success signal + summary from every agent invocation.
 
-8. **subStatus is a sub-state of in_progress.** Fewer kanban lanes, richer task card indicators.
+8. **Dev containers first (TG1).** Enables manual task execution in containers immediately, before the runner is built.
 
-9. **UUID session-id set by runner.** Generate before spawn, store immediately. No parsing from output.
+9. **One container per workspace.** Shared across all sessions. Cheaper, faster. Agent isolation is via worktrees, not containers.
 
-10. **Structured completion via --json-schema.** Runner gets programmatic success signal + summary from every agent invocation.
+10. **Mount ~/.claude in containers.** OAuth tokens, global config, state data, and session files persist. Same auth mechanism as host.
 
-11. **Two-level worktrees.** Project worktree isolates spec files and provides the base branch. Task-group worktrees branch from the project worktree for implementation isolation.
+11. **Manual retry only.** No automatic retries. Failed sessions stay failed until user clicks Retry.
 
-12. **Dev containers first (TG1).** Enables manual task execution in containers immediately, before the runner is built.
+12. **Auto-start is opt-in.** When enabled, tasks changing to `type: ai` auto-start a runner.
 
-13. **One container per workspace.** Shared across all task groups. Cheaper, faster. Agent isolation is via worktrees, not containers. Torn down on idle timeout (idle = no running task agents AND no connected container terminals).
-
-14. **Push data model.** Server builds prompts and sends full task data with EXECUTION_START_REQUEST. Client is a dumb executor — just passes prompts to `claude -p`.
-
-15. **needsPlan drives planning phase.** Tasks with `needsPlan=true` get a planning agent spawn first (can ask questions). Tasks with `needsPlan=false` go straight to implementation.
-
-16. **Mount ~/.claude in containers.** OAuth tokens, global config, and state data persist. Same auth mechanism as host.
-
-17. **Manual retry only.** No automatic retries. Failed tasks stay failed until user clicks Retry. Keeps the user in control.
-
-18. **Auto-start is opt-in, skill-driven for milestones.** When the workspace `autoStart` setting is enabled, individual tasks auto-start a runner when their type changes to `ai` (requires project worktrees). Milestone execution is delegated to the `/engy:implement-milestone` skill agent, which handles task ordering and execution autonomously rather than deterministic runner logic.
-
-19. **Reuse agentSessions table.** Extend the existing agentSessions table with taskId, executionMode, and completionSummary rather than creating a parallel session tracking mechanism.
+13. **Reuse agentSessions table.** Extend with taskId, executionMode, completionSummary, and worktreePath.
