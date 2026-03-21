@@ -452,11 +452,11 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
                   </div>
                 </TabsContent>
               )}
-              {hasExecution && sessionId && (
+              {hasExecution && (
                 <TabsContent value="execution">
                   <ExecutionTab
                     taskId={taskId}
-                    sessionId={sessionId}
+                    sessionId={sessionId!}
                     status={executionStatus}
                   />
                 </TabsContent>
