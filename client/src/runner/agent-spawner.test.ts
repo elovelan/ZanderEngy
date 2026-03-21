@@ -471,7 +471,7 @@ describe('AgentSpawner', () => {
       const promise = spawner.spawn({
         prompt: 'Continue from where you left off',
         flags: [],
-        sessionId: 'existing-session-abc',
+        resumeSessionId: 'existing-session-abc',
         containerMode: false,
         workingDir: '/workspace',
       });
@@ -486,14 +486,14 @@ describe('AgentSpawner', () => {
       expect(spawnArgs).not.toContain('--session-id');
     });
 
-    it('should return the provided sessionId in the result', async () => {
+    it('should return a generated sessionId in the result', async () => {
       const proc = createMockProcess();
       mockSpawn.mockReturnValue(proc);
 
       const promise = spawner.spawn({
         prompt: 'Continue',
         flags: [],
-        sessionId: 'existing-session-abc',
+        resumeSessionId: 'existing-session-abc',
         containerMode: false,
         workingDir: '/workspace',
       });
@@ -501,7 +501,7 @@ describe('AgentSpawner', () => {
       proc.emit('close', 0);
       const result = await promise;
 
-      expect(result.sessionId).toBe('existing-session-abc');
+      expect(result.sessionId).toBe('test-uuid-1234');
     });
   });
 

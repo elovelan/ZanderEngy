@@ -101,7 +101,6 @@ describe('Runner', () => {
       expect(spawner.spawn).toHaveBeenCalledWith({
         prompt: 'implement feature X',
         flags: ['--verbose'],
-        sessionId: 'session-abc',
         workingDir: '/path/to/repo/.claude/worktrees/engy-session-a1b2c3',
         containerMode: true,
         containerWorkspaceFolder: '/workspace',
@@ -241,7 +240,8 @@ describe('Runner', () => {
 
       expect(spawner.spawn).toHaveBeenCalledWith({
         prompt: '',
-        flags: ['--resume', 'abc-123'],
+        flags: [],
+        resumeSessionId: 'abc-123',
         workingDir: '/path/to/repo/.claude/worktrees/engy-session-a1b2c3',
         containerMode: false,
       });

@@ -74,7 +74,6 @@ export class Runner {
       .spawn({
         prompt,
         flags,
-        sessionId,
         workingDir: worktreePath,
         containerMode: config.containerMode,
         containerWorkspaceFolder: config.containerWorkspaceFolder,
@@ -120,7 +119,8 @@ export class Runner {
 
     const spawnResult = await this.spawner.spawn({
       prompt: '',
-      flags: ['--resume', sessionId],
+      flags: [],
+      resumeSessionId: sessionId,
       workingDir: worktreePath,
       containerMode: this.currentConfig?.containerMode ?? false,
       containerWorkspaceFolder: this.currentConfig?.containerWorkspaceFolder,

@@ -5,7 +5,7 @@ import type { ContainerManager } from '../container/manager.js';
 export interface SpawnConfig {
   prompt: string;
   flags: string[];
-  sessionId?: string;
+  resumeSessionId?: string;
   containerMode: boolean;
   containerWorkspaceFolder?: string;
   workingDir: string;
@@ -40,7 +40,7 @@ export class AgentSpawner {
   async spawn(config: SpawnConfig): Promise<SpawnResult> {
     this.validateConfig(config);
 
-    const sessionId = config.sessionId ?? randomUUID();
+    const sessionId = randomUUID();
     const args = this.buildArgs(config, sessionId);
     const proc = this.spawnProcess(config, args);
     this.currentProcess = proc;
@@ -78,8 +78,8 @@ export class AgentSpawner {
 
     args.push('--json-schema', TASK_COMPLETION_SCHEMA);
 
-    if (config.sessionId) {
-      args.push('--resume', config.sessionId);
+    if (config.resumeSessionId) {
+      args.push('--resume', config.resumeSessionId);
     } else {
       args.push('--session-id', sessionId);
     }

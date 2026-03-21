@@ -9,7 +9,7 @@ Unified code reviewer that operates in two phases: simplify first, then review.
 
 ## Phase 1: Simplify
 
-Run /simpligy skill to simplify the code as much as possible without changing behavior.
+Run /simplify skill to simplify the code as much as possible without changing behavior.
 
 ## Phase 2: Review
 

@@ -18,6 +18,8 @@ Dispatch the `engy-reviewer` agent to simplify code directly, then surface sever
 
 Resolve the review scope. Show a summary: files changed, lines added/removed, directories affected.
 
+Determine 
+
 **Resolution order:**
 1. User-specified commit range, file list, or branch comparison
 2. Arguments passed when invoked (e.g., "last commit", "staged changes")
