@@ -35,6 +35,8 @@ import { cn } from "@/lib/utils";
 import { taskStatusOptions, taskStatusColors } from "./task-status-badge";
 import { RiAddLine, RiCloseLine, RiDeleteBinLine } from "@remixicon/react";
 import { toast } from "sonner";
+import { useExecutionStatus } from "@/hooks/use-execution-status";
+import { ExecutionTab } from "./execution-tab";
 
 // ── Create mode ──────────────────────────────────────────────────────
 
@@ -252,6 +254,9 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
     { enabled: hasPlan && !!workspaceSlug && !!projectSlug },
   );
 
+  const { status: executionStatus, sessionId } = useExecutionStatus('task', taskId);
+  const hasExecution = !!sessionId;
+
   const [title, setTitle] = useState(task?.title ?? "");
   const [status, setStatus] = useState(task?.status ?? "");
   const [type, setType] = useState<"ai" | "human">((task?.type as "ai" | "human") ?? "human");
@@ -424,26 +429,38 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
             )}
           </div>
 
-          {hasPlan ? (
-            <Tabs defaultValue="description">
+          {hasPlan || hasExecution ? (
+            <Tabs defaultValue={hasExecution && !hasPlan ? "execution" : "description"}>
               <TabsList variant="line">
                 <TabsTrigger value="description">Description</TabsTrigger>
-                <TabsTrigger value="plan">Plan</TabsTrigger>
+                {hasPlan && <TabsTrigger value="plan">Plan</TabsTrigger>}
+                {hasExecution && <TabsTrigger value="execution">Execution</TabsTrigger>}
               </TabsList>
               <TabsContent value="description">
                 {descriptionEditor}
               </TabsContent>
-              <TabsContent value="plan">
-                <div className="min-h-[200px] max-h-[50vh] overflow-auto border border-border">
-                  {planData && (
-                    <DynamicDocumentEditor
-                      initialMarkdown={planData.content}
-                      onSave={handlePlanSave}
-                      mentionDirs={mentionDirs}
-                    />
-                  )}
-                </div>
-              </TabsContent>
+              {hasPlan && (
+                <TabsContent value="plan">
+                  <div className="min-h-[200px] max-h-[50vh] overflow-auto border border-border">
+                    {planData && (
+                      <DynamicDocumentEditor
+                        initialMarkdown={planData.content}
+                        onSave={handlePlanSave}
+                        mentionDirs={mentionDirs}
+                      />
+                    )}
+                  </div>
+                </TabsContent>
+              )}
+              {hasExecution && sessionId && (
+                <TabsContent value="execution">
+                  <ExecutionTab
+                    taskId={taskId}
+                    sessionId={sessionId}
+                    status={executionStatus}
+                  />
+                </TabsContent>
+              )}
             </Tabs>
           ) : (
             <div className="flex flex-col gap-1">
