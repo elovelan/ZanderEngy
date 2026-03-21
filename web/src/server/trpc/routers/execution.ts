@@ -9,7 +9,7 @@ import type { ExecutionStartConfig } from '@engy/common';
 import { router, publicProcedure } from '../trpc';
 import { getDb } from '../../db/client';
 import { agentSessions, tasks, taskGroups, projects, workspaces } from '../../db/schema';
-import { dispatchExecutionStart, dispatchExecutionStop } from '../../ws/server';
+import { dispatchExecutionStart, dispatchExecutionStop, dispatchContainerUp } from '../../ws/server';
 import { getWorkspaceDir } from '../../engy-dir/init';
 import { buildContextBlock, buildQuickActionDirs } from '../../../lib/shell';
 
@@ -111,9 +111,16 @@ export const executionRouter = router({
       let taskId: number | null = null;
       let taskGroupId: number | null = null;
       let repos: string[] = [];
-      let workspace: { containerEnabled: boolean | null; docsDir: string | null } = {
+      let workspace: {
+        slug: string;
+        containerEnabled: boolean | null;
+        docsDir: string | null;
+        containerConfig: unknown;
+      } = {
+        slug: '',
         containerEnabled: null,
         docsDir: null,
+        containerConfig: null,
       };
 
       if (input.scope === 'task') {
@@ -238,6 +245,18 @@ export const executionRouter = router({
           ? (workspace.docsDir ?? undefined)
           : undefined,
       };
+
+      // Start container if needed (same as terminal flow)
+      if (config.containerMode && workspace.docsDir) {
+        console.log(`[execution] Starting container for workspace=${workspace.slug}`);
+        await dispatchContainerUp(
+          ctx.state,
+          workspace.docsDir,
+          repos,
+          (workspace.containerConfig as Record<string, unknown>) ?? undefined,
+        );
+        console.log(`[execution] Container ready`);
+      }
 
       console.log(
         `[execution] Dispatching: session=${sessionId} repo=${config.repoPath} container=${config.containerMode} flags=${flags.length} prompt=${prompt.length}chars`,
