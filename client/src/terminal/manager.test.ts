@@ -249,4 +249,63 @@ describe('TerminalManager', () => {
     manager.write('nonexistent', 'x');
     expect(mockPtyProcess.write).not.toHaveBeenCalled();
   });
+
+  describe('security', () => {
+    it('should block --dangerously-skip-permissions on host', () => {
+      manager.spawn({
+        sessionId: 'sec-1',
+        workingDir: '/tmp',
+        cols: 80,
+        rows: 24,
+        command: 'claude --dangerously-skip-permissions',
+      });
+
+      expect(mockedSpawn).not.toHaveBeenCalled();
+      expect(sent).toHaveLength(1);
+      const msg = JSON.parse(sent[0]);
+      expect(msg.t).toBe('exit');
+      expect(msg.sessionId).toBe('sec-1');
+      expect(msg.exitCode).toBe(1);
+    });
+
+    it('should allow --dangerously-skip-permissions in container', () => {
+      manager.spawn({
+        sessionId: 'sec-2',
+        workingDir: '/tmp',
+        cols: 80,
+        rows: 24,
+        command: 'claude --dangerously-skip-permissions',
+        containerWorkspaceFolder: '/workspace',
+      });
+
+      expect(mockedSpawn).toHaveBeenCalled();
+    });
+
+    it('should allow commands without --dangerously-skip-permissions on host', () => {
+      manager.spawn({
+        sessionId: 'sec-3',
+        workingDir: '/tmp',
+        cols: 80,
+        rows: 24,
+        command: 'claude --permission-mode acceptEdits',
+      });
+
+      expect(mockedSpawn).toHaveBeenCalled();
+    });
+
+    it('should block --dangerously-skip-permissions mid-command on host', () => {
+      manager.spawn({
+        sessionId: 'sec-4',
+        workingDir: '/tmp',
+        cols: 80,
+        rows: 24,
+        command: 'claude --model opus --dangerously-skip-permissions --some-flag',
+      });
+
+      expect(mockedSpawn).not.toHaveBeenCalled();
+      const msg = JSON.parse(sent[0]);
+      expect(msg.t).toBe('exit');
+      expect(msg.exitCode).toBe(1);
+    });
+  });
 });

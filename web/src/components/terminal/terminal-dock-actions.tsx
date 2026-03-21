@@ -4,6 +4,7 @@ import { Fragment } from 'react';
 import {
   RiAddLine,
   RiArrowRightSLine,
+  RiBox3Line,
   RiSplitCellsHorizontal,
   RiSplitCellsVertical,
   RiTerminalLine,
@@ -18,9 +19,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useTerminalDock } from './terminal-dock-context';
+import { toContainerScope } from './types';
 
 export function TerminalDockActions({ activePanel }: IDockviewHeaderActionsProps) {
-  const { openTerminal, onCollapse, extraDropdownGroups } = useTerminalDock();
+  const { openTerminal, onCollapse, extraDropdownGroups, containerEnabled, defaultScope } =
+    useTerminalDock();
 
   return (
     <div className="flex shrink-0 items-center border-l border-border">
@@ -35,10 +38,26 @@ export function TerminalDockActions({ activePanel }: IDockviewHeaderActionsProps
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => openTerminal()}>
+          <DropdownMenuItem
+            onClick={() =>
+              containerEnabled && defaultScope
+                ? openTerminal({ ...defaultScope, containerMode: 'host' })
+                : openTerminal()
+            }
+          >
             <RiAddLine className="size-3" />
             New Terminal
           </DropdownMenuItem>
+          {containerEnabled && defaultScope && (
+            <DropdownMenuItem
+              onClick={() =>
+                openTerminal(toContainerScope(defaultScope))
+              }
+            >
+              <RiBox3Line className="size-3" />
+              New Terminal (Container)
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem
             onClick={() =>
               openTerminal(undefined, { referencePanel: activePanel!.id, direction: 'right' })

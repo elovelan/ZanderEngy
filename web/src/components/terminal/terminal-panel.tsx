@@ -7,11 +7,12 @@ import type { TerminalDropdownGroup } from './types';
 interface TerminalPanelProps {
   onCollapse?: () => void;
   extraDropdownGroups?: TerminalDropdownGroup[];
+  containerEnabled?: boolean;
 }
 
 const noop = () => {};
 
-export function TerminalPanel({ onCollapse, extraDropdownGroups }: TerminalPanelProps) {
+export function TerminalPanel({ onCollapse, extraDropdownGroups, containerEnabled }: TerminalPanelProps) {
   const scope = useTerminalScope();
   const scopeKey = scope.groupKey;
 
@@ -22,6 +23,7 @@ export function TerminalPanel({ onCollapse, extraDropdownGroups }: TerminalPanel
         onCollapse={onCollapse ?? noop}
         defaultScope={scope}
         extraDropdownGroups={extraDropdownGroups}
+        containerEnabled={containerEnabled}
       />
     </div>
   );

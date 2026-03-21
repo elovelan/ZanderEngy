@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useParams, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { RiGitRepositoryLine, RiGitRepositoryFill } from '@remixicon/react';
+import { RiGitRepositoryLine, RiGitRepositoryFill, RiComputerLine, RiBox3Line } from '@remixicon/react';
 import { trpc } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -64,6 +64,8 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
     { enabled: isProjectRoute && !!workspace && !!params.project },
   );
 
+  const isContainerEnabled = workspace?.containerEnabled ?? false;
+
   const extraDropdownGroups = useMemo<TerminalDropdownGroup[] | undefined>(() => {
     if (!isProjectRoute || !workspace) return undefined;
     const repos = (workspace.repos as string[]) ?? [];
@@ -86,11 +88,15 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
 
     const groupKey = `project:${params.workspace}:${projectSlug}`;
 
-    const entries: TerminalDropdownGroup['entries'] = repos.map((repoPath) => {
+    function makeRepoEntry(
+      repoPath: string,
+      mode: 'host' | 'container' | undefined,
+    ): TerminalDropdownGroup['entries'][number] {
       const dirName = repoPath.split('/').filter(Boolean).pop() ?? repoPath;
+      const isContainer = mode === 'container';
       return {
-        id: `repo:${repoPath}`,
-        label: dirName,
+        id: `${isContainer ? 'container:' : ''}repo:${repoPath}`,
+        label: isContainer ? `${dirName} (Container)` : dirName,
         tooltip: repoPath,
         scope: {
           scopeType: 'project',
@@ -99,18 +105,23 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           command: buildClaudeCommand({
             systemPrompt,
             additionalDirs: projectDir ? [projectDir] : undefined,
+            dangerouslySkipPermissions: isContainer,
           }),
           groupKey,
           workspaceSlug: params.workspace,
+          containerMode: mode,
         },
-        icon: RiGitRepositoryLine,
+        icon: isContainer ? RiBox3Line : isContainerEnabled ? RiComputerLine : RiGitRepositoryLine,
       };
-    });
+    }
 
-    if (repos.length > 1) {
-      entries.push({
-        id: 'repo:all',
-        label: 'All Repos',
+    function makeAllReposEntry(
+      mode: 'host' | 'container' | undefined,
+    ): TerminalDropdownGroup['entries'][number] {
+      const isContainer = mode === 'container';
+      return {
+        id: `${isContainer ? 'container:' : ''}repo:all`,
+        label: isContainer ? 'All Repos (Container)' : 'All Repos',
         tooltip: repos.join(', '),
         scope: {
           scopeType: 'project',
@@ -122,16 +133,35 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
               ...(projectDir ? [projectDir] : []),
               ...repos.slice(1),
             ],
+            dangerouslySkipPermissions: isContainer,
           }),
           groupKey,
           workspaceSlug: params.workspace,
+          containerMode: mode,
         },
-        icon: RiGitRepositoryFill,
-      });
+        icon: isContainer ? RiBox3Line : isContainerEnabled ? RiComputerLine : RiGitRepositoryFill,
+      };
+    }
+
+    const hostMode = isContainerEnabled ? ('host' as const) : undefined;
+    const entries: TerminalDropdownGroup['entries'] = [];
+
+    for (const repoPath of repos) {
+      entries.push(makeRepoEntry(repoPath, hostMode));
+      if (isContainerEnabled) {
+        entries.push(makeRepoEntry(repoPath, 'container'));
+      }
+    }
+
+    if (repos.length > 1) {
+      entries.push(makeAllReposEntry(hostMode));
+      if (isContainerEnabled) {
+        entries.push(makeAllReposEntry('container'));
+      }
     }
 
     return [{ label: 'Claude in Repos', entries }];
-  }, [isProjectRoute, workspace, project, params.project, params.workspace]);
+  }, [isProjectRoute, workspace, project, params.project, params.workspace, isContainerEnabled]);
 
   if (isLoading) {
     return (
@@ -204,7 +234,11 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
             </div>
           }
           rightContent={
-            <TerminalPanel onCollapse={handleCollapse} extraDropdownGroups={extraDropdownGroups} />
+            <TerminalPanel
+              onCollapse={handleCollapse}
+              extraDropdownGroups={extraDropdownGroups}
+              containerEnabled={isContainerEnabled}
+            />
           }
         />
       </div>

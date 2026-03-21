@@ -15,6 +15,7 @@ export interface TerminalSessionMeta {
   command?: string;
   groupKey?: string;
   workspaceSlug?: string;
+  containerMode?: string;
   cols: number;
   rows: number;
 }

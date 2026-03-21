@@ -42,6 +42,7 @@ function buildWsUrl(tab: TerminalTab): string {
   });
   if (scope.command) params.set('command', scope.command);
   if (scope.workspaceSlug) params.set('workspaceSlug', scope.workspaceSlug);
+  if (scope.containerMode) params.set('containerMode', scope.containerMode);
   return `${base}/ws/terminal?${params.toString()}`;
 }
 

@@ -10,12 +10,14 @@ interface MilestoneQuickActionsProps {
 }
 
 export function MilestoneQuickActions({ milestoneRef }: MilestoneQuickActionsProps) {
-  const { disabled, launch, projectSlug } = useQuickAction();
+  const { disabled, launch, projectSlug, workspace } = useQuickAction();
 
   function handleImplementMilestone() {
+    const useContainer = workspace?.containerEnabled ?? false;
     launch({
       prompt: `Use /engy:implement-milestone for ${milestoneRef} in project ${projectSlug}`,
       scopeLabel: `impl-ms: ${milestoneRef}`,
+      containerMode: useContainer ? 'container' : undefined,
     });
   }
 

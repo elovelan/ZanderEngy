@@ -10,6 +10,8 @@ export interface TerminalDockContextValue {
   handleReady: (sessionId: string, actions: TerminalActions | null) => void;
   onCollapse: () => void;
   extraDropdownGroups?: TerminalDropdownGroup[];
+  containerEnabled?: boolean;
+  defaultScope?: TerminalScope;
 }
 
 export const TerminalDockContext = createContext<TerminalDockContextValue | null>(null);

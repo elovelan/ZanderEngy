@@ -32,6 +32,7 @@ export function buildClaudeCommand(options?: {
   prompt?: string;
   systemPrompt?: string;
   additionalDirs?: string[];
+  dangerouslySkipPermissions?: boolean;
 }): string {
   let cmd = 'claude';
   if (options?.prompt) {
@@ -41,7 +42,11 @@ export function buildClaudeCommand(options?: {
   if (options?.systemPrompt) {
     cmd += ` --append-system-prompt '${shellEscape(options.systemPrompt)}'`;
   }
-  cmd += ' --permission-mode acceptEdits';
+  if (options?.dangerouslySkipPermissions) {
+    cmd += ' --dangerously-skip-permissions';
+  } else {
+    cmd += ' --permission-mode acceptEdits';
+  }
   return cmd;
 }
 

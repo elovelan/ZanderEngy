@@ -52,20 +52,27 @@ export function TaskQuickActions({
     },
   });
 
+  // Planning always runs on host — read-only analysis, no need for container sandbox
   function handlePlan() {
     if (!projectDir || !projectSlug) return;
     launch({
       prompt: `Use ${planSkill} to plan ${taskSlug}, output plan to ${projectDir}/plans/${taskSlug}.plan.md`,
       scopeLabel: `plan: ${taskSlug}`,
+      containerMode: 'host',
     });
   }
 
   function handleImplement() {
     if (!projectDir || !projectSlug) return;
+    const useContainer = workspace?.containerEnabled ?? false;
     const prompt = needsPlan
       ? `Use ${implementSkill} for ${taskSlug}, plan at ${projectDir}/plans/${taskSlug}.plan.md`
       : `Use ${implementSkill} for ${taskSlug}`;
-    launch({ prompt, scopeLabel: `impl: ${taskSlug}` });
+    launch({
+      prompt,
+      scopeLabel: `impl: ${taskSlug}`,
+      containerMode: useContainer ? 'container' : undefined,
+    });
   }
 
   function handleToggleNeedsPlan() {

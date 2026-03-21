@@ -150,6 +150,22 @@ describe('shell utilities', () => {
         "claude 'Use /engy:plan' --add-dir '/repo' --append-system-prompt 'Workspace: engy (id: 1)' --permission-mode acceptEdits",
       );
     });
+
+    it('should use --dangerously-skip-permissions instead of --permission-mode when flag set', () => {
+      expect(buildClaudeCommand({ dangerouslySkipPermissions: true })).toBe(
+        'claude --dangerously-skip-permissions',
+      );
+    });
+
+    it('should combine dangerouslySkipPermissions with other options', () => {
+      expect(
+        buildClaudeCommand({
+          prompt: 'implement task',
+          additionalDirs: ['/repo'],
+          dangerouslySkipPermissions: true,
+        }),
+      ).toBe("claude 'implement task' --add-dir '/repo' --dangerously-skip-permissions");
+    });
   });
 
   describe('buildQuickActionDirs', () => {

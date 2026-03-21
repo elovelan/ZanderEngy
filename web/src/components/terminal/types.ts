@@ -4,6 +4,8 @@ export type TerminalScopeType = 'project' | 'workspace' | 'dir';
 
 export type TerminalStatus = 'connecting' | 'active' | 'exited' | 'error';
 
+export type ContainerMode = 'host' | 'container';
+
 export interface TerminalScope {
   scopeType: TerminalScopeType;
   scopeLabel: string;
@@ -11,6 +13,7 @@ export interface TerminalScope {
   command?: string;
   groupKey: string;
   workspaceSlug: string;
+  containerMode?: ContainerMode;
 }
 
 export interface TerminalTab {
@@ -39,4 +42,12 @@ export interface TerminalDropdownEntry {
 export interface TerminalDropdownGroup {
   label?: string;
   entries: TerminalDropdownEntry[];
+}
+
+export function toContainerScope(scope: TerminalScope): TerminalScope {
+  return {
+    ...scope,
+    containerMode: 'container',
+    command: scope.command?.replace('--permission-mode acceptEdits', '--dangerously-skip-permissions'),
+  };
 }

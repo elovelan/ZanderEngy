@@ -44,7 +44,11 @@ async function maybeStartContainer(
   workspaceSlug: string,
   spawnCmd: TerminalSpawnCmd,
   state: AppState,
+  containerMode?: string,
 ): Promise<boolean> {
+  // Explicit host mode — skip container entirely
+  if (containerMode === 'host') return true;
+
   let workspace;
   try {
     const db = getDb();
@@ -98,6 +102,7 @@ async function handleTerminalConnection(
   const scopeLabel = params.get('scopeLabel') ?? '';
   const groupKey = params.get('groupKey') ?? undefined;
   const workspaceSlug = params.get('workspaceSlug') ?? '';
+  const containerMode = params.get('containerMode') ?? undefined;
 
   if (!sessionId || !workingDir) {
     ws.close(1008, 'Missing sessionId or workingDir');
@@ -180,7 +185,7 @@ async function handleTerminalConnection(
     };
 
     if (workspaceSlug) {
-      const ok = await maybeStartContainer(ws, sessionId, workspaceSlug, spawnCmd, state);
+      const ok = await maybeStartContainer(ws, sessionId, workspaceSlug, spawnCmd, state, containerMode);
       if (!ok) return;
     }
 
@@ -199,7 +204,7 @@ async function handleTerminalConnection(
       // Only persist meta after spawn is sent — prevents false reconnects
       // from concurrent connections (React Strict Mode double-mount)
       state.terminalSessionMeta.set(sessionId, {
-        scopeType, scopeLabel, workingDir, command, groupKey, workspaceSlug, cols, rows,
+        scopeType, scopeLabel, workingDir, command, groupKey, workspaceSlug, containerMode, cols, rows,
       });
     } else {
       console.log(`[terminal] spawn path but no daemon for sid=${short}`);
@@ -258,18 +263,30 @@ export function createTerminalRelayWebSocketServer(state: AppState): WebSocketSe
               if (browserWs && browserWs.readyState === browserWs.OPEN) {
                 // Browser is still connected — respawn the session transparently
                 console.log(`[terminal-relay] Stale session ${sessionId} (${meta.scopeLabel}) — respawning on daemon`);
-                ws.send(
-                  JSON.stringify({
-                    t: 'spawn',
-                    sessionId,
-                    workingDir: meta.workingDir,
-                    command: meta.command,
-                    cols: meta.cols,
-                    rows: meta.rows,
-                    scopeType: meta.scopeType,
-                    scopeLabel: meta.scopeLabel,
-                  } satisfies TerminalSpawnCmd),
-                );
+                const spawnCmd: TerminalSpawnCmd = {
+                  t: 'spawn',
+                  sessionId,
+                  workingDir: meta.workingDir,
+                  command: meta.command,
+                  cols: meta.cols,
+                  rows: meta.rows,
+                  scopeType: meta.scopeType,
+                  scopeLabel: meta.scopeLabel,
+                };
+                // Restore containerWorkspaceFolder for container-mode sessions
+                if (meta.containerMode === 'container' && meta.workspaceSlug) {
+                  try {
+                    const db = getDb();
+                    const workspace = db.select().from(workspaces)
+                      .where(eq(workspaces.slug, meta.workspaceSlug)).get();
+                    if (workspace?.containerEnabled && workspace.docsDir) {
+                      spawnCmd.containerWorkspaceFolder = workspace.docsDir;
+                    }
+                  } catch {
+                    // DB unavailable — spawn on host as fallback
+                  }
+                }
+                ws.send(JSON.stringify(spawnCmd));
               } else {
                 // No browser connected — just clean up
                 console.log(`[terminal-relay] Stale session ${sessionId} (${meta.scopeLabel}) — no browser, cleaning up`);

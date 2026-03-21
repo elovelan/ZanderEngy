@@ -4,6 +4,7 @@ import { SessionManager } from './session-manager.js';
 import type { PersistentSession } from './types.js';
 
 const SIGTERM_TIMEOUT_MS = 3_000;
+const DANGEROUS_FLAG_RE = /(?:^|\s)--dangerously-skip-permissions(?:\s|$)/;
 
 interface SpawnOptions {
   sessionId: string;
@@ -31,6 +32,15 @@ export class TerminalManager {
 
   spawn(opts: SpawnOptions): void {
     const { sessionId, workingDir, cols, rows, command, containerWorkspaceFolder } = opts;
+
+    // SECURITY: Never allow --dangerously-skip-permissions on host
+    if (!containerWorkspaceFolder && command && DANGEROUS_FLAG_RE.test(command)) {
+      console.error(
+        `[terminal] SECURITY: Blocked --dangerously-skip-permissions on host for session ${sessionId}`,
+      );
+      this.sendToServer?.(JSON.stringify({ t: 'exit', sessionId, exitCode: 1 }));
+      return;
+    }
 
     console.log(
       `[terminal] Spawning session ${sessionId}: cwd=${workingDir} cols=${cols} rows=${rows} command=${command ?? '(shell)'}`,
