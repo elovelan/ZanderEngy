@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
+import { eq } from 'drizzle-orm';
 import { WebSocket } from 'ws';
 import type { AppState } from '../trpc/context';
 import { createWebSocketServer, dispatchValidation, dispatchFileSearch } from './server';
+import { setupTestDb, type TestContext } from '../trpc/test-helpers';
+import { agentSessions, tasks, projects, workspaces } from '../db/schema';
 
 let openClients: WebSocket[] = [];
 
@@ -314,6 +317,253 @@ describe('WebSocket Server', () => {
 
       await new Promise((r) => setTimeout(r, 50));
       expect(state.daemon).toBeNull();
+    });
+  });
+});
+
+describe('Execution event handling', () => {
+  let ctx: TestContext;
+  let server: Server;
+  let port: number;
+
+  beforeEach(async () => {
+    openClients = [];
+    ctx = setupTestDb();
+
+    // Insert workspace + project so we can create tasks
+    const ws = ctx.db.insert(workspaces).values({ name: 'Test', slug: 'test' }).returning().get();
+    ctx.db
+      .insert(projects)
+      .values({ workspaceId: ws.id, name: 'Test Project', slug: 'test-project' })
+      .run();
+
+    const result = await startServer(ctx.state);
+    server = result.server;
+    port = result.port;
+  });
+
+  afterEach(async () => {
+    for (const ws of openClients) {
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+        ws.terminate();
+      }
+    }
+    openClients = [];
+    await closeServer(server);
+    ctx.cleanup();
+  });
+
+  describe('EXECUTION_STATUS_EVENT', () => {
+    it('should update agentSession and task subStatus when taskId is provided', async () => {
+      // Seed a task and agent session
+      const task = ctx.db
+        .insert(tasks)
+        .values({ title: 'Test task', status: 'in_progress' })
+        .returning()
+        .get();
+      ctx.db
+        .insert(agentSessions)
+        .values({ sessionId: 'abc-123', taskId: task.id, status: 'active' })
+        .run();
+
+      const ws = await connectClient(port);
+      ws.send(JSON.stringify({ type: 'REGISTER', payload: {} }));
+      await vi.waitFor(() => expect(ctx.state.daemon).not.toBeNull());
+
+      ws.send(
+        JSON.stringify({
+          type: 'EXECUTION_STATUS_EVENT',
+          payload: { sessionId: 'abc-123', status: 'implementing', taskId: task.id },
+        }),
+      );
+
+      await vi.waitFor(() => {
+        const session = ctx.db
+          .select()
+          .from(agentSessions)
+          .where(eq(agentSessions.sessionId, 'abc-123'))
+          .get();
+        expect(session!.status).toBe('active');
+
+        const updatedTask = ctx.db.select().from(tasks).where(eq(tasks.id, task.id)).get();
+        expect(updatedTask!.subStatus).toBe('implementing');
+      });
+    });
+
+    it('should update agentSession without taskId', async () => {
+      ctx.db
+        .insert(agentSessions)
+        .values({ sessionId: 'no-task-session', status: 'active' })
+        .run();
+
+      const ws = await connectClient(port);
+      ws.send(JSON.stringify({ type: 'REGISTER', payload: {} }));
+      await vi.waitFor(() => expect(ctx.state.daemon).not.toBeNull());
+
+      ws.send(
+        JSON.stringify({
+          type: 'EXECUTION_STATUS_EVENT',
+          payload: { sessionId: 'no-task-session', status: 'planning' },
+        }),
+      );
+
+      await vi.waitFor(() => {
+        const session = ctx.db
+          .select()
+          .from(agentSessions)
+          .where(eq(agentSessions.sessionId, 'no-task-session'))
+          .get();
+        expect(session).toBeDefined();
+      });
+    });
+
+    it('should log warning for non-existent sessionId and not crash', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const ws = await connectClient(port);
+      ws.send(JSON.stringify({ type: 'REGISTER', payload: {} }));
+      await vi.waitFor(() => expect(ctx.state.daemon).not.toBeNull());
+
+      ws.send(
+        JSON.stringify({
+          type: 'EXECUTION_STATUS_EVENT',
+          payload: { sessionId: 'nonexistent', status: 'implementing' },
+        }),
+      );
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('nonexistent'),
+        );
+      });
+
+      warnSpy.mockRestore();
+    });
+  });
+
+  describe('EXECUTION_COMPLETE_EVENT', () => {
+    it('should set session to completed and clear task subStatus on success', async () => {
+      const task = ctx.db
+        .insert(tasks)
+        .values({ title: 'Auth task', status: 'in_progress', subStatus: 'implementing' })
+        .returning()
+        .get();
+      ctx.db
+        .insert(agentSessions)
+        .values({ sessionId: 'complete-ok', taskId: task.id, status: 'active' })
+        .run();
+
+      const ws = await connectClient(port);
+      ws.send(JSON.stringify({ type: 'REGISTER', payload: {} }));
+      await vi.waitFor(() => expect(ctx.state.daemon).not.toBeNull());
+
+      ws.send(
+        JSON.stringify({
+          type: 'EXECUTION_COMPLETE_EVENT',
+          payload: {
+            sessionId: 'complete-ok',
+            exitCode: 0,
+            success: true,
+            completion: 'Implemented auth',
+          },
+        }),
+      );
+
+      await vi.waitFor(() => {
+        const session = ctx.db
+          .select()
+          .from(agentSessions)
+          .where(eq(agentSessions.sessionId, 'complete-ok'))
+          .get();
+        expect(session!.status).toBe('completed');
+        expect(session!.completionSummary).toBe('Implemented auth');
+
+        const updatedTask = ctx.db.select().from(tasks).where(eq(tasks.id, task.id)).get();
+        expect(updatedTask!.subStatus).toBeNull();
+      });
+    });
+
+    it('should set session to stopped and task subStatus to failed on failure', async () => {
+      const task = ctx.db
+        .insert(tasks)
+        .values({ title: 'Failing task', status: 'in_progress', subStatus: 'implementing' })
+        .returning()
+        .get();
+      ctx.db
+        .insert(agentSessions)
+        .values({ sessionId: 'complete-fail', taskId: task.id, status: 'active' })
+        .run();
+
+      const ws = await connectClient(port);
+      ws.send(JSON.stringify({ type: 'REGISTER', payload: {} }));
+      await vi.waitFor(() => expect(ctx.state.daemon).not.toBeNull());
+
+      ws.send(
+        JSON.stringify({
+          type: 'EXECUTION_COMPLETE_EVENT',
+          payload: { sessionId: 'complete-fail', exitCode: 1, success: false },
+        }),
+      );
+
+      await vi.waitFor(() => {
+        const session = ctx.db
+          .select()
+          .from(agentSessions)
+          .where(eq(agentSessions.sessionId, 'complete-fail'))
+          .get();
+        expect(session!.status).toBe('stopped');
+
+        const updatedTask = ctx.db.select().from(tasks).where(eq(tasks.id, task.id)).get();
+        expect(updatedTask!.subStatus).toBe('failed');
+      });
+    });
+
+    it('should handle completion without linked task', async () => {
+      ctx.db
+        .insert(agentSessions)
+        .values({ sessionId: 'no-task-complete', status: 'active' })
+        .run();
+
+      const ws = await connectClient(port);
+      ws.send(JSON.stringify({ type: 'REGISTER', payload: {} }));
+      await vi.waitFor(() => expect(ctx.state.daemon).not.toBeNull());
+
+      ws.send(
+        JSON.stringify({
+          type: 'EXECUTION_COMPLETE_EVENT',
+          payload: { sessionId: 'no-task-complete', exitCode: 0, success: true },
+        }),
+      );
+
+      await vi.waitFor(() => {
+        const session = ctx.db
+          .select()
+          .from(agentSessions)
+          .where(eq(agentSessions.sessionId, 'no-task-complete'))
+          .get();
+        expect(session!.status).toBe('completed');
+      });
+    });
+
+    it('should log warning for non-existent sessionId and not crash', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const ws = await connectClient(port);
+      ws.send(JSON.stringify({ type: 'REGISTER', payload: {} }));
+      await vi.waitFor(() => expect(ctx.state.daemon).not.toBeNull());
+
+      ws.send(
+        JSON.stringify({
+          type: 'EXECUTION_COMPLETE_EVENT',
+          payload: { sessionId: 'ghost', exitCode: 1, success: false },
+        }),
+      );
+
+      await vi.waitFor(() => {
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ghost'));
+      });
+
+      warnSpy.mockRestore();
     });
   });
 });

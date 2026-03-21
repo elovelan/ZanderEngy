@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
+import { eq } from 'drizzle-orm';
 import type {
   ClientToServerMessage,
   ValidatePathsRequestMessage,
@@ -8,7 +9,7 @@ import type {
 } from '@engy/common';
 import type { AppState, FileChangeEvent, GitStatusResult, GitLogResult, GitShowResult, GitBranchFilesResult, ContainerUpResult, ExecutionStartResult, ExecutionStopResult } from '../trpc/context';
 import { getDb } from '../db/client';
-import { workspaces } from '../db/schema';
+import { workspaces, agentSessions, tasks } from '../db/schema';
 import { handleSpecFileChange } from '../spec/watcher';
 
 const MAX_EVENTS_PER_WORKSPACE = 100;
@@ -149,14 +150,10 @@ function handleMessage(ws: WebSocket, msg: ClientToServerMessage, state: AppStat
       }));
       break;
     case 'EXECUTION_STATUS_EVENT':
-      console.log(
-        `[ws-main-server] Execution status: session=${msg.payload.sessionId} status=${msg.payload.status}`,
-      );
+      handleExecutionStatusEvent(msg.payload);
       break;
     case 'EXECUTION_COMPLETE_EVENT':
-      console.log(
-        `[ws-main-server] Execution complete: session=${msg.payload.sessionId} exitCode=${msg.payload.exitCode} success=${msg.payload.success}`,
-      );
+      handleExecutionCompleteEvent(msg.payload);
       break;
   }
 }
@@ -245,6 +242,94 @@ function handleSearchFilesResponse(
 
   state.pendingFileSearches.delete(msg.payload.requestId);
   pending.resolve(msg.payload.results);
+}
+
+// ── Execution event handlers ────────────────────────────────────────────────
+
+function handleExecutionStatusEvent(payload: {
+  sessionId: string;
+  status: string;
+  taskId?: number;
+}): void {
+  console.log(
+    `[ws-main-server] Execution status: session=${payload.sessionId} status=${payload.status}`,
+  );
+
+  const db = getDb();
+  const session = db
+    .select()
+    .from(agentSessions)
+    .where(eq(agentSessions.sessionId, payload.sessionId))
+    .get();
+
+  if (!session) {
+    console.warn(
+      `[ws-main-server] EXECUTION_STATUS_EVENT for unknown session: ${payload.sessionId}`,
+    );
+    return;
+  }
+
+  const now = new Date().toISOString();
+  db.update(agentSessions)
+    .set({ updatedAt: now })
+    .where(eq(agentSessions.sessionId, payload.sessionId))
+    .run();
+
+  const taskId = payload.taskId ?? session.taskId;
+  if (taskId) {
+    const subStatus = payload.status as typeof tasks.$inferInsert.subStatus;
+    db.update(tasks).set({ subStatus, updatedAt: now }).where(eq(tasks.id, taskId)).run();
+  }
+}
+
+function handleExecutionCompleteEvent(payload: {
+  sessionId: string;
+  exitCode: number;
+  success: boolean;
+  completion?: string;
+}): void {
+  console.log(
+    `[ws-main-server] Execution complete: session=${payload.sessionId} exitCode=${payload.exitCode} success=${payload.success}`,
+  );
+
+  const db = getDb();
+  const session = db
+    .select()
+    .from(agentSessions)
+    .where(eq(agentSessions.sessionId, payload.sessionId))
+    .get();
+
+  if (!session) {
+    console.warn(
+      `[ws-main-server] EXECUTION_COMPLETE_EVENT for unknown session: ${payload.sessionId}`,
+    );
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const sessionStatus = payload.success ? 'completed' : 'stopped';
+
+  db.transaction((tx) => {
+    tx.update(agentSessions)
+      .set({
+        status: sessionStatus,
+        completionSummary: payload.completion ?? null,
+        updatedAt: now,
+      })
+      .where(eq(agentSessions.sessionId, payload.sessionId))
+      .run();
+
+    if (session.taskId) {
+      const subStatus = payload.success ? null : 'failed';
+      tx.update(tasks)
+        .set({
+          subStatus: subStatus as typeof tasks.$inferInsert.subStatus,
+          updatedAt: now,
+        })
+        .where(eq(tasks.id, session.taskId))
+        .run();
+    }
+  });
 }
 
 export function dispatchFileSearch(
@@ -451,7 +536,7 @@ export function dispatchContainerUp(
 
 const EXECUTION_TIMEOUT_MS = 300_000;
 
-function dispatchExecutionStart(
+export function dispatchExecutionStart(
   state: AppState,
   prompt: string,
   flags?: Record<string, unknown>,
@@ -466,7 +551,7 @@ function dispatchExecutionStart(
   );
 }
 
-function dispatchExecutionStop(
+export function dispatchExecutionStop(
   state: AppState,
   sessionId: string,
 ): Promise<ExecutionStopResult> {
