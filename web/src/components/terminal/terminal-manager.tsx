@@ -226,7 +226,10 @@ export function TerminalManager({ onCollapse, defaultScope, extraDropdownGroups 
       const api = event.api;
       dockviewApiRef.current = api;
 
-      api.onDidActivePanelChange(() => broadcastActive());
+      api.onDidActivePanelChange(() => {
+        broadcastActive();
+        scheduleLayoutSave();
+      });
       api.onDidRemovePanel((panel) => {
         cleanupTerminal(panel.id);
         broadcastActive();

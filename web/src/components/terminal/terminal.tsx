@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import type { ITheme } from "@xterm/xterm";
 import { DARK_XTERM_THEME } from "@/hooks/use-xterm-theme";
+import { RiArrowDownSLine } from "@remixicon/react";
 import type { TerminalTab } from "./types";
 
 export interface TerminalActions {
@@ -49,7 +50,16 @@ export function TerminalInstance({ tab, xtermTheme, onStatusChange, onReady }: T
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const isPinnedRef = useRef(true);
+  const scrollRafRef = useRef(0);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const sessionId = tab.sessionId;
+
+  const handleScrollToBottom = useCallback(() => {
+    xtermRef.current?.scrollToBottom();
+    isPinnedRef.current = true;
+    setShowScrollButton(false);
+  }, []);
 
   const handleResize = useCallback(() => {
     fitAddonRef.current?.fit();
@@ -83,6 +93,24 @@ export function TerminalInstance({ tab, xtermTheme, onStatusChange, onReady }: T
 
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
+    isPinnedRef.current = true;
+    setShowScrollButton(false);
+
+    const scrollSub = term.onScroll(() => {
+      const buf = term.buffer.active;
+      const atBottom = buf.viewportY >= buf.baseY;
+      isPinnedRef.current = atBottom;
+      setShowScrollButton(!atBottom);
+    });
+
+    const scheduleScroll = () => {
+      if (!scrollRafRef.current) {
+        scrollRafRef.current = requestAnimationFrame(() => {
+          scrollRafRef.current = 0;
+          term.scrollToBottom();
+        });
+      }
+    };
 
     const ws = new WebSocket(buildWsUrl(tab));
     wsRef.current = ws;
@@ -114,13 +142,17 @@ export function TerminalInstance({ tab, xtermTheme, onStatusChange, onReady }: T
       }
 
       if (msg.t === 'o' && msg.d) {
+        const wasPinned = isPinnedRef.current;
         term.write(msg.d);
+        if (wasPinned) scheduleScroll();
       } else if (msg.t === 'reconnected' && msg.buffer) {
         console.log(`[terminal-ui] Reconnected session ${sessionId}, buffer lines: ${msg.buffer.length}`);
         term.clear();
-        for (const line of msg.buffer) {
-          term.write(line);
-        }
+        term.write(msg.buffer.join(''), () => {
+          term.scrollToBottom();
+        });
+        isPinnedRef.current = true;
+        setShowScrollButton(false);
       } else if (msg.t === 'exit') {
         const code = msg.exitCode ?? 0;
         console.log(`[terminal-ui] Exit for session ${sessionId}: code=${code}`);
@@ -132,10 +164,12 @@ export function TerminalInstance({ tab, xtermTheme, onStatusChange, onReady }: T
               ? 'Process exited'
               : `Process exited with code ${code}`;
         term.write(`\r\n\x1b[2m[${label}]\x1b[0m\r\n`);
+        if (isPinnedRef.current) scheduleScroll();
       } else if (msg.t === 'error') {
         console.error(`[terminal-ui] Error for session ${sessionId}: no daemon`);
         onStatusChange(sessionId, 'error');
         term.write('\r\n\x1b[31m[Error: no daemon connected]\x1b[0m\r\n');
+        if (isPinnedRef.current) scheduleScroll();
       }
     };
 
@@ -176,6 +210,9 @@ export function TerminalInstance({ tab, xtermTheme, onStatusChange, onReady }: T
     return () => {
       isCleanedUp = true;
       clearTimeout(fitTimer);
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = 0;
+      scrollSub.dispose();
       resizeObserver.disconnect();
       onReady?.(sessionId, null);
       ws.close();
@@ -196,9 +233,18 @@ export function TerminalInstance({ tab, xtermTheme, onStatusChange, onReady }: T
   }, [xtermTheme]);
 
   return (
-    <div
-      ref={containerRef}
-      style={{ width: '100%', height: '100%' }}
-    />
+    <div className="relative size-full">
+      <div ref={containerRef} className="size-full" />
+      {showScrollButton && (
+        <button
+          onClick={handleScrollToBottom}
+          className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-zinc-700/80 px-3 py-1 text-xs text-zinc-300 shadow-lg backdrop-blur-sm transition-opacity hover:bg-zinc-600/80"
+          aria-label="Scroll to bottom"
+        >
+          <RiArrowDownSLine className="size-3.5" />
+          Bottom
+        </button>
+      )}
+    </div>
   );
 }
