@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { RiArrowRightSLine, RiHammerLine, RiMore2Line, RiPlayLine, RiStopLine } from '@remixicon/react';
+import {
+  RiArrowRightSLine,
+  RiBox3Line,
+  RiHammerLine,
+  RiMore2Line,
+  RiPlayLine,
+  RiStopLine,
+} from '@remixicon/react';
 import { trpc } from '@/lib/trpc';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
@@ -76,11 +83,13 @@ export function MilestoneList({
   milestones,
   showDone,
   onTaskClick,
+  containerEnabled,
 }: {
   projectId: number;
   milestones: Milestone[];
   showDone: boolean;
   onTaskClick?: (taskId: number) => void;
+  containerEnabled?: boolean;
 }) {
   const sorted = sortMilestones(milestones);
 
@@ -93,6 +102,7 @@ export function MilestoneList({
           milestone={ms}
           showDone={showDone}
           onTaskClick={onTaskClick}
+          containerEnabled={containerEnabled}
         />
       ))}
       {sorted.length === 0 && (
@@ -107,11 +117,13 @@ function MilestoneRow({
   milestone,
   showDone,
   onTaskClick,
+  containerEnabled,
 }: {
   projectId: number;
   milestone: Milestone;
   showDone: boolean;
   onTaskClick?: (taskId: number) => void;
+  containerEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const { status: execStatus } = useExecutionStatus('milestone', milestone.ref);
@@ -203,6 +215,7 @@ function MilestoneRow({
           milestoneRef={milestone.ref}
           showDone={showDone}
           onTaskClick={onTaskClick}
+          containerEnabled={containerEnabled}
         />
       ))}
       {visibleUngrouped.length > 0 && (
@@ -247,12 +260,14 @@ function TaskGroupRow({
   milestoneRef,
   showDone,
   onTaskClick,
+  containerEnabled,
 }: {
   taskGroup: TaskGroup;
   tasks: Task[];
   milestoneRef: string;
   showDone: boolean;
   onTaskClick?: (taskId: number) => void;
+  containerEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const { status: tgExecStatus } = useExecutionStatus('taskGroup', taskGroup.id);
@@ -263,6 +278,8 @@ function TaskGroupRow({
   const allDone = isAllDone(tasks);
   const hasVisibleTasks = visibleTasks.length > 0;
   const isCollapsible = hasVisibleTasks;
+
+  const activeTask = tgExecStatus === 'active' ? tasks.find((t) => t.subStatus) : null;
 
   const completeBadge = allDone && (
     <Badge variant="outline" className="text-[10px] bg-green-500/10 text-green-500">
@@ -289,8 +306,28 @@ function TaskGroupRow({
       {total > 0 && done < total && (
         <TaskGroupQuickAction taskGroupId={taskGroup.id} milestoneRef={milestoneRef} />
       )}
-      <span className="flex-1 text-xs font-medium">{taskGroup.name}</span>
+      <div className="flex flex-1 flex-col gap-0.5">
+        <span className="text-xs font-medium">{taskGroup.name}</span>
+        {activeTask && (
+          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <ExecutionStatusIcon status={activeTask.subStatus} className="size-2.5" />
+            <span className="truncate">{activeTask.title}</span>
+          </span>
+        )}
+      </div>
       {completeBadge}
+      {containerEnabled && tgExecStatus === 'active' && (
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <RiBox3Line className="size-3 shrink-0 text-blue-500" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>Running in container</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
       {total > 0 && (
         <span className="text-[10px] text-muted-foreground">
           {done}/{total}
