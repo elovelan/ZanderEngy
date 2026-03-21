@@ -79,7 +79,7 @@ describe('Runner', () => {
       expect(send).toHaveBeenCalledWith({
         type: 'EXECUTION_STATUS_EVENT',
         payload: {
-          sessionId: 'session-abc',
+          sessionId: 'engy-session-a1b2c3',
           worktreePath: '/path/to/repo/.claude/worktrees/engy-session-a1b2c3',
           status: 'running',
         },
@@ -101,6 +101,7 @@ describe('Runner', () => {
       expect(spawner.spawn).toHaveBeenCalledWith({
         prompt: 'implement feature X',
         flags: ['--verbose'],
+        sessionId: 'engy-session-a1b2c3',
         workingDir: '/path/to/repo/.claude/worktrees/engy-session-a1b2c3',
         containerMode: true,
         containerWorkspaceFolder: '/workspace',
@@ -186,7 +187,7 @@ describe('Runner', () => {
       expect(send).toHaveBeenCalledWith({
         type: 'EXECUTION_COMPLETE_EVENT',
         payload: {
-          sessionId: 'session-abc',
+          sessionId: 'engy-session-a1b2c3',
           exitCode: 1,
           success: false,
         },
