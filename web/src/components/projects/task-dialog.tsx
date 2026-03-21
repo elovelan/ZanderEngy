@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DynamicDocumentEditor } from "@/components/editor/dynamic-document-editor";
 import {
   Command,
@@ -33,6 +34,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { taskStatusOptions, taskStatusColors } from "./task-status-badge";
 import { RiAddLine, RiCloseLine, RiDeleteBinLine } from "@remixicon/react";
+import { toast } from "sonner";
 
 // ── Create mode ──────────────────────────────────────────────────────
 
@@ -63,20 +65,33 @@ export function TaskDialog(props: TaskDialogProps) {
   return <CreateTask {...props} />;
 }
 
-function useMentionDirs(projectId?: number): string[] | undefined {
+function useTaskProjectContext(projectId?: number) {
   const { data: project } = trpc.project.get.useQuery(
     { id: projectId! },
     { enabled: !!projectId },
   );
   const { data: workspaces } = trpc.workspace.list.useQuery();
+
   return useMemo(() => {
-    if (!project || !workspaces) return undefined;
+    if (!project || !workspaces) {
+      return {
+        mentionDirs: undefined,
+        workspaceId: undefined as number | undefined,
+        workspaceSlug: undefined as string | undefined,
+        projectSlug: undefined as string | undefined,
+      };
+    }
     const workspace = workspaces.find((w) => w.id === project.workspaceId);
     const dirs = [
       ...((workspace?.repos as string[] | undefined) ?? []),
       ...(project.projectDir ? [project.projectDir] : []),
     ];
-    return dirs.length > 0 ? dirs : undefined;
+    return {
+      mentionDirs: dirs.length > 0 ? dirs : undefined,
+      workspaceId: project.workspaceId,
+      workspaceSlug: workspace?.slug,
+      projectSlug: project.slug,
+    };
   }, [project, workspaces]);
 }
 
@@ -85,7 +100,7 @@ function useMentionDirs(projectId?: number): string[] | undefined {
 function CreateTask({ open, onOpenChange, projectId, specId, onCreated }: CreateProps) {
   const [title, setTitle] = useState("");
   const descriptionRef = useRef("");
-  const mentionDirs = useMentionDirs(projectId);
+  const { mentionDirs } = useTaskProjectContext(projectId);
   const [type, setType] = useState<"ai" | "human">("human");
   const [importance, setImportance] = useState<"important" | "not_important">("not_important");
   const [urgency, setUrgency] = useState<"urgent" | "not_urgent">("not_urgent");
@@ -220,7 +235,22 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
     { id: taskId },
     { enabled: open },
   );
-  const mentionDirs = useMentionDirs(task?.projectId ?? undefined);
+  const { mentionDirs, workspaceId, workspaceSlug, projectSlug } = useTaskProjectContext(
+    task?.projectId ?? undefined,
+  );
+
+  const taskSlug = workspaceSlug ? `${workspaceSlug}-T${taskId}` : undefined;
+  const { data: projectWithPlans } = trpc.project.getBySlug.useQuery(
+    { workspaceId: workspaceId!, slug: projectSlug! },
+    { enabled: !!workspaceId && !!projectSlug },
+  );
+  const hasPlan = taskSlug ? (projectWithPlans?.planSlugs ?? []).includes(taskSlug) : false;
+  const planFilePath = taskSlug ? `plans/${taskSlug}.plan.md` : '';
+
+  const { data: planData } = trpc.project.readFile.useQuery(
+    { workspaceSlug: workspaceSlug!, projectSlug: projectSlug!, filePath: planFilePath },
+    { enabled: hasPlan && !!workspaceSlug && !!projectSlug },
+  );
 
   const [title, setTitle] = useState(task?.title ?? "");
   const [status, setStatus] = useState(task?.status ?? "");
@@ -254,6 +284,19 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
   const { data: groups } = trpc.taskGroup.list.useQuery({}, { enabled: open });
 
   const utils = trpc.useUtils();
+  const writePlan = trpc.project.writeFile.useMutation({
+    onSuccess: () => utils.project.readFile.invalidate({
+      workspaceSlug: workspaceSlug!,
+      projectSlug: projectSlug!,
+      filePath: planFilePath,
+    }),
+    onError: () => toast.error("Failed to save plan"),
+  });
+
+  function handlePlanSave(md: string) {
+    if (!workspaceSlug || !projectSlug) return;
+    writePlan.mutate({ workspaceSlug, projectSlug, filePath: planFilePath, content: md });
+  }
   const updateTask = trpc.task.update.useMutation({
     onSuccess: () => {
       setDirty(false);
@@ -302,6 +345,16 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
   const availableTasks = projectTasks?.filter(
     (t) => t.id !== taskId && !blockedBy.includes(t.id),
   ) ?? [];
+
+  const descriptionEditor = (
+    <div className="min-h-[200px] max-h-[50vh] overflow-auto border border-border">
+      <DynamicDocumentEditor
+        initialMarkdown={task.description || ""}
+        onSave={(md: string) => { setDescription(md); setDirty(true); }}
+        mentionDirs={mentionDirs}
+      />
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -371,16 +424,33 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
             )}
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium">Description</label>
-            <div className="min-h-[200px] max-h-[50vh] overflow-auto border border-border">
-              <DynamicDocumentEditor
-                initialMarkdown={task.description || ""}
-                onSave={(md: string) => { setDescription(md); setDirty(true); }}
-                mentionDirs={mentionDirs}
-              />
+          {hasPlan ? (
+            <Tabs defaultValue="description">
+              <TabsList variant="line">
+                <TabsTrigger value="description">Description</TabsTrigger>
+                <TabsTrigger value="plan">Plan</TabsTrigger>
+              </TabsList>
+              <TabsContent value="description">
+                {descriptionEditor}
+              </TabsContent>
+              <TabsContent value="plan">
+                <div className="min-h-[200px] max-h-[50vh] overflow-auto border border-border">
+                  {planData && (
+                    <DynamicDocumentEditor
+                      initialMarkdown={planData.content}
+                      onSave={handlePlanSave}
+                      mentionDirs={mentionDirs}
+                    />
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium">Description</label>
+              {descriptionEditor}
             </div>
-          </div>
+          )}
 
           <BlockedBySelector
             blockedBy={blockedBy}

@@ -1,6 +1,7 @@
 'use client';
 
-import { RiMore2Line, RiDraftLine, RiHammerLine, RiPlayLine, RiStopLine } from '@remixicon/react';
+import { useRouter } from 'next/navigation';
+import { RiMore2Line, RiDraftLine, RiFileTextLine, RiHammerLine, RiPlayLine, RiStopLine } from '@remixicon/react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -29,6 +30,7 @@ export function TaskQuickActions({
   needsPlan = true,
   projectSlug: projectSlugProp,
 }: TaskQuickActionsProps) {
+  const router = useRouter();
   const { disabled, launch, projectSlug: hookProjectSlug, workspace, project } = useQuickAction();
   const projectSlug = projectSlugProp ?? hookProjectSlug;
   const workspaceSlug = workspace?.slug ?? '';
@@ -54,11 +56,15 @@ export function TaskQuickActions({
   });
 
   // Planning always runs on host — read-only analysis, no need for container sandbox
-  function handlePlan() {
+  function handlePlan(replan = false) {
     if (!projectDir || !projectSlug) return;
+    const planPath = `${projectDir}/plans/${taskSlug}.plan.md`;
+    const prompt = replan
+      ? `Use ${planSkill} to replan ${taskSlug}, existing plan at ${planPath}. Replan based on the updated task description.`
+      : `Use ${planSkill} to plan ${taskSlug}, output plan to ${planPath}`;
     launch({
-      prompt: `Use ${planSkill} to plan ${taskSlug}, output plan to ${projectDir}/plans/${taskSlug}.plan.md`,
-      scopeLabel: `plan: ${taskSlug}`,
+      prompt,
+      scopeLabel: `${replan ? 'replan' : 'plan'}: ${taskSlug}`,
       containerMode: 'host',
     });
   }
@@ -100,7 +106,7 @@ export function TaskQuickActions({
               size="icon-xs"
               className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
               disabled={disabled || isActive}
-              onClick={showImplement ? handleImplement : handlePlan}
+              onClick={showImplement ? handleImplement : () => handlePlan()}
             >
               {showImplement ? (
                 <RiHammerLine className="size-3" />
@@ -140,7 +146,17 @@ export function TaskQuickActions({
           <DropdownMenuSeparator />
           {needsPlan && hasPlan && (
             <>
-              <DropdownMenuItem disabled={disabled} onClick={handlePlan}>
+              <DropdownMenuItem
+                onClick={() =>
+                  router.push(
+                    `/w/${workspaceSlug}/projects/${projectSlug}/docs?file=plans/${taskSlug}.plan.md`,
+                  )
+                }
+              >
+                <RiFileTextLine className="size-4" />
+                View Plan
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={disabled} onClick={() => handlePlan(true)}>
                 <RiDraftLine className="size-4" />
                 Replan
               </DropdownMenuItem>
