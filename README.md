@@ -2,13 +2,6 @@
 
 **AI-assisted engineering workspace for spec-driven development.**
 
----
-
-> **Work in progress — active development, fully vibecoded.**
-> Expect rough edges, missing features, and things that break. This is being built in the open as a personal tool. Use at your own risk.
-
----
-
 ## What is Engy
 
 Engy is a personal dev workspace for the **Specify → Plan → Execute → Complete** loop. Write specs, plan milestones, run AI agents against tasks, review diffs, and send inline feedback to Claude Code — all without leaving the app.
@@ -17,11 +10,17 @@ Everything is accessible to AI agents via a built-in MCP server, so Claude Code 
 
 ## Features
 
-### Projects & Milestones
+### Project Planning & Management
 
 Plan your projects and break them into milestones and task groups. Start implementing milestone, task groups or individual tasks with a single click (🔨 icon) while you continue working on other things.
 
 ![Project overview with milestones](docs/screenshots/project-overview-milestones.png)
+
+### Spec Editor and Review
+
+Rich text editor for writing and reviewing project plans. Supports headings, tables, lists, code blocks, and @ file mentions. Leave comments directly on any markdown file and send straight to a running Claude Code terminal session, so your AI agent gets feedback without you leaving the editor.
+
+![Inline comments sent to Claude Code terminal](docs/screenshots/plan-phases-with-code-preview.png)
 
 ### Task Management
 
@@ -31,12 +30,6 @@ Three views for managing tasks:
 - **Dependency Graph** — visualize task dependencies across layers
 
 ![Task kanban board with Claude Code running implementation](docs/screenshots/task-kanban-with-implement-terminal.png)
-
-### Spec Editor and Review
-
-Rich text editor for writing and reviewing Software Requirements Specifications. Supports headings, tables, lists, code blocks, and @ file mentions. Leave comments directly on any markdown file and send straight to a running Claude Code terminal session, so your AI agent gets feedback without you leaving the editor.
-
-![Inline comments sent to Claude Code terminal](docs/screenshots/plan-phases-with-code-preview.png)
 
 ### Diff Review & Inline Comments
 
@@ -49,6 +42,16 @@ Review uncommitted changes and branch diffs with line-level commenting. Leave in
 Review AI-generated plans and send structured feedback directly to a running Claude Code session.
 
 ![Claude Plans page with skill improvement feedback](docs/screenshots/claude-plans-skill-feedback.png)
+
+### Built in Terminal
+
+Engy has a built-in terminal that you can use to interact with Claude Code and manage your project. It persists across sessons and project pages, so you can keep your Claude Code agent running while you navigate around the app.
+
+![Built-in terminal](docs/screenshots/terminal.png)
+
+### DevContainers
+
+Engy comes with a pre-configured DevContainer setup. Once enabled from Workspace settings it will create the necessary files in the `.devcontainer/` directory in the workspace root. You can customize the container configuration and post-start script as needed. The default setup includes strict firewall rules to allow communication between the container and the host machine and some default websites.
 
 ### MCP Server
 
@@ -79,15 +82,17 @@ Then you can run skills like:
 |---|---|
 | `/write-spec` | Create or validate an SRS from source documents |
 | `/milestone-plan` | Break a spec into milestones, task groups, tasks, and dependencies |
-| `/plan` | Write a codebase-aware implementation plan for a milestone |
+| `/plan` | Write a plan for a single task |
 | `/validate-plan` | Check a plan against its parent spec for alignment and gaps |
-| `/implement` | Implement a single task with TDD and code review |
+| `/implement` | Implement a single task |
 | `/implement-milestone` | Orchestrate an entire milestone across task groups in parallel |
 | `/review` | Code review with auto-detected scope and severity-tagged findings |
-| `/update-spec` | Sync spec documents with current implementation status |
 | `/workspace-assistant` | Quick task tracking — log bugs, create one-off work items |
 
 ## Getting Started
+
+> **Work in progress — active development**
+> Expect rough edges, missing features, and things that break.
 
 **Prerequisites:** Node.js 20+, pnpm 10+
 
@@ -95,10 +100,6 @@ Then you can run skills like:
 
 ```bash
 pnpm install
-
-# Set up environment
-cp .env.example .dev.env
-# Edit .dev.env if needed (defaults work for local dev)
 
 # Start both the web server and client daemon
 pnpm dev
@@ -109,6 +110,10 @@ pnpm dev
 ```bash
 pnpm install
 pnpm build
+
+
+# Optionally set up environment
+cp .env.example .env
 
 # Uses .env if available, otherwise defaults
 pnpm start
@@ -130,27 +135,33 @@ The `web/` server runs on the configured port. The `client/` daemon connects to 
 
 ### Create a Workspace
 
-From the home page, click **+ New Workspace** and give it a name and slug. Link it to a local directory using **Open Directory** — this is where Engy stores knowledge files (specs, system docs, memory) as git-trackable markdown. Workspaces also have their own **Tasks** tab for personal todos that live outside of any specific project.
+From the home page, click **+ New Workspace** and give it a name and slug. This is where Engy stores all the documents as git-trackable markdown. Workspaces also have their own **Tasks** tab for personal todos that live outside of any specific project. Workspaces can have one or more repositories. The 1st one will be Claude Codes working directory and others will be passed to Claude Code as additional directories.
 
 ### Create a Project
 
-Inside a workspace, click **+ New Project**. A project is an ephemeral scope for bounded work — a feature, refactor, or bug fix. Each project gets its own spec, milestones, tasks, and docs.
+Inside a workspace, click **+ New Project**. A project is an ephemeral container for a specific initiative with its own spec, milestones, and tasks.
 
 ### Write Specs
 
-Navigate to your project's **Docs** tab. Select or create a `spec.md` file to open the rich text editor. Write your Software Requirements Specification with headings, tables, lists, and code blocks. Use **@ mentions** to reference other files. Specs can be marked as `buildable` and tracked through `active` → `complete` status.
+Navigate to your project's **Docs** tab. Select or create a `spec.md` file to open the rich text editor. Collaborate with Claude and included Engy `/write-spec` skill to write your spec. Use **@ mentions** to reference files from the attached repositories. You can create a `spec.template.md` in the root of the workspace to use your own custom template for new specs.
 
 ### Plan Milestones
 
-On the project **Overview** tab, click **+ Add** to create milestones. Each milestone has a name, status (`planned` / `in_progress` / `complete`), and progress tracking.
+Once the spec is ready, use the `/milestone-plan` skill to break it down into milestones, task groups, and tasks. You can plan and implement one milestone at a time, or plan the entire project upfront. You can think of Task Groups as a single pull request's worth of work that will deliver some value. Smaller PRs make the human reviewers happy! When on `Overview` tab, click the 🔨 icon on a milestone or task group to start implementing all the associated tasks.  
 
 ### Manage Tasks
 
 Use the project **Tasks** tab to create and organize tasks. Switch between three views: Kanban, Eisenhower, and Graph. Tasks have IDs (T-1, T-2...), types (`human` / `ai`), and status badges. Use **+ Group** to organize tasks into task groups within milestones.
 
+All new tasks by default need a plan. Click on the document icon to start creating a plan for that task. Created plans will be in the `plans` directory and you can use `Docs` tab to view, edit and comment on them. Once a plan is ready, click the 🔨 icon to start implementing it with Claude Code.
+
 ### Connect Claude Code (MCP)
 
 Engy exposes an MCP server at `/mcp` on the same port. To connect Claude Code CLI:
+
+```bash
+claude mcp add --transport http Engy http://localhost:3000/mcp --scope user
+```
 
 ```json
 {
