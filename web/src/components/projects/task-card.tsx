@@ -74,8 +74,7 @@ export function TaskCard({
   className,
 }: TaskCardProps) {
   const isDone = task.status === 'done';
-  const { status: sessionStatus } = useExecutionStatus('task', task.id);
-  const execStatus = task.subStatus ?? sessionStatus;
+  const { status: execStatus } = useExecutionStatus('task', task.id);
   const typeInfo = typeIcons[task.type] ?? typeIcons.human;
   const TypeIcon = typeInfo.icon;
   const nextType = task.type === 'human' ? 'ai' : 'human';
