@@ -390,7 +390,7 @@ describe('AgentSpawner', () => {
       });
     });
 
-    it('should handle result with taskCompleted=false', async () => {
+    it('should handle result with taskCompleted=false and non-zero exit', async () => {
       const proc = createMockProcess();
       mockSpawn.mockReturnValue(proc);
 
@@ -416,6 +416,31 @@ describe('AgentSpawner', () => {
         success: false,
         completion: { taskCompleted: false, summary: 'Failed to complete' },
       });
+    });
+
+    it('should mark success=false when exit code is 0 but taskCompleted=false', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        sessionId: 'test-session',
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace',
+      });
+
+      const output = JSON.stringify({
+        result: JSON.stringify({ taskCompleted: false, summary: 'Task not found' }),
+      });
+      proc.stdout.emit('data', Buffer.from(output));
+      proc.emit('close', 0);
+
+      const result = await promise;
+
+      expect(result.exitCode).toBe(0);
+      expect(result.success).toBe(false);
+      expect(result.completion).toEqual({ taskCompleted: false, summary: 'Task not found' });
     });
 
     it('should resolve without completion when output has no result', async () => {

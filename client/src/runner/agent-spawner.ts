@@ -156,10 +156,11 @@ export class AgentSpawner {
           console.warn(`[agent-spawner] Failed to parse stdout JSON: ${err instanceof Error ? err.message : String(err)}`);
         }
 
+        const success = exitCode === 0 && (completion?.taskCompleted ?? true);
         resolve({
           sessionId,
           exitCode,
-          success: exitCode === 0,
+          success,
           completion,
         });
       });
