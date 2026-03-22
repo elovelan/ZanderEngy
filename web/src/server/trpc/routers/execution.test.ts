@@ -283,7 +283,7 @@ describe('execution router', () => {
         .get();
 
       expect(session?.worktreePath).toBeDefined();
-      const encoded = session!.worktreePath!.replace(/^\//g, '').replace(/\//g, '-');
+      const encoded = session!.worktreePath!.replace(/\//g, '-');
       const sessionDir = path.join(ctx.tmpDir, '.claude', 'projects', encoded);
       fs.mkdirSync(sessionDir, { recursive: true });
       const sessionFile = path.join(sessionDir, `${sessionId}.jsonl`);

@@ -87,7 +87,7 @@ function buildPromptForMilestone(
 }
 
 function encodeWorktreePath(worktreePath: string): string {
-  return worktreePath.replace(/^\//, '').replace(/\//g, '-');
+  return worktreePath.replace(/\//g, '-');
 }
 
 // ── Router ───────────────────────────────────────────────────────────
