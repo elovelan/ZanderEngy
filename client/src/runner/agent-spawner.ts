@@ -9,6 +9,7 @@ export interface SpawnConfig {
   containerMode: boolean;
   containerWorkspaceFolder?: string;
   workingDir: string;
+  serverUrl?: string;
   env?: Record<string, string>;
   timeoutMs?: number;
 }
@@ -104,6 +105,25 @@ export class AgentSpawner {
     }
 
     args.push(...config.flags.filter((f) => f !== '--dangerously-skip-permissions'));
+
+    // In container mode, workingDir isn't used as cwd (cwd = containerWorkspaceFolder),
+    // so add it as --add-dir so Claude can access the worktree
+    if (config.containerMode && config.workingDir) {
+      args.push('--add-dir', config.workingDir);
+    }
+
+    // Add execution toolset MCP (askQuestion tool) for background agents
+    if (config.serverUrl) {
+      const mcpConfig = JSON.stringify({
+        mcpServers: {
+          'engy-execution': {
+            type: 'url',
+            url: `${config.serverUrl}/mcp?toolset=execution`,
+          },
+        },
+      });
+      args.push('--mcp-config', mcpConfig);
+    }
 
     return args;
   }

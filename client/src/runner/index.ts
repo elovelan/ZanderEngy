@@ -16,6 +16,7 @@ interface RunnerConfig {
   repoPath: string;
   containerMode: boolean;
   containerWorkspaceFolder?: string;
+  serverUrl?: string;
   env?: Record<string, string>;
 }
 
@@ -85,6 +86,7 @@ export class Runner {
         workingDir: worktreePath,
         containerMode: config.containerMode,
         containerWorkspaceFolder: config.containerWorkspaceFolder,
+        serverUrl: config.serverUrl,
         env: config.env,
       })
       .then((result) => {
@@ -143,6 +145,7 @@ export class Runner {
       workingDir: worktreePath,
       containerMode: this.currentConfig?.containerMode ?? false,
       containerWorkspaceFolder: this.currentConfig?.containerWorkspaceFolder,
+      serverUrl: this.currentConfig?.serverUrl,
       env: this.currentConfig?.env,
     });
 

@@ -201,6 +201,7 @@ export class WsClient {
   private intentionallyClosed = false;
   private readonly wsUrl: string;
   private readonly terminalRelayUrl: string;
+  private readonly serverUrl: string;
   private readonly onWorkspacesSync?: (message: WorkspacesSyncMessage) => void;
   private readonly terminalManager?: TerminalManager;
   private readonly runner: Runner;
@@ -208,6 +209,7 @@ export class WsClient {
   constructor(options: WsClientOptions) {
     this.wsUrl = deriveWsUrl(options.serverUrl);
     this.terminalRelayUrl = deriveTerminalRelayUrl(options.serverUrl);
+    this.serverUrl = options.serverUrl;
     this.onWorkspacesSync = options.onWorkspacesSync;
     this.terminalManager = options.terminalManager;
     const spawner = new AgentSpawner(this.containerManager);
@@ -646,6 +648,7 @@ export class WsClient {
         repoPath: config?.repoPath ?? '',
         containerMode: config?.containerMode ?? false,
         containerWorkspaceFolder: config?.containerWorkspaceFolder,
+        serverUrl: this.serverUrl,
         env: config?.env,
       };
 
