@@ -3,6 +3,15 @@ import { getAppState } from '../trpc/context';
 
 // ── Event Types ─────────────────────────────────────────────────────
 
+export interface FileChangeEvent {
+  type: 'FILE_CHANGE';
+  payload: {
+    workspaceSlug: string;
+    path: string;
+    eventType: 'add' | 'change' | 'unlink';
+  };
+}
+
 export interface TaskChangeEvent {
   type: 'TASK_CHANGE';
   payload: {
@@ -21,7 +30,7 @@ export interface QuestionChangeEvent {
   };
 }
 
-export type ServerEvent = TaskChangeEvent | QuestionChangeEvent;
+export type ServerEvent = FileChangeEvent | TaskChangeEvent | QuestionChangeEvent;
 
 // ── Generic Broadcast ───────────────────────────────────────────────
 
@@ -34,6 +43,17 @@ function broadcastEvent(event: ServerEvent): void {
 }
 
 // ── Typed Wrappers ──────────────────────────────────────────────────
+
+export function broadcastFileChange(
+  workspaceSlug: string,
+  path: string,
+  eventType: 'add' | 'change' | 'unlink',
+): void {
+  broadcastEvent({
+    type: 'FILE_CHANGE',
+    payload: { workspaceSlug, path, eventType },
+  });
+}
 
 export function broadcastTaskChange(
   action: TaskChangeEvent['payload']['action'],

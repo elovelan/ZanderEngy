@@ -12,7 +12,7 @@ import type { AppState, FileChangeEvent, GitStatusResult, GitLogResult, GitShowR
 import { getDb } from '../db/client';
 import { workspaces, agentSessions, tasks } from '../db/schema';
 import { handleSpecFileChange } from '../spec/watcher';
-import { broadcastTaskChange } from './broadcast';
+import { broadcastFileChange, broadcastTaskChange } from './broadcast';
 
 const MAX_EVENTS_PER_WORKSPACE = 100;
 const VALIDATION_TIMEOUT_MS = 5_000;
@@ -226,13 +226,7 @@ function handleFileChange(
     handleSpecFileChange(workspaceSlug, state);
   }
 
-  const broadcastMsg = JSON.stringify({
-    type: 'FILE_CHANGE',
-    payload: { workspaceSlug, path, eventType },
-  });
-  for (const ws of state.fileChangeListeners) {
-    if (ws.readyState === WebSocket.OPEN) ws.send(broadcastMsg);
-  }
+  broadcastFileChange(workspaceSlug, path, eventType);
 }
 
 function handleSearchFilesResponse(
