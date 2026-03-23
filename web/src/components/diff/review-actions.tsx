@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useSendToTerminal } from '@/components/terminal/use-send-to-terminal';
 import { useExecutionStatus } from '@/hooks/use-execution-status';
 import { trpc } from '@/lib/trpc';
+import { toast } from 'sonner';
 import { generateDiffFeedback } from './feedback-markdown';
 import type { DiffComment } from './use-diff-comments';
 
@@ -25,7 +26,10 @@ export function ReviewActions({ repoDir, diffComments, taskId }: ReviewActionsPr
 
   const runnerActive = taskId != null && (sessionStatus === 'active' || sessionStatus === 'paused');
 
-  const sendFeedbackMutation = trpc.execution.sendFeedback.useMutation();
+  const sendFeedbackMutation = trpc.execution.sendFeedback.useMutation({
+    onSuccess: () => toast.success('Feedback sent to agent'),
+    onError: (err) => toast.error(err.message),
+  });
 
   const unresolvedThreads = diffComments.filter((c) => !c.resolved);
 

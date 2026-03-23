@@ -89,9 +89,9 @@ export const questionRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Question not found' });
       }
 
-      // Determine the group: all questions sharing the same taskId or sessionId
+      // Determine the group: questions sharing the same sessionId (and optionally taskId)
       const groupCondition = firstQuestion.taskId
-        ? eq(questions.taskId, firstQuestion.taskId)
+        ? and(eq(questions.taskId, firstQuestion.taskId), eq(questions.sessionId, firstQuestion.sessionId))
         : eq(questions.sessionId, firstQuestion.sessionId);
 
       const groupQuestions = db

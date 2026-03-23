@@ -382,10 +382,22 @@ export const executionRouter = router({
         })
         .run();
 
-      await dispatchExecutionStart(ctx.state, newSessionId, resumePrompt, [
-        '--resume',
-        input.sessionId,
-      ]);
+      try {
+        await dispatchExecutionStart(ctx.state, newSessionId, resumePrompt, [
+          '--resume',
+          input.sessionId,
+        ]);
+      } catch (err) {
+        // Clean up orphaned session on dispatch failure
+        db.update(agentSessions)
+          .set({ status: 'stopped', updatedAt: new Date().toISOString() })
+          .where(eq(agentSessions.sessionId, newSessionId))
+          .run();
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to dispatch feedback: ${(err as Error).message}`,
+        });
+      }
 
       // Clear feedback and set subStatus back to implementing
       db.update(tasks)
