@@ -11,7 +11,9 @@ import { ThreePanelLayout, type ShortcutDef } from '@/components/layout/three-pa
 import { TerminalPanel } from '@/components/terminal/terminal-panel';
 import type { TerminalDropdownGroup } from '@/components/terminal/types';
 import { useWorktreeSessions } from '@/components/terminal/use-worktree-sessions';
-import { FileChangeProvider } from '@/contexts/file-change-context';
+import { EventsProvider } from '@/contexts/events-context';
+import { useTaskAutoInvalidation } from '@/hooks/use-task-auto-invalidation';
+import { useQuestionAutoInvalidation } from '@/hooks/use-question-auto-invalidation';
 import { buildClaudeCommand, buildContextBlock } from '@/lib/shell';
 
 const TERMINAL_CONFIG = {
@@ -205,7 +207,8 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <FileChangeProvider workspaceSlug={params.workspace}>
+    <EventsProvider workspaceSlug={params.workspace}>
+      <AutoInvalidation />
       <div className="flex flex-1 flex-col min-h-0 overflow-hidden">
         {!isProjectRoute && (
           <nav className="border-b border-border" aria-label="Workspace sections">
@@ -252,6 +255,12 @@ export default function WorkspaceLayout({ children }: { children: React.ReactNod
           }
         />
       </div>
-    </FileChangeProvider>
+    </EventsProvider>
   );
+}
+
+function AutoInvalidation() {
+  useTaskAutoInvalidation();
+  useQuestionAutoInvalidation();
+  return null;
 }

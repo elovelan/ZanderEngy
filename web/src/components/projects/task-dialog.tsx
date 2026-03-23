@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DynamicDocumentEditor } from "@/components/editor/dynamic-document-editor";
-import { QuestionCard } from "@/components/questions/question-card";
+import { QuestionAnswerPanel } from "@/components/questions/question-answer-panel";
 import {
   Command,
   CommandEmpty,
@@ -276,7 +276,6 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
   const [taskGroupIdLocal, setTaskGroupIdLocal] = useState<number | null>(task?.taskGroupId ?? null);
   const [dirty, setDirty] = useState(false);
   const [initialized, setInitialized] = useState(!!task);
-  const [questionAnswers, setQuestionAnswers] = useState<Record<number, string>>({});
 
   if (task && !initialized) {
     setInitialized(true);
@@ -327,32 +326,6 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
       onOpenChange(false);
     },
   });
-
-  const submitQuestionAnswers = trpc.question.submitAnswers.useMutation({
-    onSuccess: () => {
-      setQuestionAnswers({});
-      utils.question.list.invalidate();
-      utils.question.unansweredCount.invalidate();
-      utils.question.unansweredByTask.invalidate();
-      utils.task.get.invalidate();
-      utils.task.list.invalidate();
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const allQuestionsAnswered =
-    unansweredQuestionCount > 0 &&
-    (taskQuestions ?? []).every((q) => !!questionAnswers[q.id]?.trim());
-
-  function handleSubmitQuestions() {
-    if (!allQuestionsAnswered || !taskQuestions) return;
-    submitQuestionAnswers.mutate({
-      answers: taskQuestions.map((q) => ({
-        questionId: q.id,
-        answer: questionAnswers[q.id],
-      })),
-    });
-  }
 
   function handleSave() {
     if (!task) return;
@@ -511,27 +484,7 @@ function EditTask({ open, onOpenChange, taskId }: EditProps) {
           )}
           {hasQuestions && (
             <TabsContent value="questions">
-              <div className="flex flex-col gap-4 py-2">
-                {(taskQuestions ?? []).map((q) => (
-                  <QuestionCard
-                    key={q.id}
-                    question={q}
-                    answer={questionAnswers[q.id] ?? ''}
-                    onAnswer={(value) =>
-                      setQuestionAnswers((prev) => ({ ...prev, [q.id]: value }))
-                    }
-                  />
-                ))}
-                <div className="flex justify-end">
-                  <Button
-                    size="sm"
-                    disabled={!allQuestionsAnswered || submitQuestionAnswers.isPending}
-                    onClick={handleSubmitQuestions}
-                  >
-                    {submitQuestionAnswers.isPending ? 'Submitting...' : 'Submit All'}
-                  </Button>
-                </div>
-              </div>
+              <QuestionAnswerPanel questions={taskQuestions ?? []} />
             </TabsContent>
           )}
         </Tabs>

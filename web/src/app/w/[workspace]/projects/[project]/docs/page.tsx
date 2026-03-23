@@ -12,7 +12,7 @@ import { EngyThreadStore } from '@/components/editor/document-editor';
 import { RiFileTextLine } from '@remixicon/react';
 import { ThreePanelLayout } from '@/components/layout/three-panel-layout';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useOnFileChange } from '@/contexts/file-change-context';
+import { useOnFileChange } from '@/contexts/events-context';
 
 const SIDEBAR_CONFIG = {
   defaultWidth: 256,

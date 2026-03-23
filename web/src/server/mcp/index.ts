@@ -18,6 +18,7 @@ import {
 } from '../db/schema';
 import { validateDependencies, attachBlockedBy } from '../tasks/validation';
 import { getWorkspaceDir } from '../engy-dir/init';
+import { broadcastTaskChange, broadcastQuestionChange } from '../ws/broadcast';
 
 // ── MCP Response Helpers ──────────────────────────────────────────
 
@@ -375,6 +376,7 @@ function registerTaskTools(mcp: McpServer): void {
         return t;
       });
 
+      broadcastTaskChange('created', task.id, task.projectId ?? undefined);
       return mcpResult({ id: task.id });
     },
   );
@@ -431,6 +433,7 @@ function registerTaskTools(mcp: McpServer): void {
       });
       if (!result) return mcpError('Task not found');
 
+      broadcastTaskChange('updated', id, result.projectId ?? undefined);
       return mcpResult({ success: true });
     },
   );
@@ -484,6 +487,7 @@ function registerTaskTools(mcp: McpServer): void {
       const db = getDb();
       const deleted = db.delete(tasks).where(eq(tasks.id, id)).returning().get();
       if (!deleted) return mcpError('Task not found');
+      broadcastTaskChange('deleted', id, deleted.projectId ?? undefined);
       return mcpResult({ success: true });
     },
   );
@@ -683,6 +687,7 @@ function registerQuestionTools(mcp: McpServer): void {
         return questionIds;
       });
 
+      broadcastQuestionChange('created', taskId, sessionId);
       return mcpResult({ status: 'blocked', questionIds: result });
     },
   );

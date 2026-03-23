@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { EisenhowerMatrix } from "@/components/projects/task-views/eisenhower-matrix";
-import { useOnFileChange } from "@/contexts/file-change-context";
+import { useOnFileChange } from "@/contexts/events-context";
 import { TaskDialog } from "@/components/projects/task-dialog";
 import { Button } from "@/components/ui/button";
 import { RiAddLine } from "@remixicon/react";

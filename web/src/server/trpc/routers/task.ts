@@ -5,6 +5,7 @@ import { router, publicProcedure } from '../trpc';
 import { getDb } from '../../db/client';
 import { tasks, taskDependencies } from '../../db/schema';
 import { validateDependencies, attachBlockedBy } from '../../tasks/validation';
+import { broadcastTaskChange } from '../../ws/broadcast';
 
 const subStatusEnum = z.enum(['planning', 'implementing', 'blocked', 'failed']);
 
@@ -50,6 +51,7 @@ export const taskRouter = router({
             .run();
         }
 
+        broadcastTaskChange('created', newTask.id, newTask.projectId ?? undefined);
         return { ...newTask, blockedBy: dedupedBlockedBy };
       });
     }),
@@ -136,6 +138,7 @@ export const taskRouter = router({
           throw new TRPCError({ code: 'NOT_FOUND', message: 'Task not found' });
         }
 
+        broadcastTaskChange('updated', result.id, result.projectId ?? undefined);
         return attachBlockedBy([result])[0];
       });
     }),
@@ -150,7 +153,9 @@ export const taskRouter = router({
 
   delete: publicProcedure.input(z.object({ id: z.number() })).mutation(({ input }) => {
     const db = getDb();
+    const task = db.select().from(tasks).where(eq(tasks.id, input.id)).get();
     db.delete(tasks).where(eq(tasks.id, input.id)).run();
+    broadcastTaskChange('deleted', input.id, task?.projectId ?? undefined);
     return { success: true };
   }),
 });

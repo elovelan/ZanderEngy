@@ -8,7 +8,7 @@ import { ViewToggle, type TaskView } from "@/components/projects/task-views/view
 import { DependencyGraph } from "@/components/projects/task-views/dependency-graph";
 import { KanbanBoard } from "@/components/projects/task-views/kanban-board";
 import { EisenhowerMatrix } from "@/components/projects/task-views/eisenhower-matrix";
-import { useOnFileChange } from "@/contexts/file-change-context";
+import { useOnFileChange } from "@/contexts/events-context";
 import { TaskDialog } from "@/components/projects/task-dialog";
 import { TaskGroupForm } from "@/components/projects/task-group-form";
 import {

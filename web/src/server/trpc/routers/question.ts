@@ -6,6 +6,7 @@ import { router, publicProcedure } from '../trpc';
 import { getDb } from '../../db/client';
 import { questions, tasks, agentSessions } from '../../db/schema';
 import { dispatchExecutionStart } from '../../ws/server';
+import { broadcastQuestionChange } from '../../ws/broadcast';
 
 export const questionRouter = router({
   list: publicProcedure
@@ -178,6 +179,7 @@ export const questionRouter = router({
         ]);
       }
 
+      broadcastQuestionChange('answered', firstQuestion.taskId ?? undefined, firstQuestion.sessionId);
       return { success: true };
     }),
 

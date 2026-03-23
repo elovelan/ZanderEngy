@@ -1,18 +1,13 @@
 'use client';
 
-import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
-import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { QuestionCard, type QuestionOption } from '@/components/questions/question-card';
-import { toast } from 'sonner';
+import { QuestionAnswerPanel } from '@/components/questions/question-answer-panel';
 
 interface QuestionDialogProps {
   open: boolean;
@@ -20,73 +15,13 @@ interface QuestionDialogProps {
   taskId: number;
 }
 
-interface QuestionRow {
-  id: number;
-  taskId: number | null;
-  sessionId: string;
-  documentPath: string | null;
-  question: string;
-  header: string;
-  options: QuestionOption[] | null;
-  multiSelect: boolean | null;
-  answer: string | null;
-  createdAt: string;
-  answeredAt: string | null;
-}
-
 export function QuestionDialog({ open, onOpenChange, taskId }: QuestionDialogProps) {
   const { data: questions } = trpc.question.list.useQuery(
     { taskId, unanswered: true },
     { enabled: open },
   );
-  const utils = trpc.useUtils();
-  const submitAnswers = trpc.question.submitAnswers.useMutation({
-    onSuccess: () => {
-      utils.question.list.invalidate();
-      utils.question.unansweredCount.invalidate();
-      utils.question.unansweredByTask.invalidate();
-      utils.task.get.invalidate();
-      utils.task.list.invalidate();
-      onOpenChange(false);
-    },
-    onError: (err) => toast.error(err.message),
-  });
 
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-
-  const questionList = (questions ?? []) as QuestionRow[];
-
-  const allAnswered =
-    questionList.length > 0 && questionList.every((q) => !!answers[q.id]?.trim());
-
-  function handleSubmit() {
-    if (!allAnswered) return;
-    submitAnswers.mutate({
-      answers: questionList.map((q) => ({
-        questionId: q.id,
-        answer: answers[q.id],
-      })),
-    });
-  }
-
-  function setAnswer(questionId: number, value: string) {
-    setAnswers((prev) => ({ ...prev, [questionId]: value }));
-  }
-
-  if (questionList.length === 0) {
-    return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Questions</DialogTitle>
-          </DialogHeader>
-          <p className="py-4 text-xs text-muted-foreground">No unanswered questions.</p>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  const defaultTab = questionList[0].id.toString();
+  const questionList = questions ?? [];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -94,40 +29,10 @@ export function QuestionDialog({ open, onOpenChange, taskId }: QuestionDialogPro
         <DialogHeader>
           <DialogTitle>Questions</DialogTitle>
         </DialogHeader>
-
-        <Tabs defaultValue={defaultTab}>
-          <TabsList variant="line">
-            {questionList.map((q) => (
-              <TabsTrigger key={q.id} value={q.id.toString()}>
-                {q.header}
-                {!answers[q.id]?.trim() && (
-                  <span className="ml-1 size-1.5 rounded-full bg-amber-400" />
-                )}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          {questionList.map((q) => (
-            <TabsContent key={q.id} value={q.id.toString()}>
-              <QuestionCard
-                question={q}
-                answer={answers[q.id] ?? ''}
-                onAnswer={(value) => setAnswer(q.id, value)}
-                showHeader={false}
-              />
-            </TabsContent>
-          ))}
-        </Tabs>
-
-        <DialogFooter>
-          <Button
-            size="sm"
-            disabled={!allAnswered || submitAnswers.isPending}
-            onClick={handleSubmit}
-          >
-            {submitAnswers.isPending ? 'Submitting...' : 'Submit All'}
-          </Button>
-        </DialogFooter>
+        <QuestionAnswerPanel
+          questions={questionList}
+          onSubmitted={() => onOpenChange(false)}
+        />
       </DialogContent>
     </Dialog>
   );
