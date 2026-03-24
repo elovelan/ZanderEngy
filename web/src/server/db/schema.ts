@@ -10,6 +10,13 @@ export interface ContainerConfig {
   idleTimeout?: number;
 }
 
+export type { ExecutionBackend } from '@engy/common';
+
+export interface CoderConfig {
+  workspace: string;
+  repoBasePath: string;
+}
+
 export const workspaces = sqliteTable('workspaces', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   name: text('name').notNull(),
@@ -20,6 +27,8 @@ export const workspaces = sqliteTable('workspaces', {
   implementSkill: text('implement_skill'),
   containerEnabled: integer('container_enabled', { mode: 'boolean' }).default(false),
   containerConfig: text('container_config', { mode: 'json' }).$type<ContainerConfig>(),
+  executionBackend: text('execution_backend', { enum: ['devcontainer', 'coder'] }).default('devcontainer'),
+  coderConfig: text('coder_config', { mode: 'json' }).$type<CoderConfig>(),
   maxConcurrency: integer('max_concurrency').default(1),
   autoStart: integer('auto_start', { mode: 'boolean' }).default(false),
   createdAt: text('created_at')

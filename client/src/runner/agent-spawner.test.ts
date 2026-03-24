@@ -38,6 +38,10 @@ function createMockContainerManager() {
   return { exec: vi.fn() };
 }
 
+function createMockCoderManager() {
+  return { exec: vi.fn(), up: vi.fn(), down: vi.fn(), status: vi.fn() };
+}
+
 const HOST_CONFIG: SpawnConfig = {
   sessionId: 'test-session',
   prompt: 'Do something',
@@ -64,11 +68,13 @@ function expectSpawnResult(result: SpawnResult) {
 describe('AgentSpawner', () => {
   let spawner: InstanceType<typeof AgentSpawner>;
   let containerManager: ReturnType<typeof createMockContainerManager>;
+  let coderManager: ReturnType<typeof createMockCoderManager>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     containerManager = createMockContainerManager();
-    spawner = new AgentSpawner(containerManager as never);
+    coderManager = createMockCoderManager();
+    spawner = new AgentSpawner(containerManager as never, coderManager as never);
   });
 
   describe('TASK_COMPLETION_SCHEMA', () => {
@@ -187,6 +193,25 @@ describe('AgentSpawner', () => {
       expect(spawnArgs[spawnArgs.indexOf('--output-format') + 1]).toBe('json');
     });
 
+    it('should NOT add --add-dir for workingDir since it is used as cwd', async () => {
+      const proc = createMockProcess();
+      mockSpawn.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        sessionId: 'test-session',
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        workingDir: '/workspace/worktree',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const spawnArgs = mockSpawn.mock.calls[0][1] as string[];
+      expect(spawnArgs).not.toContain('--add-dir');
+    });
+
     it('should pass additional flags', async () => {
       const proc = createMockProcess();
       mockSpawn.mockReturnValue(proc);
@@ -294,6 +319,28 @@ describe('AgentSpawner', () => {
       );
     });
 
+    it('should add --add-dir for workingDir since cwd is containerWorkspaceFolder', async () => {
+      const proc = createMockProcess();
+      containerManager.exec.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        sessionId: 'test-session',
+        prompt: 'Do something',
+        flags: [],
+        containerMode: true,
+        containerWorkspaceFolder: '/docs',
+        workingDir: '/repos/frontend/.claude/worktrees/session-abc',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const execArgs = containerManager.exec.mock.calls[0][2] as string[];
+      const addDirIndex = execArgs.indexOf('--add-dir');
+      expect(addDirIndex).toBeGreaterThan(-1);
+      expect(execArgs[addDirIndex + 1]).toBe('/repos/frontend/.claude/worktrees/session-abc');
+    });
+
     it('should throw when containerWorkspaceFolder is missing in container mode', async () => {
       await expect(
         spawner.spawn({
@@ -304,6 +351,75 @@ describe('AgentSpawner', () => {
           workingDir: '/workspace',
         }),
       ).rejects.toThrow('containerWorkspaceFolder is required when containerMode is true');
+    });
+  });
+
+  describe('coder mode', () => {
+    it('should spawn via coderManager.exec', async () => {
+      const proc = createMockProcess();
+      coderManager.exec.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        sessionId: 'test-session',
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        coderWorkspace: 'my-workspace',
+        workingDir: '/home/coder/dev/repo/.claude/worktrees/session-abc',
+        serverPort: 3000,
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      expect(coderManager.exec).toHaveBeenCalledWith(
+        'my-workspace',
+        'claude',
+        expect.arrayContaining(['--dangerously-skip-permissions']),
+        undefined,
+        3000,
+      );
+      expect(mockSpawn).not.toHaveBeenCalled();
+    });
+
+    it('should include --add-dir for workingDir in coder mode', async () => {
+      const proc = createMockProcess();
+      coderManager.exec.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        sessionId: 'test-session',
+        prompt: 'Do something',
+        flags: [],
+        containerMode: false,
+        coderWorkspace: 'my-workspace',
+        workingDir: '/home/coder/dev/repo/.claude/worktrees/session-abc',
+      });
+
+      proc.emit('close', 0);
+      await promise;
+
+      const execArgs = coderManager.exec.mock.calls[0][2] as string[];
+      expect(execArgs).toContain('--add-dir');
+      expect(execArgs).toContain('/home/coder/dev/repo/.claude/worktrees/session-abc');
+    });
+
+    it('should not require containerWorkspaceFolder when coderWorkspace is set', async () => {
+      const proc = createMockProcess();
+      coderManager.exec.mockReturnValue(proc);
+
+      const promise = spawner.spawn({
+        sessionId: 'test-session',
+        prompt: 'Do something',
+        flags: [],
+        containerMode: true,
+        coderWorkspace: 'my-workspace',
+        workingDir: '/workspace',
+      });
+
+      proc.emit('close', 0);
+      const result = await promise;
+
+      expect(result.exitCode).toBe(0);
     });
   });
 

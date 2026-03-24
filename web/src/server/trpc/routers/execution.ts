@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { z } from 'zod';
+
+const execFileAsync = promisify(execFile);
 import { eq, desc, and, inArray } from 'drizzle-orm';
 import { TRPCError } from '@trpc/server';
 import type { ExecutionStartConfig } from '@engy/common';
@@ -98,6 +102,54 @@ function findSessionFile(sessionId: string): string | null {
   return null;
 }
 
+async function findSessionFileViaCoder(
+  sessionId: string,
+  coderWorkspace: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('coder', [
+      'ssh', coderWorkspace, '--',
+      'bash', '-c', `find ~/.claude/projects -name '${sessionId}.jsonl' -print -quit`,
+    ]);
+    const filePath = stdout.trim();
+    return filePath || null;
+  } catch {
+    return null;
+  }
+}
+
+async function readSessionFileViaCoder(
+  filePath: string,
+  coderWorkspace: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('coder', [
+      'ssh', coderWorkspace, '--', 'cat', filePath,
+    ]);
+    return stdout;
+  } catch {
+    return null;
+  }
+}
+
+function resolveCoderWorkspaceForSession(sessionId: string): string | null {
+  const db = getDb();
+  const session = db.select().from(agentSessions).where(eq(agentSessions.sessionId, sessionId)).get();
+  if (!session?.taskId) return null;
+
+  const task = db.select().from(tasks).where(eq(tasks.id, session.taskId)).get();
+  if (!task?.projectId) return null;
+
+  const project = db.select().from(projects).where(eq(projects.id, task.projectId)).get();
+  if (!project) return null;
+
+  const workspace = db.select().from(workspaces).where(eq(workspaces.id, project.workspaceId)).get();
+  if (workspace?.executionBackend !== 'coder') return null;
+
+  const coderCfg = workspace.coderConfig as { workspace: string } | null;
+  return coderCfg?.workspace ?? null;
+}
+
 // ── Router ───────────────────────────────────────────────────────────
 
 export const executionRouter = router({
@@ -124,11 +176,15 @@ export const executionRouter = router({
         containerEnabled: boolean | null;
         docsDir: string | null;
         containerConfig: unknown;
+        executionBackend: string | null;
+        coderConfig: unknown;
       } = {
         slug: '',
         containerEnabled: null,
         docsDir: null,
         containerConfig: null,
+        executionBackend: null,
+        coderConfig: null,
       };
 
       if (input.scope === 'task') {
@@ -254,24 +310,32 @@ export const executionRouter = router({
       if (systemPrompt) flags.push('--append-system-prompt', systemPrompt);
       for (const dir of additionalDirs) flags.push('--add-dir', dir);
 
+      const isCoder = workspace.executionBackend === 'coder';
+      const coderCfg = workspace.coderConfig as { workspace: string; repoBasePath: string } | null;
+
       const config: ExecutionStartConfig = {
         repoPath: repos[0] ?? '',
         containerMode: (workspace.containerEnabled as boolean) ?? false,
-        containerWorkspaceFolder: workspace.containerEnabled
+        containerWorkspaceFolder: !isCoder && workspace.containerEnabled
           ? (workspace.docsDir ?? undefined)
           : undefined,
+        executionBackend: isCoder ? 'coder' : 'devcontainer',
+        coderWorkspace: isCoder ? coderCfg?.workspace : undefined,
+        coderRepoBasePath: isCoder ? coderCfg?.repoBasePath : undefined,
       };
 
-      // Start container if needed (same as terminal flow)
+      // Start container/workspace if needed (same as terminal flow)
       if (config.containerMode && workspace.docsDir) {
-        console.log(`[execution] Starting container for workspace=${workspace.slug}`);
+        console.log(`[execution] Starting ${isCoder ? 'Coder workspace' : 'container'} for workspace=${workspace.slug}`);
         await dispatchContainerUp(
           ctx.state,
           workspace.docsDir,
           repos,
           (workspace.containerConfig as Record<string, unknown>) ?? undefined,
+          isCoder ? 'coder' : 'devcontainer',
+          coderCfg?.workspace,
         );
-        console.log(`[execution] Container ready`);
+        console.log(`[execution] ${isCoder ? 'Workspace' : 'Container'} ready`);
       }
 
       console.log(
@@ -412,33 +476,41 @@ export const executionRouter = router({
       return { sessionId: newSessionId };
     }),
 
-  // NOTE: This reads from the server's local filesystem (~/.claude/projects/).
-  // It only works when server and daemon are co-located (same machine).
-  // Acceptable for M6 (single-user, local setup) but should be addressed
-  // in a future milestone for remote server deployments.
+  // Reads from local filesystem first, falls back to Coder SSH for remote sessions.
   getSessionFile: publicProcedure
     .input(z.object({ sessionId: z.string().min(1) }))
-    .query(({ input }) => {
-      const sessionFilePath = findSessionFile(input.sessionId);
+    .query(async ({ input }) => {
+      const parseEntries = (content: string) =>
+        content
+          .split('\n')
+          .filter((line) => line.trim() !== '')
+          .map((line) => {
+            try {
+              return JSON.parse(line) as Record<string, unknown>;
+            } catch {
+              return null;
+            }
+          })
+          .filter((entry): entry is Record<string, unknown> => entry !== null);
 
-      if (!sessionFilePath) {
-        return { entries: [] };
+      // Try local first
+      const sessionFilePath = findSessionFile(input.sessionId);
+      if (sessionFilePath) {
+        const content = fs.readFileSync(sessionFilePath, 'utf-8');
+        return { entries: parseEntries(content) };
       }
 
-      const content = fs.readFileSync(sessionFilePath, 'utf-8');
-      const entries = content
-        .split('\n')
-        .filter((line) => line.trim() !== '')
-        .map((line) => {
-          try {
-            return JSON.parse(line) as Record<string, unknown>;
-          } catch {
-            return null;
-          }
-        })
-        .filter((entry): entry is Record<string, unknown> => entry !== null);
+      // Fallback: try Coder SSH if session is linked to a Coder workspace
+      const coderWorkspace = resolveCoderWorkspaceForSession(input.sessionId);
+      if (coderWorkspace) {
+        const remotePath = await findSessionFileViaCoder(input.sessionId, coderWorkspace);
+        if (remotePath) {
+          const content = await readSessionFileViaCoder(remotePath, coderWorkspace);
+          if (content) return { entries: parseEntries(content) };
+        }
+      }
 
-      return { entries };
+      return { entries: [] };
     }),
 
   getActiveSessions: publicProcedure

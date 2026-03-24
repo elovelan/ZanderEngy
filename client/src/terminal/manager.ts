@@ -13,6 +13,8 @@ interface SpawnOptions {
   rows: number;
   command?: string;
   containerWorkspaceFolder?: string;
+  coderWorkspace?: string;
+  serverPort?: number;
 }
 
 export class TerminalManager {
@@ -34,7 +36,8 @@ export class TerminalManager {
     const { sessionId, workingDir, cols, rows, command, containerWorkspaceFolder } = opts;
 
     // SECURITY: Never allow --dangerously-skip-permissions on host
-    if (!containerWorkspaceFolder && command && DANGEROUS_FLAG_RE.test(command)) {
+    const isIsolated = !!containerWorkspaceFolder || !!opts.coderWorkspace;
+    if (!isIsolated && command && DANGEROUS_FLAG_RE.test(command)) {
       console.error(
         `[terminal] SECURITY: Blocked --dangerously-skip-permissions on host for session ${sessionId}`,
       );
@@ -47,7 +50,9 @@ export class TerminalManager {
     );
     console.log(`[terminal] Active sessions: [${this.sessions.all().map((s) => s.sessionId).join(', ')}]`);
 
-    if (containerWorkspaceFolder) {
+    if (opts.coderWorkspace) {
+      this.spawnInCoder(opts);
+    } else if (containerWorkspaceFolder) {
       this.spawnInContainer(opts);
     } else {
       this.spawnLocal(opts);
@@ -64,6 +69,23 @@ export class TerminalManager {
       '-c',
       `cd '${workingDir.replace(/'/g, "'\\''")}' && exec /bin/bash`,
     ]);
+  }
+
+  private spawnInCoder(opts: SpawnOptions): void {
+    const { workingDir, command, coderWorkspace: workspace = '', serverPort } = opts;
+    const sshArgs: string[] = ['ssh', '--no-wait'];
+    if (serverPort) {
+      sshArgs.push('-R', `${serverPort}:localhost:${serverPort}`);
+    }
+    const escapedDir = workingDir.replace(/'/g, "'\\''");
+    // Pass the command directly in the shell invocation so it runs after cd,
+    // avoiding timing issues with SSH startup output triggering initialCommandSent too early
+    const shellCmd = command
+      ? `cd '${escapedDir}' && ${command}; exec /bin/bash`
+      : `cd '${escapedDir}' && exec /bin/bash`;
+    sshArgs.push(workspace, '--', '/bin/bash', '-c', shellCmd);
+    // Clear command so spawnPty doesn't try to inject it via initialCommandSent
+    this.spawnPty({ ...opts, command: undefined }, 'coder', sshArgs);
   }
 
   private spawnLocal(opts: SpawnOptions): void {

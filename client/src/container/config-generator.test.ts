@@ -230,6 +230,12 @@ describe('config-generator', () => {
       expect(content).toContain('COPY init-firewall.sh /usr/local/bin/');
       expect(content).toContain('chmod +x /usr/local/bin/init-firewall.sh');
     });
+
+    it('should include sudo chown permission for node user', () => {
+      const content = dockerfileContent();
+
+      expect(content).toContain('NOPASSWD: /usr/local/bin/init-firewall.sh, /usr/bin/chown');
+    });
   });
 
   describe('firewallScriptContent', () => {

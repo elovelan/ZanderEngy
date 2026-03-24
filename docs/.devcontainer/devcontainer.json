@@ -19,12 +19,16 @@
   "mounts": [
     "source=${localWorkspaceFolder}/..,target=${localWorkspaceFolder}/..,type=bind",
     "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind",
-    "source=${localEnv:HOME}/.claude.json,target=/tmp/host-claude.json,type=bind,readonly"
+    "source=${localEnv:HOME}/.claude.json,target=/tmp/host-claude.json,type=bind,readonly",
+    "source=engy-root-node_modules,target=${localWorkspaceFolder}/../node_modules,type=volume",
+    "source=engy-web-node_modules,target=${localWorkspaceFolder}/../web/node_modules,type=volume",
+    "source=engy-client-node_modules,target=${localWorkspaceFolder}/../client/node_modules,type=volume",
+    "source=engy-common-node_modules,target=${localWorkspaceFolder}/../common/node_modules,type=volume"
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
     "DEVCONTAINER": "true"
   },
-  "postStartCommand": "cat /tmp/host-claude.json | sed 's|localhost|host.docker.internal|g' > /home/node/.claude.json && sudo /usr/local/bin/init-firewall.sh",
+  "postStartCommand": "sudo chown node:node ../node_modules ../web/node_modules ../client/node_modules ../common/node_modules 2>/dev/null || true && cat /tmp/host-claude.json | sed 's|localhost|host.docker.internal|g' > /home/node/.claude.json && sudo /usr/local/bin/init-firewall.sh",
   "waitFor": "postStartCommand"
 }

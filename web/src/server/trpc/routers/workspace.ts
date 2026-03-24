@@ -26,6 +26,15 @@ const containerConfigSchema = z
   })
   .optional();
 
+const executionBackendSchema = z.enum(['devcontainer', 'coder']).optional();
+
+const coderConfigSchema = z
+  .object({
+    workspace: z.string().min(1),
+    repoBasePath: z.string().min(1),
+  })
+  .optional();
+
 const DEFAULT_PLAN_SKILL = '/engy:plan';
 const DEFAULT_IMPLEMENT_SKILL = '/engy:implement';
 
@@ -59,6 +68,8 @@ export const workspaceRouter = router({
         implementSkill: z.string().optional(),
         containerEnabled: z.boolean().optional(),
         containerConfig: containerConfigSchema,
+        executionBackend: executionBackendSchema,
+        coderConfig: coderConfigSchema,
         maxConcurrency: z.number().min(1).optional(),
         autoStart: z.boolean().optional(),
       }),
@@ -103,6 +114,8 @@ export const workspaceRouter = router({
           implementSkill: input.implementSkill || DEFAULT_IMPLEMENT_SKILL,
           containerEnabled: input.containerEnabled,
           containerConfig: input.containerConfig,
+          executionBackend: input.executionBackend,
+          coderConfig: input.coderConfig,
           maxConcurrency: input.maxConcurrency,
           autoStart: input.autoStart,
         })
@@ -166,6 +179,8 @@ export const workspaceRouter = router({
         implementSkill: z.string().nullable().optional(),
         containerEnabled: z.boolean().nullable().optional(),
         containerConfig: containerConfigSchema.nullable().optional(),
+        executionBackend: executionBackendSchema.nullable().optional(),
+        coderConfig: coderConfigSchema.nullable().optional(),
         maxConcurrency: z.number().min(1).nullable().optional(),
         autoStart: z.boolean().nullable().optional(),
       }),
@@ -190,6 +205,10 @@ export const workspaceRouter = router({
         input.maxConcurrency !== undefined ? input.maxConcurrency : existing.maxConcurrency;
       const newAutoStart =
         input.autoStart !== undefined ? input.autoStart : existing.autoStart;
+      const newExecutionBackend =
+        input.executionBackend !== undefined ? input.executionBackend : existing.executionBackend;
+      const newCoderConfig =
+        input.coderConfig !== undefined ? input.coderConfig : existing.coderConfig;
       const newName = input.name ?? existing.name;
       const newSlug = input.slug ?? existing.slug;
 
@@ -243,6 +262,8 @@ export const workspaceRouter = router({
           implementSkill: newImplementSkill,
           containerEnabled: newContainerEnabled,
           containerConfig: newContainerConfig,
+          executionBackend: newExecutionBackend,
+          coderConfig: newCoderConfig,
           maxConcurrency: newMaxConcurrency,
           autoStart: newAutoStart,
         })

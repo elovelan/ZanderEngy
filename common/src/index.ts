@@ -27,6 +27,7 @@ export type {
   ContainerStatusRequestMessage,
   ContainerStatusResponseMessage,
   ContainerProgressEventMessage,
+  ExecutionBackend,
   ExecutionStartConfig,
   ExecutionStartRequestMessage,
   ExecutionStartResponseMessage,

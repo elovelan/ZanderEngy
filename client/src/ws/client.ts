@@ -23,6 +23,7 @@ import type {
 } from '@engy/common';
 import { getStatusDetailed, getDiff, getLog, getShow, getBranchFiles } from '../git/index.js';
 import { ContainerManager } from '../container/manager.js';
+import { CoderManager } from '../container/coder-manager.js';
 import { generateDevcontainerConfig } from '../container/config-generator.js';
 import type { TerminalManager } from '../terminal/manager.js';
 import { Runner } from '../runner/index.js';
@@ -192,6 +193,7 @@ export class WsClient {
   private ws: WebSocket | null = null;
   private terminalWs: WebSocket | null = null;
   private containerManager = new ContainerManager();
+  private coderManager = new CoderManager();
   private attempt = 0;
   private terminalAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -202,6 +204,7 @@ export class WsClient {
   private readonly wsUrl: string;
   private readonly terminalRelayUrl: string;
   private readonly serverUrl: string;
+  private readonly serverPort: number;
   private readonly onWorkspacesSync?: (message: WorkspacesSyncMessage) => void;
   private readonly terminalManager?: TerminalManager;
   private readonly runner: Runner;
@@ -210,9 +213,12 @@ export class WsClient {
     this.wsUrl = deriveWsUrl(options.serverUrl);
     this.terminalRelayUrl = deriveTerminalRelayUrl(options.serverUrl);
     this.serverUrl = options.serverUrl;
+    this.serverPort = new URL(options.serverUrl).port
+      ? parseInt(new URL(options.serverUrl).port, 10)
+      : 3000;
     this.onWorkspacesSync = options.onWorkspacesSync;
     this.terminalManager = options.terminalManager;
-    const spawner = new AgentSpawner(this.containerManager);
+    const spawner = new AgentSpawner(this.containerManager, this.coderManager);
     this.runner = options.runner ?? new Runner(spawner, (msg) => this.send(msg));
   }
 
@@ -459,6 +465,8 @@ export class WsClient {
           rows: msg.rows,
           command: msg.command,
           containerWorkspaceFolder: msg.containerWorkspaceFolder,
+          coderWorkspace: msg.coderWorkspace,
+          serverPort: msg.serverPort,
         });
         break;
       case 'i':
@@ -577,23 +585,37 @@ export class WsClient {
   }
 
   private async handleContainerUpRequest(message: ContainerUpRequestMessage): Promise<void> {
-    const { requestId, workspaceFolder, repos, config } = message.payload;
+    const { requestId, workspaceFolder, repos, config, executionBackend, coderWorkspace } =
+      message.payload;
     try {
-      await generateDevcontainerConfig({
-        docsDir: workspaceFolder,
-        repos: repos ?? [],
-        containerConfig: config,
-      });
-      const result = await this.containerManager.up(workspaceFolder, (line) => {
-        this.send({
-          type: 'CONTAINER_PROGRESS_EVENT',
-          payload: { requestId, line },
+      if (executionBackend === 'coder' && coderWorkspace) {
+        await this.coderManager.up(coderWorkspace, (line) => {
+          this.send({
+            type: 'CONTAINER_PROGRESS_EVENT',
+            payload: { requestId, line },
+          });
         });
-      });
-      this.send({
-        type: 'CONTAINER_UP_RESPONSE',
-        payload: { requestId, containerId: result.containerId },
-      });
+        this.send({
+          type: 'CONTAINER_UP_RESPONSE',
+          payload: { requestId, containerId: coderWorkspace },
+        });
+      } else {
+        await generateDevcontainerConfig({
+          docsDir: workspaceFolder,
+          repos: repos ?? [],
+          containerConfig: config,
+        });
+        const result = await this.containerManager.up(workspaceFolder, (line) => {
+          this.send({
+            type: 'CONTAINER_PROGRESS_EVENT',
+            payload: { requestId, line },
+          });
+        });
+        this.send({
+          type: 'CONTAINER_UP_RESPONSE',
+          payload: { requestId, containerId: result.containerId },
+        });
+      }
     } catch (err) {
       this.send({
         type: 'CONTAINER_UP_RESPONSE',
@@ -648,7 +670,10 @@ export class WsClient {
         repoPath: config?.repoPath ?? '',
         containerMode: config?.containerMode ?? false,
         containerWorkspaceFolder: config?.containerWorkspaceFolder,
+        coderWorkspace: config?.coderWorkspace,
+        coderRepoBasePath: config?.coderRepoBasePath,
         serverUrl: this.serverUrl,
+        serverPort: this.serverPort,
         env: config?.env,
       };
 

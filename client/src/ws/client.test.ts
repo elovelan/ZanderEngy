@@ -598,13 +598,13 @@ describe('WsClient execution handlers', () => {
       'test-session-1',
       'Fix the bug',
       ['--verbose'],
-      {
+      expect.objectContaining({
         repoPath: '/tmp/repo',
         containerMode: false,
         containerWorkspaceFolder: undefined,
         serverUrl: `http://localhost:${port}`,
         env: undefined,
-      },
+      }),
     );
   });
 
@@ -778,13 +778,13 @@ describe('WsClient execution handlers', () => {
       'test-session-minimal',
       'Simple task',
       [],
-      {
+      expect.objectContaining({
         repoPath: '',
         containerMode: false,
         containerWorkspaceFolder: undefined,
         serverUrl: `http://localhost:${port}`,
         env: undefined,
-      },
+      }),
     );
   });
 });

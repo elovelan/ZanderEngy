@@ -25,7 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContainerSettings, type ContainerSettingsData } from '@/components/workspace/container-settings';
-import type { ContainerConfig } from '@/server/db/schema';
+import type { ContainerConfig, CoderConfig, ExecutionBackend } from '@/server/db/schema';
 
 interface EditWorkspaceDialogProps {
   workspace: {
@@ -38,6 +38,8 @@ interface EditWorkspaceDialogProps {
     implementSkill: string | null;
     containerEnabled: boolean | null;
     containerConfig: ContainerConfig | null;
+    executionBackend: ExecutionBackend | null;
+    coderConfig: CoderConfig | null;
     maxConcurrency: number | null;
     autoStart: boolean | null;
   };
@@ -70,6 +72,8 @@ export function EditWorkspaceDialog({
   const containerDataRef = useRef<ContainerSettingsData>({
     containerEnabled: workspace.containerEnabled ?? false,
     containerConfig: workspace.containerConfig ?? {},
+    executionBackend: workspace.executionBackend ?? 'devcontainer',
+    coderConfig: workspace.coderConfig ?? undefined,
     maxConcurrency: workspace.maxConcurrency ?? 1,
     autoStart: workspace.autoStart ?? false,
   });
@@ -123,6 +127,8 @@ export function EditWorkspaceDialog({
       implementSkill: implementSkill.trim() || null,
       containerEnabled: container.containerEnabled,
       containerConfig: container.containerConfig,
+      executionBackend: container.executionBackend,
+      coderConfig: container.coderConfig,
       maxConcurrency: container.maxConcurrency,
       autoStart: container.autoStart,
     });
@@ -157,6 +163,8 @@ export function EditWorkspaceDialog({
       containerDataRef.current = {
         containerEnabled: workspace.containerEnabled ?? false,
         containerConfig: workspace.containerConfig ?? {},
+        executionBackend: workspace.executionBackend ?? 'devcontainer',
+        coderConfig: workspace.coderConfig ?? undefined,
         maxConcurrency: workspace.maxConcurrency ?? 1,
         autoStart: workspace.autoStart ?? false,
       };
@@ -278,6 +286,8 @@ export function EditWorkspaceDialog({
                 initialData={{
                   containerEnabled: workspace.containerEnabled ?? false,
                   containerConfig: workspace.containerConfig ?? {},
+                  executionBackend: workspace.executionBackend ?? 'devcontainer',
+                  coderConfig: workspace.coderConfig ?? undefined,
                   maxConcurrency: workspace.maxConcurrency ?? 1,
                   autoStart: workspace.autoStart ?? false,
                 }}

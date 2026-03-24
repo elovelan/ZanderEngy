@@ -184,6 +184,8 @@ export interface ContainerUpRequestMessage {
       envVars?: Record<string, string>;
       idleTimeout?: number;
     };
+    executionBackend?: ExecutionBackend;
+    coderWorkspace?: string;
   };
 }
 
@@ -234,10 +236,15 @@ export interface ContainerProgressEventMessage {
 
 // ── Execution operations (server ↔ daemon) ──────────────────────────────────
 
+export type ExecutionBackend = 'devcontainer' | 'coder';
+
 export interface ExecutionStartConfig {
   repoPath: string;
   containerMode: boolean;
   containerWorkspaceFolder?: string;
+  executionBackend?: ExecutionBackend;
+  coderWorkspace?: string;
+  coderRepoBasePath?: string;
   env?: Record<string, string>;
 }
 
@@ -373,6 +380,8 @@ export interface TerminalSpawnCmd {
   scopeType: string;
   scopeLabel: string;
   containerWorkspaceFolder?: string;
+  coderWorkspace?: string;
+  serverPort?: number;
 }
 
 export interface TerminalInputCmd {

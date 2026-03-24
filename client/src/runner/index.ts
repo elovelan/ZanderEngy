@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { simpleGit } from 'simple-git';
 import type {
   ClientToServerMessage,
@@ -10,13 +12,18 @@ import type { SpawnConfig, SpawnResult } from './agent-spawner.js';
 
 export type { SpawnConfig, SpawnResult };
 
+const execFileAsync = promisify(execFile);
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 interface RunnerConfig {
   repoPath: string;
   containerMode: boolean;
   containerWorkspaceFolder?: string;
+  coderWorkspace?: string;
+  coderRepoBasePath?: string;
   serverUrl?: string;
+  serverPort?: number;
   env?: Record<string, string>;
 }
 
@@ -60,15 +67,29 @@ export class Runner {
   ): Promise<void> {
     const shortId = generateShortId();
     const branchName = `engy/session-${shortId}`;
-    const worktreePath = join(config.repoPath, WORKTREE_DIR, `engy-session-${shortId}`);
+    let worktreePath: string;
 
     console.log(
-      `[runner] Starting session=${sessionId} repo=${config.repoPath} container=${config.containerMode}`,
+      `[runner] Starting session=${sessionId} repo=${config.repoPath} container=${config.containerMode} coder=${config.coderWorkspace ?? 'none'}`,
     );
-    console.log(`[runner] Creating worktree: ${worktreePath} branch=${branchName}`);
 
-    const git = simpleGit(config.repoPath);
-    await git.raw(['worktree', 'add', worktreePath, '-b', branchName, 'main']);
+    if (config.coderWorkspace && config.coderRepoBasePath) {
+      // Coder mode: create worktree remotely
+      const repoName = basename(config.repoPath);
+      const remoteRepoPath = `${config.coderRepoBasePath}/${repoName}`;
+      worktreePath = `${remoteRepoPath}/${WORKTREE_DIR}/engy-session-${shortId}`;
+      console.log(`[runner] Creating remote worktree via coder ssh: ${worktreePath} branch=${branchName}`);
+      await execFileAsync('coder', [
+        'ssh', config.coderWorkspace, '--',
+        'git', '-C', remoteRepoPath, 'worktree', 'add', worktreePath, '-b', branchName, 'main',
+      ]);
+    } else {
+      // Local mode: create worktree locally
+      worktreePath = join(config.repoPath, WORKTREE_DIR, `engy-session-${shortId}`);
+      console.log(`[runner] Creating worktree: ${worktreePath} branch=${branchName}`);
+      const git = simpleGit(config.repoPath);
+      await git.raw(['worktree', 'add', worktreePath, '-b', branchName, 'main']);
+    }
     console.log(`[runner] Worktree created`);
 
     this.currentWorktreePath = worktreePath;
@@ -86,7 +107,10 @@ export class Runner {
         workingDir: worktreePath,
         containerMode: config.containerMode,
         containerWorkspaceFolder: config.containerWorkspaceFolder,
+        coderWorkspace: config.coderWorkspace,
+        coderRepoBasePath: config.coderRepoBasePath,
         serverUrl: config.serverUrl,
+        serverPort: config.serverPort,
         env: config.env,
       })
       .then((result) => {
@@ -145,7 +169,10 @@ export class Runner {
       workingDir: worktreePath,
       containerMode: this.currentConfig?.containerMode ?? false,
       containerWorkspaceFolder: this.currentConfig?.containerWorkspaceFolder,
+      coderWorkspace: this.currentConfig?.coderWorkspace,
+      coderRepoBasePath: this.currentConfig?.coderRepoBasePath,
       serverUrl: this.currentConfig?.serverUrl,
+      serverPort: this.currentConfig?.serverPort,
       env: this.currentConfig?.env,
     });
 

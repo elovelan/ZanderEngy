@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import type { ContainerManager } from '../container/manager.js';
+import type { CoderManager } from '../container/coder-manager.js';
 
 export interface SpawnConfig {
   sessionId: string;
@@ -8,8 +9,11 @@ export interface SpawnConfig {
   resumeSessionId?: string;
   containerMode: boolean;
   containerWorkspaceFolder?: string;
+  coderWorkspace?: string;
+  coderRepoBasePath?: string;
   workingDir: string;
   serverUrl?: string;
+  serverPort?: number;
   env?: Record<string, string>;
   timeoutMs?: number;
 }
@@ -36,7 +40,10 @@ const KILL_GRACE_MS = 5000;
 export class AgentSpawner {
   private currentProcess: ChildProcess | null = null;
 
-  constructor(private containerManager: ContainerManager) {}
+  constructor(
+    private containerManager: ContainerManager,
+    private coderManager?: CoderManager,
+  ) {}
 
   async spawn(config: SpawnConfig): Promise<SpawnResult> {
     this.validateConfig(config);
@@ -78,19 +85,21 @@ export class AgentSpawner {
   }
 
   private validateConfig(config: SpawnConfig): void {
-    if (!config.containerMode && config.flags.includes('--dangerously-skip-permissions')) {
+    const isIsolated = config.containerMode || !!config.coderWorkspace;
+    if (!isIsolated && config.flags.includes('--dangerously-skip-permissions')) {
       throw new Error('--dangerously-skip-permissions can only be used inside a container');
     }
 
-    if (config.containerMode && !config.containerWorkspaceFolder) {
+    if (config.containerMode && !config.containerWorkspaceFolder && !config.coderWorkspace) {
       throw new Error('containerWorkspaceFolder is required when containerMode is true');
     }
   }
 
   private buildArgs(config: SpawnConfig, sessionId: string): string[] {
     const args = ['-p', '--output-format', 'json'];
+    const isIsolated = config.containerMode || !!config.coderWorkspace;
 
-    if (config.containerMode) {
+    if (isIsolated) {
       args.push('--dangerously-skip-permissions');
     } else {
       args.push('--permission-mode', 'acceptEdits');
@@ -106,9 +115,9 @@ export class AgentSpawner {
 
     args.push(...config.flags.filter((f) => f !== '--dangerously-skip-permissions'));
 
-    // In container mode, workingDir isn't used as cwd (cwd = containerWorkspaceFolder),
+    // In container/coder mode, workingDir isn't used as cwd,
     // so add it as --add-dir so Claude can access the worktree
-    if (config.containerMode && config.workingDir) {
+    if (isIsolated && config.workingDir) {
       args.push('--add-dir', config.workingDir);
     }
 
@@ -129,6 +138,16 @@ export class AgentSpawner {
   }
 
   private spawnProcess(config: SpawnConfig, args: string[]): ChildProcess {
+    if (config.coderWorkspace && this.coderManager) {
+      return this.coderManager.exec(
+        config.coderWorkspace,
+        'claude',
+        args,
+        config.env,
+        config.serverPort,
+      );
+    }
+
     if (config.containerMode) {
       return this.containerManager.exec(
         config.containerWorkspaceFolder!,

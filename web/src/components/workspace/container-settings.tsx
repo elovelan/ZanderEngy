@@ -5,11 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import type { ContainerConfig } from '@/server/db/schema';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import type { ContainerConfig, CoderConfig, ExecutionBackend } from '@/server/db/schema';
 
 export interface ContainerSettingsData {
   containerEnabled: boolean;
   containerConfig: ContainerConfig;
+  executionBackend: ExecutionBackend;
+  coderConfig?: CoderConfig;
   maxConcurrency: number;
   autoStart: boolean;
 }
@@ -54,32 +63,46 @@ function linesToEnvVars(text: string): Record<string, string> | undefined {
 
 export function ContainerSettings({ initialData, onChange }: ContainerSettingsProps) {
   const [containerEnabled, setContainerEnabled] = useState(initialData.containerEnabled);
+  const [executionBackend, setExecutionBackend] = useState<ExecutionBackend>(
+    initialData.executionBackend ?? 'devcontainer',
+  );
   const [autoStart, setAutoStart] = useState(initialData.autoStart);
   const [maxConcurrency, setMaxConcurrency] = useState(initialData.maxConcurrency);
   const [idleTimeout, setIdleTimeout] = useState(initialData.containerConfig?.idleTimeout ?? 30);
   const [domains, setDomains] = useState(listToLines(initialData.containerConfig?.allowedDomains));
   const [packages, setPackages] = useState(listToLines(initialData.containerConfig?.extraPackages));
   const [envVars, setEnvVars] = useState(envVarsToLines(initialData.containerConfig?.envVars));
+  const [coderWorkspace, setCoderWorkspace] = useState(initialData.coderConfig?.workspace ?? '');
+  const [coderRepoBasePath, setCoderRepoBasePath] = useState(
+    initialData.coderConfig?.repoBasePath ?? '~/dev/',
+  );
 
   function emit(overrides: Partial<{
     containerEnabled: boolean;
+    executionBackend: ExecutionBackend;
     autoStart: boolean;
     maxConcurrency: number;
     idleTimeout: number;
     domains: string;
     packages: string;
     envVars: string;
+    coderWorkspace: string;
+    coderRepoBasePath: string;
   }>) {
     const enabled = overrides.containerEnabled ?? containerEnabled;
+    const backend = overrides.executionBackend ?? executionBackend;
     const start = overrides.autoStart ?? autoStart;
     const concurrency = overrides.maxConcurrency ?? maxConcurrency;
     const timeout = overrides.idleTimeout ?? idleTimeout;
     const doms = overrides.domains ?? domains;
     const pkgs = overrides.packages ?? packages;
     const vars = overrides.envVars ?? envVars;
+    const cdrWorkspace = overrides.coderWorkspace ?? coderWorkspace;
+    const cdrBasePath = overrides.coderRepoBasePath ?? coderRepoBasePath;
 
     onChange({
       containerEnabled: enabled,
+      executionBackend: backend,
       autoStart: start,
       maxConcurrency: concurrency,
       containerConfig: {
@@ -88,6 +111,7 @@ export function ContainerSettings({ initialData, onChange }: ContainerSettingsPr
         envVars: linesToEnvVars(vars),
         idleTimeout: timeout,
       },
+      coderConfig: cdrWorkspace ? { workspace: cdrWorkspace, repoBasePath: cdrBasePath } : undefined,
     });
   }
 
@@ -104,6 +128,60 @@ export function ContainerSettings({ initialData, onChange }: ContainerSettingsPr
           }}
         />
       </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="execution-backend">Execution backend</Label>
+        <Select
+          value={executionBackend}
+          onValueChange={(value: ExecutionBackend) => {
+            setExecutionBackend(value);
+            emit({ executionBackend: value });
+          }}
+        >
+          <SelectTrigger id="execution-backend">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="devcontainer">Dev Container</SelectItem>
+            <SelectItem value="coder">Coder</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {executionBackend === 'coder' && (
+        <>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="coder-workspace">Coder workspace</Label>
+            <Input
+              id="coder-workspace"
+              className="font-mono"
+              value={coderWorkspace}
+              onChange={(e) => {
+                setCoderWorkspace(e.target.value);
+                emit({ coderWorkspace: e.target.value });
+              }}
+              placeholder="my-workspace"
+            />
+            <p className="text-xs text-muted-foreground">Name from <code>coder list</code></p>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="coder-repo-base-path">Repo base path</Label>
+            <Input
+              id="coder-repo-base-path"
+              className="font-mono"
+              value={coderRepoBasePath}
+              onChange={(e) => {
+                setCoderRepoBasePath(e.target.value);
+                emit({ coderRepoBasePath: e.target.value });
+              }}
+              placeholder="~/dev/"
+            />
+            <p className="text-xs text-muted-foreground">
+              Where repos are located inside the Coder workspace
+            </p>
+          </div>
+        </>
+      )}
 
       <div className="flex items-center justify-between">
         <Label htmlFor="container-auto-start">Auto start</Label>
@@ -149,38 +227,6 @@ export function ContainerSettings({ initialData, onChange }: ContainerSettingsPr
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="container-domains">Allowed domains</Label>
-        <Textarea
-          id="container-domains"
-          className="font-mono"
-          rows={3}
-          placeholder={'example.com\napi.custom.io'}
-          value={domains}
-          onChange={(e) => {
-            setDomains(e.target.value);
-            emit({ domains: e.target.value });
-          }}
-        />
-        <p className="text-xs text-muted-foreground">One domain per line</p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="container-packages">Extra packages</Label>
-        <Textarea
-          id="container-packages"
-          className="font-mono"
-          rows={3}
-          placeholder={'python3\ncurl'}
-          value={packages}
-          onChange={(e) => {
-            setPackages(e.target.value);
-            emit({ packages: e.target.value });
-          }}
-        />
-        <p className="text-xs text-muted-foreground">One apt package per line</p>
-      </div>
-
-      <div className="flex flex-col gap-2">
         <Label htmlFor="container-envvars">Environment variables</Label>
         <Textarea
           id="container-envvars"
@@ -195,6 +241,42 @@ export function ContainerSettings({ initialData, onChange }: ContainerSettingsPr
         />
         <p className="text-xs text-muted-foreground">KEY=value, one per line</p>
       </div>
+
+      {executionBackend === 'devcontainer' && (
+        <>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="container-domains">Allowed domains</Label>
+            <Textarea
+              id="container-domains"
+              className="font-mono"
+              rows={3}
+              placeholder={'example.com\napi.custom.io'}
+              value={domains}
+              onChange={(e) => {
+                setDomains(e.target.value);
+                emit({ domains: e.target.value });
+              }}
+            />
+            <p className="text-xs text-muted-foreground">One domain per line</p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="container-packages">Extra packages</Label>
+            <Textarea
+              id="container-packages"
+              className="font-mono"
+              rows={3}
+              placeholder={'python3\ncurl'}
+              value={packages}
+              onChange={(e) => {
+                setPackages(e.target.value);
+                emit({ packages: e.target.value });
+              }}
+            />
+            <p className="text-xs text-muted-foreground">One apt package per line</p>
+          </div>
+        </>
+      )}
     </div>
   );
 }

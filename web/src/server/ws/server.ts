@@ -552,13 +552,15 @@ export function dispatchContainerUp(
   workspaceFolder: string,
   repos?: string[],
   config?: ContainerUpRequestMessage['payload']['config'],
+  executionBackend?: 'devcontainer' | 'coder',
+  coderWorkspace?: string,
   requestId?: string,
 ): Promise<ContainerUpResult> {
   return dispatchDaemonOp(
     state,
     state.pendingContainerUp,
     'CONTAINER_UP_REQUEST',
-    { workspaceFolder, repos, config },
+    { workspaceFolder, repos, config, executionBackend, coderWorkspace },
     CONTAINER_TIMEOUT_MS,
     requestId,
   );

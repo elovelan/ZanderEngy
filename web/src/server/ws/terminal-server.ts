@@ -95,8 +95,19 @@ async function maybeStartContainer(
 
   if (!workspace?.containerEnabled || !workspace.docsDir) return true;
 
-  spawnCmd.containerWorkspaceFolder = workspace.docsDir;
-  sendTerminalOutput(ws, sessionId, 'Starting dev container...\r\n');
+  const isCoder = workspace.executionBackend === 'coder';
+  const coderCfg = workspace.coderConfig as { workspace: string; repoBasePath: string } | null;
+
+  if (isCoder && coderCfg?.workspace) {
+    spawnCmd.coderWorkspace = coderCfg.workspace;
+    // Derive server port for reverse forwarding
+    spawnCmd.serverPort = parseInt(process.env.PORT ?? '3000', 10);
+  } else {
+    spawnCmd.containerWorkspaceFolder = workspace.docsDir;
+  }
+
+  const label = isCoder ? 'Coder workspace' : 'dev container';
+  sendTerminalOutput(ws, sessionId, `Starting ${label}...\r\n`);
 
   const requestId = randomUUID();
   state.containerProgressListeners.set(requestId, (line) => {
@@ -109,9 +120,11 @@ async function maybeStartContainer(
       workspace.docsDir,
       Array.isArray(workspace.repos) ? workspace.repos : [],
       workspace.containerConfig ?? undefined,
+      isCoder ? 'coder' : 'devcontainer',
+      coderCfg?.workspace,
       requestId,
     );
-    sendTerminalOutput(ws, sessionId, '\x1b[32mContainer ready.\x1b[0m\r\n');
+    sendTerminalOutput(ws, sessionId, `\x1b[32m${isCoder ? 'Workspace' : 'Container'} ready.\x1b[0m\r\n`);
     return true;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -323,14 +336,22 @@ export function createTerminalRelayWebSocketServer(state: AppState): WebSocketSe
                   scopeType: meta.scopeType,
                   scopeLabel: meta.scopeLabel,
                 };
-                // Restore containerWorkspaceFolder for container-mode sessions
+                // Restore container/coder config for isolated sessions
                 if (meta.containerMode === 'container' && meta.workspaceSlug) {
                   try {
                     const db = getDb();
                     const workspace = db.select().from(workspaces)
                       .where(eq(workspaces.slug, meta.workspaceSlug)).get();
                     if (workspace?.containerEnabled && workspace.docsDir) {
-                      spawnCmd.containerWorkspaceFolder = workspace.docsDir;
+                      if (workspace.executionBackend === 'coder') {
+                        const coderCfg = workspace.coderConfig as { workspace: string } | null;
+                        if (coderCfg?.workspace) {
+                          spawnCmd.coderWorkspace = coderCfg.workspace;
+                          spawnCmd.serverPort = parseInt(process.env.PORT ?? '3000', 10);
+                        }
+                      } else {
+                        spawnCmd.containerWorkspaceFolder = workspace.docsDir;
+                      }
                     }
                   } catch {
                     // DB unavailable — spawn on host as fallback
