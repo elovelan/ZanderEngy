@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
 
@@ -24,24 +23,6 @@ export function ProjectCard({
 }) {
   const pct =
     project.taskCount > 0 ? Math.round((project.completedTasks / project.taskCount) * 100) : 0;
-
-  if (project.isDefault) {
-    const activeTasks = project.taskCount - project.completedTasks;
-    return (
-      <Link
-        href={`/w/${workspaceSlug}/tasks`}
-        className="flex flex-col gap-2 border border-border p-4 transition-colors hover:bg-muted/50"
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium">Default Project</span>
-          <Badge variant="secondary" className="text-[10px]">
-            {activeTasks} active task{activeTasks !== 1 ? "s" : ""}
-          </Badge>
-        </div>
-        <span className="text-xs text-primary">View Tasks</span>
-      </Link>
-    );
-  }
 
   return (
     <Link
