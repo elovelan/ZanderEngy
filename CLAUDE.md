@@ -58,13 +58,7 @@ These are non-negotiable and must be verified before committing:
 3. If UI changes, test using playwright-cli. Check `playwright-cli --help` for available commands.
 
 ### Validation Setup
-1. Run `pnpm install` to ensure all dependencies are up to date
-2. Check what port `.dev.env` is set to (default 4000)
-3. Check if any other process is using that port (`lsof -i :4000` on Mac/Linux)
-4. If port is in use, pass `PORT` and `ENGY_SERVER_URL` environment variables to `pnpm blt` with an available port, e.g.:
-```bash
-PORT=4001 ENGY_SERVER_URL=http://localhost:4001 pnpm blt
-```
+Run `pnpm install` to ensure all dependencies are up to date, then run `pnpm blt`. Tests use in-memory SQLite directly — no server or port needed.
 
 ## Formatting
 
