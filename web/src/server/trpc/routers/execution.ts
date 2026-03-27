@@ -90,14 +90,22 @@ function buildPromptForMilestone(
   return { prompt, systemPrompt };
 }
 
-function findSessionFile(sessionId: string): string | null {
+async function findSessionFile(sessionId: string): Promise<string | null> {
   const projectsDir = path.join(os.homedir(), '.claude', 'projects');
-  if (!fs.existsSync(projectsDir)) return null;
-
-  const filename = `${sessionId}.jsonl`;
-  for (const dir of fs.readdirSync(projectsDir)) {
-    const candidate = path.join(projectsDir, dir, filename);
-    if (fs.existsSync(candidate)) return candidate;
+  try {
+    const dirs = await fs.promises.readdir(projectsDir);
+    const filename = `${sessionId}.jsonl`;
+    for (const dir of dirs) {
+      const candidate = path.join(projectsDir, dir, filename);
+      try {
+        await fs.promises.access(candidate);
+        return candidate;
+      } catch {
+        // file doesn't exist, continue
+      }
+    }
+  } catch {
+    // projectsDir doesn't exist
   }
   return null;
 }
@@ -169,6 +177,7 @@ export const executionRouter = router({
       let additionalDirs: string[] = [];
       let worktreePath: string | null = null;
       let taskId: number | null = null;
+      let previousTaskStatus: string | null = null;
       let taskGroupId: number | null = null;
       let repos: string[] = [];
       let workspace: {
@@ -193,6 +202,7 @@ export const executionRouter = router({
         additionalDirs = resolved.dirs.additionalDirs;
         worktreePath = resolved.dirs.workingDir ?? null;
         taskId = resolved.task.id;
+        previousTaskStatus = resolved.task.status;
         taskGroupId = resolved.task.taskGroupId;
         repos = resolved.repos;
         workspace = resolved.workspace;
@@ -324,24 +334,47 @@ export const executionRouter = router({
         coderRepoBasePath: isCoder ? coderCfg?.repoBasePath : undefined,
       };
 
-      // Start container/workspace if needed (same as terminal flow)
-      if (config.containerMode && workspace.docsDir) {
-        console.log(`[execution] Starting ${isCoder ? 'Coder workspace' : 'container'} for workspace=${workspace.slug}`);
-        await dispatchContainerUp(
-          ctx.state,
-          workspace.docsDir,
-          repos,
-          (workspace.containerConfig as Record<string, unknown>) ?? undefined,
-          isCoder ? 'coder' : 'devcontainer',
-          coderCfg?.workspace,
-        );
-        console.log(`[execution] ${isCoder ? 'Workspace' : 'Container'} ready`);
-      }
+      try {
+        // Start container/workspace if needed (same as terminal flow)
+        if (config.containerMode && workspace.docsDir) {
+          console.log(`[execution] Starting ${isCoder ? 'Coder workspace' : 'container'} for workspace=${workspace.slug}`);
+          await dispatchContainerUp(
+            ctx.state,
+            workspace.docsDir,
+            repos,
+            (workspace.containerConfig as Record<string, unknown>) ?? undefined,
+            isCoder ? 'coder' : 'devcontainer',
+            coderCfg?.workspace,
+          );
+          console.log(`[execution] ${isCoder ? 'Workspace' : 'Container'} ready`);
+        }
 
-      console.log(
-        `[execution] Dispatching: session=${sessionId} repo=${config.repoPath} container=${config.containerMode} flags=${flags.length} prompt=${prompt.length}chars`,
-      );
-      await dispatchExecutionStart(ctx.state, sessionId, prompt, flags, config);
+        console.log(
+          `[execution] Dispatching: session=${sessionId} repo=${config.repoPath} container=${config.containerMode} flags=${flags.length} prompt=${prompt.length}chars`,
+        );
+        await dispatchExecutionStart(ctx.state, sessionId, prompt, flags, config);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const now = new Date().toISOString();
+        db.update(agentSessions)
+          .set({ status: 'stopped', completionSummary: errorMessage, updatedAt: now })
+          .where(eq(agentSessions.sessionId, sessionId))
+          .run();
+        if (taskId) {
+          db.update(tasks)
+            .set({
+              status: (previousTaskStatus ?? 'todo') as typeof tasks.$inferInsert.status,
+              subStatus: 'failed' as typeof tasks.$inferInsert.subStatus,
+              updatedAt: now,
+            })
+            .where(eq(tasks.id, taskId))
+            .run();
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to start execution: ${errorMessage}`,
+        });
+      }
 
       return { sessionId };
     }),
@@ -395,7 +428,29 @@ export const executionRouter = router({
 
       const flags: string[] = ['--resume', input.sessionId];
 
-      await dispatchExecutionStart(ctx.state, newSessionId, '', flags);
+      try {
+        await dispatchExecutionStart(ctx.state, newSessionId, '', flags);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const now = new Date().toISOString();
+        db.update(agentSessions)
+          .set({ status: 'stopped', completionSummary: errorMessage, updatedAt: now })
+          .where(eq(agentSessions.sessionId, newSessionId))
+          .run();
+        if (original.taskId) {
+          db.update(tasks)
+            .set({
+              subStatus: 'failed' as typeof tasks.$inferInsert.subStatus,
+              updatedAt: now,
+            })
+            .where(eq(tasks.id, original.taskId))
+            .run();
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `Failed to retry execution: ${errorMessage}`,
+        });
+      }
 
       return { sessionId: newSessionId };
     }),
@@ -494,9 +549,9 @@ export const executionRouter = router({
           .filter((entry): entry is Record<string, unknown> => entry !== null);
 
       // Try local first
-      const sessionFilePath = findSessionFile(input.sessionId);
+      const sessionFilePath = await findSessionFile(input.sessionId);
       if (sessionFilePath) {
-        const content = fs.readFileSync(sessionFilePath, 'utf-8');
+        const content = await fs.promises.readFile(sessionFilePath, 'utf-8');
         return { entries: parseEntries(content) };
       }
 
@@ -561,8 +616,8 @@ export const executionRouter = router({
           .get();
 
         return session
-          ? { status: session.status, sessionId: session.sessionId }
-          : { status: null, sessionId: null };
+          ? { status: session.status, sessionId: session.sessionId, completionSummary: session.completionSummary ?? null }
+          : { status: null, sessionId: null, completionSummary: null };
       }
 
       if (input.scope === 'taskGroup') {
@@ -577,8 +632,8 @@ export const executionRouter = router({
           .get();
 
         return session
-          ? { status: session.status, sessionId: session.sessionId }
-          : { status: null, sessionId: null };
+          ? { status: session.status, sessionId: session.sessionId, completionSummary: session.completionSummary ?? null }
+          : { status: null, sessionId: null, completionSummary: null };
       }
 
       // milestone scope — find tasks in the milestone, then find sessions for those tasks
@@ -591,7 +646,7 @@ export const executionRouter = router({
       const taskIds = milestoneTasks.map((t) => t.id);
 
       if (taskIds.length === 0) {
-        return { status: null, sessionId: null };
+        return { status: null, sessionId: null, completionSummary: null };
       }
 
       const session = db
@@ -607,8 +662,8 @@ export const executionRouter = router({
         .get();
 
       return session
-        ? { status: session.status, sessionId: session.sessionId }
-        : { status: null, sessionId: null };
+        ? { status: session.status, sessionId: session.sessionId, completionSummary: session.completionSummary ?? null }
+        : { status: null, sessionId: null, completionSummary: null };
     }),
 
   getWorktreeSessions: publicProcedure

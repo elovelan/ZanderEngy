@@ -98,7 +98,7 @@ describe('CoderManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'coder',
-        ['ssh', 'my-workspace', '--', 'claude', '-p', '--output-format', 'json'],
+        ['ssh', '--no-wait', 'my-workspace', '--', 'claude', '-p', '--output-format', 'json'],
         { stdio: ['pipe', 'pipe', 'pipe'] },
       );
     });
@@ -111,7 +111,7 @@ describe('CoderManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'coder',
-        ['ssh', '-R', '3000:localhost:3000', 'my-workspace', '--', 'claude', '-p'],
+        ['ssh', '--no-wait', '-R', '3000:localhost:3000', 'my-workspace', '--', 'claude', '-p'],
         { stdio: ['pipe', 'pipe', 'pipe'] },
       );
     });
@@ -139,7 +139,7 @@ describe('CoderManager', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'coder',
-        ['ssh', '-R', '4000:localhost:4000', '-e', 'KEY=val', 'my-workspace', '--', 'bash'],
+        ['ssh', '--no-wait', '-R', '4000:localhost:4000', '-e', 'KEY=val', 'my-workspace', '--', 'bash'],
         { stdio: ['pipe', 'pipe', 'pipe'] },
       );
     });

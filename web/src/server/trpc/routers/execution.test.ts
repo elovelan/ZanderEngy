@@ -6,7 +6,7 @@ import { WebSocket } from 'ws';
 import { appRouter } from '../root';
 import { setupTestDb, type TestContext } from '../test-helpers';
 import { getDb } from '../../db/client';
-import { agentSessions } from '../../db/schema';
+import { agentSessions, tasks } from '../../db/schema';
 import { eq } from 'drizzle-orm';
 
 vi.mock('node:os', async () => {
@@ -47,6 +47,24 @@ function createMockDaemon(ctx: TestContext) {
   };
   ctx.state.daemon = mock as unknown as WebSocket;
   return { sent };
+}
+
+function createFailingDaemon(ctx: TestContext, errorMessage: string) {
+  const mock = {
+    readyState: WebSocket.OPEN,
+    OPEN: WebSocket.OPEN,
+    send: (data: string) => {
+      const msg = JSON.parse(data);
+      if (msg.type === 'EXECUTION_START_REQUEST') {
+        const pending = ctx.state.pendingExecutionStart.get(msg.payload.requestId);
+        if (pending) {
+          ctx.state.pendingExecutionStart.delete(msg.payload.requestId);
+          pending.reject(new Error(errorMessage));
+        }
+      }
+    },
+  };
+  ctx.state.daemon = mock as unknown as WebSocket;
 }
 
 async function seedProject(caller: ReturnType<typeof appRouter.createCaller>) {
@@ -106,6 +124,29 @@ describe('execution router', () => {
       expect(msg.payload.flags).toContain('--append-system-prompt');
       const flagIndex = (msg.payload.flags as string[]).indexOf('--append-system-prompt');
       expect((msg.payload.flags as string[])[flagIndex + 1]).toContain('Workspace: exec-ws');
+    });
+
+    it('should clean up session and task on dispatch failure', async () => {
+      const { proj } = await seedProject(caller);
+      const task = await caller.task.create({ projectId: proj.id, title: 'Failing task' });
+      createFailingDaemon(ctx, 'Command failed: coder ssh');
+
+      await expect(
+        caller.execution.startExecution({ scope: 'task', id: task.id }),
+      ).rejects.toThrow('Failed to start execution: Command failed: coder ssh');
+
+      const db = getDb();
+
+      // Session should be marked stopped with error in completionSummary
+      const sessions = db.select().from(agentSessions).all();
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].status).toBe('stopped');
+      expect(sessions[0].completionSummary).toBe('Command failed: coder ssh');
+
+      // Task should have subStatus 'failed' and status reverted to 'todo'
+      const updatedTask = db.select().from(tasks).where(eq(tasks.id, task.id)).get();
+      expect(updatedTask!.status).toBe('todo');
+      expect(updatedTask!.subStatus).toBe('failed');
     });
 
     it('should throw when task not found', async () => {
@@ -252,12 +293,61 @@ describe('execution router', () => {
       expect(msg.payload.flags).toEqual(['--resume', original.sessionId]);
     });
 
+    it('should clean up new session on dispatch failure', async () => {
+      const { proj } = await seedProject(caller);
+      const task = await caller.task.create({ projectId: proj.id, title: 'Retry fail task' });
+      createMockDaemon(ctx);
+
+      const original = await caller.execution.startExecution({ scope: 'task', id: task.id });
+      await caller.execution.stopExecution({ sessionId: original.sessionId });
+
+      createFailingDaemon(ctx, 'Daemon crashed');
+
+      await expect(
+        caller.execution.retryExecution({ sessionId: original.sessionId }),
+      ).rejects.toThrow('Failed to retry execution: Daemon crashed');
+
+      const db = getDb();
+      const sessions = db.select().from(agentSessions).all();
+      const newSession = sessions.find((s) => s.sessionId !== original.sessionId);
+      expect(newSession).toBeDefined();
+      expect(newSession!.status).toBe('stopped');
+      expect(newSession!.completionSummary).toBe('Daemon crashed');
+
+      // Task should have subStatus 'failed'
+      const updatedTask = db.select().from(tasks).where(eq(tasks.id, task.id)).get();
+      expect(updatedTask!.subStatus).toBe('failed');
+    });
+
     it('should throw when session not found', async () => {
       createMockDaemon(ctx);
 
       await expect(
         caller.execution.retryExecution({ sessionId: 'abc-123' }),
       ).rejects.toThrow('Session not found');
+    });
+  });
+
+  describe('getSessionStatus', () => {
+    it('should include completionSummary for failed sessions', async () => {
+      const { proj } = await seedProject(caller);
+      const task = await caller.task.create({ projectId: proj.id, title: 'Status task' });
+      createFailingDaemon(ctx, 'Worktree creation failed');
+
+      await expect(
+        caller.execution.startExecution({ scope: 'task', id: task.id }),
+      ).rejects.toThrow();
+
+      const result = await caller.execution.getSessionStatus({ scope: 'task', id: task.id });
+      expect(result.status).toBe('stopped');
+      expect(result.completionSummary).toBe('Worktree creation failed');
+    });
+
+    it('should return null completionSummary when no session exists', async () => {
+      const result = await caller.execution.getSessionStatus({ scope: 'task', id: 9999 });
+      expect(result.status).toBeNull();
+      expect(result.sessionId).toBeNull();
+      expect(result.completionSummary).toBeNull();
     });
   });
 

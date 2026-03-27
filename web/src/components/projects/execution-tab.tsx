@@ -15,6 +15,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { toast } from 'sonner';
 import { trpc } from '@/lib/trpc';
 import { cn } from '@/lib/utils';
 
@@ -44,6 +45,7 @@ interface ExecutionTabProps {
   taskId: number;
   sessionId: string;
   status: string | null;
+  completionSummary?: string | null;
 }
 
 // ── Polling interval ──────────────────────────────────────────────────
@@ -52,7 +54,7 @@ const POLL_INTERVAL_MS = 3_000;
 
 // ── Component ─────────────────────────────────────────────────────────
 
-export function ExecutionTab({ taskId, sessionId, status }: ExecutionTabProps) {
+export function ExecutionTab({ taskId, sessionId, status, completionSummary }: ExecutionTabProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const isActive = status === 'active';
@@ -66,6 +68,10 @@ export function ExecutionTab({ taskId, sessionId, status }: ExecutionTabProps) {
 
   const retryMutation = trpc.execution.retryExecution.useMutation({
     onSuccess: () => {
+      utils.execution.getSessionStatus.invalidate({ scope: 'task', id: taskId });
+    },
+    onError: (err) => {
+      toast.error('Failed to retry execution', { description: err.message });
       utils.execution.getSessionStatus.invalidate({ scope: 'task', id: taskId });
     },
   });
@@ -91,6 +97,7 @@ export function ExecutionTab({ taskId, sessionId, status }: ExecutionTabProps) {
   }
 
   const isFailed = status === 'stopped' || status === 'failed';
+  const failedToStart = isFailed && entries.length === 0 && !!completionSummary;
 
   return (
     <div className="flex flex-col gap-2">
@@ -109,7 +116,7 @@ export function ExecutionTab({ taskId, sessionId, status }: ExecutionTabProps) {
             Stop
           </Button>
         )}
-        {isFailed && (
+        {isFailed && !failedToStart && (
           <Button
             variant="outline"
             size="sm"
@@ -140,6 +147,16 @@ export function ExecutionTab({ taskId, sessionId, status }: ExecutionTabProps) {
                   <RiLoader4Line className="mr-2 size-4 animate-spin" />
                   Waiting for output...
                 </>
+              ) : completionSummary ? (
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <div className="flex items-center gap-2 text-destructive">
+                    <RiErrorWarningLine className="size-4" />
+                    <span className="text-sm font-medium">Execution failed to start</span>
+                  </div>
+                  <pre className="max-w-md whitespace-pre-wrap break-words text-xs">
+                    {completionSummary}
+                  </pre>
+                </div>
               ) : (
                 'No session entries'
               )}
@@ -153,6 +170,14 @@ export function ExecutionTab({ taskId, sessionId, status }: ExecutionTabProps) {
                 <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
                   <RiLoader4Line className="size-3 animate-spin" />
                   Agent is working...
+                </div>
+              )}
+              {isFailed && completionSummary && (
+                <div className="flex items-center gap-2 border-l-2 border-destructive/40 px-3 py-2">
+                  <RiErrorWarningLine className="size-3 shrink-0 text-destructive" />
+                  <pre className="whitespace-pre-wrap break-words text-xs text-destructive">
+                    {completionSummary}
+                  </pre>
                 </div>
               )}
             </div>
